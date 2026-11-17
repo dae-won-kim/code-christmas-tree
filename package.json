@@ -4,7 +4,9 @@
   "description": "개발용 도구(E2E 테스트)만 담습니다. 웹 앱 자체는 빌드 도구 없이 web/ 폴더를 그대로 배포합니다.",
   "scripts": {
     "serve": "python scripts/serve.py",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "check:mermaid": "node scripts/check-mermaid.cjs",
+    "check:live": "node scripts/live-check.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"

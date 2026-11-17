@@ -8,6 +8,7 @@
 정적 프론트엔드(GitHub Pages)와 Supabase(DB+Storage+Auth 이메일 OTP, 무료 플랜)로 구성되고, 서버 코드는 없습니다.
 
 ## 먼저 읽을 문서
+0. `docs/HANDOFF.md` — **이전 세션의 인수인계**: 결정 이유, 운영자가 원하는 작업 방식, 남은 일, 환경 메모
 1. `docs/ROADMAP.md` — **현재 상태와 다음 할 일** (작업 시작 전에 반드시 확인)
 2. `docs/ARCHITECTURE.md` — 구조, 인증·업로드 흐름, 보안 결정의 이유
 3. `docs/DATABASE.md` — 테이블·RPC 명세, 오류 코드, 새 RPC 추가 체크리스트
@@ -30,6 +31,8 @@ supabase/
 tests/e2e/           Playwright E2E (window.supabase mock: mock-supabase.js)
 scripts/test-db.sh   DB 테스트 실행기
 scripts/serve.py     로컬 개발 서버 (MIME 고정, config.js 없으면 데모 모드)
+scripts/check-mermaid.cjs  문서 Mermaid 그림 렌더링 확인 (npm run check:mermaid)
+scripts/live-check.cjs     배포 후 실제 사이트·DB 점검 (npm run check:live, LIVE_CHECK_PIN 필요 · 운영 DB에 씀)
 .github/workflows/   pages.yml(배포), db-test.yml·e2e.yml(CI)
 docs/                설계 문서
 ```
