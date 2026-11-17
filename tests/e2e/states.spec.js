@@ -147,7 +147,7 @@ test('한글 IME: 조합 중에는 검증 메시지가 깜빡이지 않음', asy
   // 한 글자는 입력 중에는 알리지 않고, 칸을 벗어날 때 알림
   await page.locator('#inName').fill('김');
   await expect(msg).toBeEmpty();
-  await page.locator('#inBirth').focus();
+  await page.locator('#inPin').focus();
   await expect(msg).toHaveText('이름은 2자 이상이에요.');
 
   // 조합 중 Enter(확정)로는 제출하지 않음
@@ -156,22 +156,22 @@ test('한글 IME: 조합 중에는 검증 메시지가 깜빡이지 않음', asy
     i.value = '김민';
     i.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }));
   });
-  await page.locator('#inBirth').fill('990101');
-  await page.locator('#inPassword').fill('Tree#2026');
+  await page.locator('#inPin').fill('2580');
+  await page.locator('#inEmail').fill('minsu@example.com');
   await page.evaluate(() => document.getElementById('loginCard').requestSubmit());
   await page.waitForTimeout(300);
   expect((await mockDb(page)).log).toEqual([]);
 });
 
 test('속도 제한: 서버 오류 메시지를 그대로 표시', async ({ page }) => {
-  const attempts = Array.from({ length: 10 }, () => ({ key: '김민수:990101', at: Date.now() }));
+  const attempts = Array.from({ length: 10 }, () => ({ key: '김민수:minsu@example.com', at: Date.now() }));
   await serverMode(page, { seed: seedDb({ attempts }) });
   await page.goto('/');
   await page.locator('#inName').fill('김민수');
-  await page.locator('#inBirth').fill('990101');
-  await page.locator('#inPassword').fill('Tree#2026');
+  await page.locator('#inPin').fill('2580');
+  await page.locator('#inEmail').fill('minsu@example.com');
   await page.locator('#btnEnter').click();
-  await expect(page.locator('#loginError')).toHaveText('시도가 너무 많아요. 15분 뒤에 다시 시도해 주세요.');
+  await expect(page.locator('#loginError')).toHaveText('시도가 너무 많아요. 잠시 뒤에 다시 시도하거나, PIN을 잊었다면 이메일로 복구해 주세요.');
   await shot(page, '12-login-rate-limited');
 });
 

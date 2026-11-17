@@ -1,7 +1,7 @@
 // 내 트리 여러 개(최대 3개) · 산타·루돌프 · 무늬 8종
 import { test, expect, serverMode, seedDb, sampleUser, mockDb, shot, makeJpeg } from './helpers.js';
 
-const minsu = sampleUser({ id: '33333333-3333-4333-8333-333333333333', name: '김민수', birth: '990101', pw: 'Minsu#1357',
+const minsu = sampleUser({ id: '33333333-3333-4333-8333-333333333333', name: '김민수', email: 'minsu@example.com', pin: '1357',
                            share_id: 'shareMIN_000', title: '민수네 트리', pattern: 0 });
 const session = { cafe: { user: minsu.id, exp: Date.now() + 1e9 } };
 const openLib = async page => {

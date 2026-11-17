@@ -3,8 +3,8 @@ import { test, expect, serverMode, seedDb, sampleUser, mockDb, shot, TOKEN_KEY }
 
 const HISTORY_KEY = 'code-christmas-tree.history';
 const younghee = sampleUser();   // 이영희, share_id shareABC_123
-const cheolsu = sampleUser({ id: '22222222-2222-4222-8222-222222222222', name: '박철수', birth: '880808', pw: 'Cheolsu#1', share_id: 'shareXYZ_789', title: '철수의 겨울', pattern: 3 });
-const minsu = sampleUser({ id: '33333333-3333-4333-8333-333333333333', name: '김민수', birth: '990101', pw: 'Minsu#1357', share_id: 'shareMIN_000', title: '민수네 트리', pattern: 0 });
+const cheolsu = sampleUser({ id: '22222222-2222-4222-8222-222222222222', name: '박철수', email: 'cheolsu@example.com', pin: '8808', share_id: 'shareXYZ_789', title: '철수의 겨울', pattern: 3 });
+const minsu = sampleUser({ id: '33333333-3333-4333-8333-333333333333', name: '김민수', email: 'minsu@example.com', pin: '1357', share_id: 'shareMIN_000', title: '민수네 트리', pattern: 0 });
 const messages = [
   { id: 1, user_id: younghee.id, body: '영희의 첫 글귀' },
   { id: 2, user_id: cheolsu.id, body: '철수의 첫 글귀' }
@@ -43,8 +43,8 @@ test('게스트: 본 기록은 브라우저에 → [담기] → 로그인하면 
   expect(new URL(page.url()).search).toBe('');
   await expect(page.locator('#loginNote')).toHaveText('로그인하면 ‘박철수님의 트리’를 내 목록에 담아 둘게요.');
   await page.locator('#inName').fill('김민수');
-  await page.locator('#inBirth').fill('990101');
-  await page.locator('#inPassword').fill('Minsu#1357');
+  await page.locator('#inPin').fill('1357');
+  await page.locator('#inEmail').fill('minsu@example.com');
   await page.locator('#btnEnter').click();
   await page.locator('#btnCreate').click();
   await expect(page.locator('#btnEdit')).toBeVisible();

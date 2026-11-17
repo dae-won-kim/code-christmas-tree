@@ -1,4 +1,4 @@
-// 전체 흐름: 로그인 → 새 트리 → 꾸미기(제목·무늬·설정) → 글귀 → 사진 업로드·삭제 → 공유 링크 → 비밀번호 변경 → 로그아웃 → 다시 로그인 → 공유 보기
+// 전체 흐름: 로그인 → 새 트리 → 꾸미기(제목·무늬·설정) → 글귀 → 사진 업로드·삭제 → 공유 링크 → PIN 변경 → 로그아웃 → 다시 로그인 → 공유 보기
 import { test, expect, serverMode, mockDb, makeJpeg, shot, TOKEN_KEY } from './helpers.js';
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
@@ -8,53 +8,54 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
   await serverMode(page);
   await page.goto('/');
 
-  const name = page.locator('#inName'), birth = page.locator('#inBirth'), pw = page.locator('#inPassword');
+  const name = page.locator('#inName'), email = page.locator('#inEmail'), pin = page.locator('#inPin');
 
   await test.step('로그인 화면', async () => {
     await expect(page.locator('#loginCard')).toBeVisible();
     await expect(page.locator('#btnEdit')).toBeHidden();
     await expect(page.locator('#btnText')).toBeHidden();        // 데모 전용 버튼은 숨김
-    await expect(pw).toHaveAttribute('type', 'password');
-    await expect(pw).toHaveAttribute('autocomplete', 'current-password');
-    await expect(birth).toHaveAttribute('inputmode', 'numeric');
-    await expect(birth).toHaveAttribute('maxlength', '6');
-    await expect(page.locator('#pwWarn')).toContainText('모두 같으면 같은 트리');   // 동명이인·비밀번호 겹침 안내
+    await expect(pin).toHaveAttribute('type', 'password');
+    await expect(pin).toHaveAttribute('autocomplete', 'current-password');
+    await expect(pin).toHaveAttribute('inputmode', 'numeric');
+    await expect(pin).toHaveAttribute('maxlength', '10');
+    await expect(email).toHaveAttribute('type', 'email');
+    await expect(page.locator('#emailWarn')).toContainText('이 이메일로 복구 PIN');   // 복구 주소라 정확히 적으라는 안내
+    await expect(page.locator('#btnForgot')).toBeVisible();
     await page.waitForTimeout(3500);                              // 트리가 모이고 제목이 나타날 때까지
     await shot(page, '01-login');
   });
 
-  await test.step('이름·생년월일·비밀번호 검증 메시지', async () => {
+  await test.step('이름·PIN·이메일 검증 메시지', async () => {
     await name.fill('kim');
     await expect(page.locator('#nameMsg')).toContainText('한글만');
     await name.fill('김민수');
     await expect(page.locator('#nameMsg')).toBeEmpty();
-    await birth.fill('991301');
-    await expect(page.locator('#birthMsg')).toContainText('없는 날짜');
-    await birth.fill('9901');
-    await pw.fill('abc');
+    await pin.fill('12a');
+    await expect(page.locator('#pinMsg')).toContainText('숫자만');
+    await pin.fill('12');
+    await email.fill('minsu@');
     await page.locator('#btnEnter').click();
-    await expect(page.locator('#birthMsg')).toContainText('6자리');
-    await birth.fill('990101');
+    await expect(page.locator('#pinMsg')).toContainText('4자리 이상');
+    await pin.fill('2580');
     await page.locator('#btnEnter').click();
-    await expect(page.locator('#pwMsg')).toContainText('6자 이상');
-    // 비밀번호 보기/숨기기
-    await page.locator('#btnShowPw').click();
-    await expect(pw).toHaveAttribute('type', 'text');
-    await page.locator('#btnShowPw').click();
-    await expect(pw).toHaveAttribute('type', 'password');
+    await expect(page.locator('#emailMsg')).toContainText('이메일 주소를 확인');
+    await email.fill('minsu @example.com');
+    await expect(page.locator('#emailMsg')).toContainText('공백');
   });
 
   await test.step('없는 트리 → 새로 만들기 확인 → 생성', async () => {
-    await pw.fill('1234567');                                       // 숫자만 → 겹치기 쉽다는 안내
+    await email.fill('  MinSu@Example.com ');                         // 대소문자·공백은 정리됨
+    await pin.fill('1234');                                          // 쉬운 PIN → 한 번 더 안내
     await page.locator('#btnEnter').click();
     await expect(page.locator('#createConfirm')).toBeVisible();
-    await expect(page.locator('#createText')).toContainText('‘김민수’(990101)');
-    await expect(page.locator('#createText')).toContainText('동명이인과 겹치기 쉬워요');
+    await expect(page.locator('#createText')).toContainText('‘김민수’ · minsu@example.com');
+    await expect(page.locator('#createText')).toContainText('주소가 맞는지');
+    await expect(page.locator('#createText')).toContainText('쉬운 PIN');
     await page.locator('#btnCreateCancel').click();
-    await pw.fill('Tree#2026');
+    await pin.fill('2580');
     await page.locator('#btnEnter').click();
     await expect(page.locator('#createConfirm')).toBeVisible();
-    await expect(page.locator('#createText')).not.toContainText('겹치기 쉬워요');
+    await expect(page.locator('#createText')).not.toContainText('쉬운 PIN');
     await shot(page, '02-login-confirm');
     await page.locator('#btnCreate').click();
     await expect(page.locator('#btnEdit')).toBeVisible();
@@ -160,20 +161,24 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await shot(page, '07-edit-account');
   });
 
-  await test.step('비밀번호 변경', async () => {
-    await page.locator('#pwOld').fill('Tree#2026');
-    await page.locator('#pwNew').fill('NewTree#2026');
-    await page.locator('#pwNew2').fill('NewTree#2027');
-    await page.locator('#btnPw').click();
-    await expect(page.locator('#pwState')).toHaveText('새 비밀번호 확인이 일치하지 않아요.');
-    await page.locator('#pwOld').fill('Wrong#0000');
-    await page.locator('#pwNew2').fill('NewTree#2026');
-    await page.locator('#btnPw').click();
-    await expect(page.locator('#pwState')).toHaveText('현재 비밀번호가 맞지 않아요.');
-    await page.locator('#pwOld').fill('Tree#2026');
-    await page.locator('#btnPw').click();
-    await expect(page.locator('#pwState')).toContainText('비밀번호를 바꿨어요');
-    expect((await mockDb(page)).users[0].pw).toBe('NewTree#2026');
+  await test.step('PIN 변경', async () => {
+    await page.locator('#pinOld').fill('2580');
+    await page.locator('#pinNew').fill('97531');
+    await page.locator('#pinNew2').fill('97532');
+    await page.locator('#btnPin').click();
+    await expect(page.locator('#pinState')).toHaveText('새 PIN 확인이 일치하지 않아요.');
+    await page.locator('#pinNew2').fill('97531');
+    await page.locator('#pinNew').fill('97a');
+    await page.locator('#btnPin').click();
+    await expect(page.locator('#pinState')).toHaveText('새 PIN은 숫자 4~10자리로 입력해 주세요.');
+    await page.locator('#pinNew').fill('97531');
+    await page.locator('#pinOld').fill('0000');
+    await page.locator('#btnPin').click();
+    await expect(page.locator('#pinState')).toHaveText('지금 PIN이 맞지 않아요.');
+    await page.locator('#pinOld').fill('2580');
+    await page.locator('#btnPin').click();
+    await expect(page.locator('#pinState')).toContainText('PIN을 바꿨어요');
+    expect((await mockDb(page)).users[0].pin).toBe('97531');
   });
 
   await test.step('Esc로 패널 닫기 → 포커스 복귀, 도구 막대 공유 버튼', async () => {
@@ -198,7 +203,7 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await page.locator('#btnEditClose').click();
   });
 
-  await test.step('로그아웃 → 새 비밀번호로 다시 로그인', async () => {
+  await test.step('로그아웃 → 새 PIN으로 다시 로그인', async () => {
     await page.locator('#btnEdit').click();
     await page.getByRole('tab', { name: '공유·계정' }).click();
     await page.locator('#btnLogout').click();
@@ -208,13 +213,14 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     expect(Object.keys((await mockDb(page)).sessions)).toHaveLength(0);
 
     await name.fill('김민수');
-    await birth.fill('990101');
-    await pw.fill('Tree#2026');                               // 옛 비밀번호 → 없는 트리로 취급
+    await email.fill('minsu@example.com');
+    await pin.fill('2580');                                   // 옛 PIN → 새 트리를 만들자고 하지 않고 PIN이 틀렸다고 안내
     await page.locator('#btnEnter').click();
-    await expect(page.locator('#createConfirm')).toBeVisible();
-    await page.locator('#btnCreateCancel').click();
-    await pw.fill('NewTree#2026');
-    await pw.press('Enter');
+    await expect(page.locator('#loginError')).toContainText('PIN이 맞지 않아요');
+    await expect(page.locator('#loginError')).toContainText('PIN을 잊었어요');
+    await expect(page.locator('#createConfirm')).toBeHidden();
+    await pin.fill('97531');
+    await pin.press('Enter');
     await expect(page.locator('#btnEdit')).toBeVisible();
     await expect(page.locator('#title')).toHaveText('민수네 트리');
     expect((await mockDb(page)).users).toHaveLength(1);

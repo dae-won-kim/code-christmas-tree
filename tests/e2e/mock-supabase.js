@@ -2,8 +2,9 @@
  * E2E 테스트용 window.supabase mock (브라우저에 addInitScript로 주입)
  *
  *  - supabase/migrations/의 RPC 동작을 메모리에서 흉내 낸다.
- *    (계정 v2: 이름+생년월일+비밀번호, 사용자당 트리 3개, 오류 코드, {ok:false} 반환,
+ *    (계정 v2: (이름, 이메일) + PIN, 이메일로 PIN 복구, 사용자당 트리 3개, 오류 코드, {ok:false} 반환,
  *     티켓 방식 업로드·삭제, 30장/50개 제한, 속도 제한, 본 기록·담기)
+ *  - Supabase Auth 이메일 OTP도 흉내 낸다: signInWithOtp → db.mail에 "보낸 메일" 저장 → verifyOtp
  *  - 상태는 localStorage('__mockdb')에 저장 → 새로고침해도 유지
  *  - 실제 보안은 DB 테스트(supabase/tests)가 검증한다. 여기서는 화면 흐름만 검증한다.
  *
@@ -12,14 +13,16 @@
  *   window.__mock.fail = { fn, error }   다음 fn 호출을 실패시킴 (error: 'network' 또는 오류 코드)
  *   window.__mock.expireSessions()      모든 세션 만료
  *   window.__mock.delays = { fn: ms }   해당 RPC 응답을 늦춤 (느린 네트워크)
+ *   window.__mock.lastCode(email)       그 주소로 "보낸" 마지막 복구 PIN
+ *   window.__mock.authFail = 'send' | 'rate'   다음 signInWithOtp를 실패시킴 (메일 발송 실패 / 1분 제한)
  */
 (() => {
   const KEY = '__mockdb';
-  const blank = () => ({ seq: 1, users: [], trees: [], sessions: {}, attempts: [], tickets: [], messages: [], photos: [], objects: {}, views: [], log: [] });
+  const blank = () => ({ seq: 1, users: [], trees: [], sessions: {}, attempts: [], tickets: [], messages: [], photos: [], objects: {}, views: [], mail: [], log: [] });
   const load = () => {
     let db;
     try { db = JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { db = blank(); }
-    for (const k of ['users', 'trees', 'attempts', 'tickets', 'messages', 'photos', 'views', 'log']) db[k] ||= [];
+    for (const k of ['users', 'trees', 'attempts', 'tickets', 'messages', 'photos', 'views', 'mail', 'log']) db[k] ||= [];
     db.sessions ||= {}; db.objects ||= {};
     return db;
   };
@@ -40,15 +43,15 @@
     if (!s || s.exp < now()) raise('unauthorized');
     return s.user;
   }
-  const validBirth = b => {
-    if (!/^[0-9]{6}$/.test(b ?? '')) return false;
-    const m = +b.slice(2, 4), d = +b.slice(4, 6);
-    return m >= 1 && m <= 12 && d >= 1 && d <= new Date(2000, m, 0).getDate();
-  };
-  const validPassword = p => typeof p === 'string' && len(p) >= 6 && len(p) <= 64 && !/[\u0000-\u001f\u007f]/.test(p);
+  const normEmail = e => String(e ?? '').trim().toLowerCase();
+  const validEmail = e => e.length <= 254 && /^[^@\s\u0000-\u001f\u007f]+@[^@\s\u0000-\u001f\u007f]+\.[^@\s\u0000-\u001f\u007f.]{2,}$/.test(e);
+  const validPin = p => /^[0-9]{4,10}$/.test(p ?? '');
   const assertRate = (db, key) => {
-    if (db.attempts.filter(a => a.key === key && a.at > now() - 15 * 60e3).length >= 10) raise('rate_limited');
+    const mine = db.attempts.filter(a => a.key === key);
+    if (mine.filter(a => a.at > now() - 15 * 60e3).length >= 10 || mine.filter(a => a.at > now() - 864e5).length >= 30) raise('rate_limited');
   };
+  const clearAttempts = (db, key) => { db.attempts = db.attempts.filter(a => a.key !== key); };
+  const newSession = (db, uid) => { const token = hex(32); db.sessions[token] = { user: uid, exp: now() + 30 * 864e5 }; return token; };
   const myTrees = (db, uid) => db.trees.filter(t => t.owner === uid).sort((a, b) => a.position - b.position || a.created_at - b.created_at);
   function ownedTree(db, uid, treeId) {
     const t = treeId == null ? myTrees(db, uid)[0] : db.trees.find(x => x.id === treeId && x.owner === uid);
@@ -81,38 +84,52 @@
 
   const RPC = {
     /* ── 로그인 · 계정 ── */
-    enter_tree(db, { p_name, p_birth, p_password, p_create = false }) {
-      const name = norm(p_name);
+    enter_tree(db, { p_name, p_email, p_pin, p_create = false }) {
+      const name = norm(p_name), email = normEmail(p_email);
       if (!/^[가-힣]{2,10}$/.test(name)) raise('invalid_name');
-      if (!validBirth(p_birth)) raise('invalid_birth');
-      if (!validPassword(p_password)) raise('invalid_password');
-      const key = `${name}:${p_birth}`;
+      if (!validEmail(email)) raise('invalid_email');
+      if (!validPin(p_pin)) raise('invalid_pin');
+      const key = `${name}:${email}`;
       assertRate(db, key);
       db.attempts.push({ key, at: now() });
-      let u = db.users.find(x => x.name === name && x.birth === p_birth && x.pw === p_password);
+      let u = db.users.find(x => x.name === name && x.email === email);
       let created = false;
       if (!u) {
         if (!p_create) return { ok: false, error: 'not_found' };
-        u = { id: uuid(), name, birth: p_birth, pw: p_password, created_at: now() };
+        u = { id: uuid(), name, email, pin: p_pin, created_at: now() };
         db.users.push(u);
         db.trees.push(newTree(u.id));
         created = true;
+      } else if (u.pin !== p_pin) {
+        return { ok: false, error: 'wrong_pin' };
       }
-      const token = hex(32);
-      db.sessions[token] = { user: u.id, exp: now() + 30 * 864e5 };
-      return { ok: true, token, name, share_id: myTrees(db, u.id)[0].share_id, created };
+      clearAttempts(db, key);
+      return { ok: true, token: newSession(db, u.id), name, share_id: myTrees(db, u.id)[0].share_id, created };
     },
-    change_password(db, { p_token, p_old_password, p_new_password }) {
+    change_pin(db, { p_token, p_old_pin, p_new_pin }) {
       const v = requireUser(db, p_token);
-      if (!validPassword(p_new_password)) raise('invalid_password');
-      const u = db.users.find(x => x.id === v), key = `${u.name}:${u.birth}`;
+      if (!validPin(p_new_pin)) raise('invalid_pin');
+      const u = db.users.find(x => x.id === v), key = `${u.name}:${u.email}`;
       assertRate(db, key);
       db.attempts.push({ key, at: now() });
-      if (u.pw !== p_old_password) return { ok: false, error: 'wrong_password' };
-      if (db.users.some(x => x.name === u.name && x.birth === u.birth && x.pw === p_new_password)) return { ok: false, error: 'password_unavailable' };
-      u.pw = p_new_password;
+      if (u.pin !== p_old_pin) return { ok: false, error: 'wrong_pin' };
+      u.pin = p_new_pin;
       for (const [t, s] of Object.entries(db.sessions)) if (s.user === v && t !== p_token) delete db.sessions[t];
       return { ok: true };
+    },
+    // 실제로는 JWT(email, amr=otp 15분 이내)를 확인한다 → mock은 verifyOtp가 만든 auth 상태(ctx.auth)를 본다
+    reset_pin(db, { p_name, p_new_pin }, ctx) {
+      const name = norm(p_name);
+      if (!/^[가-힣]{2,10}$/.test(name)) raise('invalid_name');
+      if (!validPin(p_new_pin)) raise('invalid_pin');
+      const a = ctx.auth;
+      if (!a || a.at < now() - 15 * 60e3) raise('email_unverified');
+      const u = db.users.find(x => x.name === name && x.email === a.email);
+      if (!u) raise('not_found');
+      u.pin = p_new_pin;
+      for (const [t, s] of Object.entries(db.sessions)) if (s.user === u.id) delete db.sessions[t];
+      clearAttempts(db, `${name}:${a.email}`);
+      return { ok: true, token: newSession(db, u.id), name, share_id: myTrees(db, u.id)[0].share_id, created: false };
     },
     logout(db, { p_token }) {
       const had = p_token in db.sessions;
@@ -298,7 +315,9 @@
     delays: {},        // { get_my_tree: 1500 } 처럼 느린 네트워크 흉내 (ms)
     db: load,
     reset() { save(blank()); },
-    expireSessions() { const db = load(); for (const s of Object.values(db.sessions)) s.exp = 0; save(db); }
+    expireSessions() { const db = load(); for (const s of Object.values(db.sessions)) s.exp = 0; save(db); },
+    lastCode(email) { return load().mail.filter(m => m.email === normEmail(email)).at(-1)?.code ?? null; },
+    authFail: null
   };
   function takeFailure(fn) {
     if (mock.fail && mock.fail.fn === fn) {
@@ -315,7 +334,37 @@
 
   function createClient(url, key) {
     if (!url || !key) throw new Error('supabaseUrl and supabaseKey are required');
+    const ctx = { auth: null };   // 이 클라이언트의 Supabase Auth 로그인 상태 (메모리, persistSession:false와 같음)
     return {
+      auth: {
+        async signInWithOtp({ email, options = {} } = {}) {
+          await wait();
+          const f = mock.authFail; mock.authFail = null;
+          if (f === 'send') return { data: {}, error: { status: 500, code: 'unexpected_failure', message: 'Error sending magic link email' } };
+          const db = load(), e = normEmail(email);
+          const last = db.mail.filter(m => m.email === e).at(-1);
+          if (f === 'rate' || (last && last.at > now() - 60e3))
+            return { data: {}, error: { status: 429, code: 'over_email_send_rate_limit', message: 'For security purposes, you can only request this after 59 seconds.' } };
+          if (options.shouldCreateUser === false) return { data: {}, error: { status: 422, code: 'otp_disabled', message: 'Signups not allowed for otp' } };
+          db.mail.push({ email: e, code: String(100000 + crypto.getRandomValues(new Uint32Array(1))[0] % 900000), at: now(), used: false });
+          db.log.push('auth.signInWithOtp');
+          save(db);
+          return { data: { user: null, session: null }, error: null };
+        },
+        async verifyOtp({ email, token, type } = {}) {
+          await wait();
+          const db = load(), e = normEmail(email);
+          const m = db.mail.filter(x => x.email === e).at(-1);
+          if (type !== 'email' || !m || m.used || m.code !== token || m.at < now() - 3600e3)
+            return { data: { user: null, session: null }, error: { status: 403, code: 'otp_expired', message: 'Token has expired or is invalid' } };
+          m.used = true;
+          db.log.push('auth.verifyOtp');
+          save(db);
+          ctx.auth = { email: e, at: now() };
+          return { data: { user: { email: e }, session: { access_token: 'mock-jwt' } }, error: null };
+        },
+        async signOut() { ctx.auth = null; return { error: null }; }
+      },
       async rpc(fn, args = {}) {
         await wait(mock.delays[fn] ?? 40);
         const failed = takeFailure(fn);
@@ -325,7 +374,7 @@
         if (!RPC[fn]) return { data: null, error: { message: `Could not find the function public.${fn}`, code: 'PGRST202' } };
         try {
           // 실제 DB처럼: 예외면 롤백(저장 안 함), 정상 반환이면 커밋
-          const data = RPC[fn](db, JSON.parse(JSON.stringify(args)));
+          const data = RPC[fn](db, JSON.parse(JSON.stringify(args)), ctx);
           save(db);
           return { data, error: null };
         } catch (e) {

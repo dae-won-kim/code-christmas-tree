@@ -48,7 +48,7 @@ export function seedDb({ users = [], trees = [], messages = [], photos = [], obj
   }));
   return {
     seq: 100,
-    users: users.map(({ id, name, birth, pw, created_at }) => ({ id, name, birth, pw, created_at: created_at ?? Date.now() })),
+    users: users.map(({ id, name, email, pin, created_at }) => ({ id, name, email, pin, created_at: created_at ?? Date.now() })),
     trees: [...firstTrees, ...trees],
     sessions, attempts, tickets: [], objects, views, log: [],
     messages: messages.map(({ user_id, tree_id, ...m }) => ({ ...m, tree_id: tree_id ?? user_id })),
@@ -56,15 +56,15 @@ export function seedDb({ users = [], trees = [], messages = [], photos = [], obj
   };
 }
 export const sampleUser = (over = {}) => ({
-  id: '11111111-1111-4111-8111-111111111111', name: '이영희', birth: '950505', pw: 'Younghee#1', share_id: 'shareABC_123',
+  id: '11111111-1111-4111-8111-111111111111', name: '이영희', email: 'younghee@example.com', pin: '5050', share_id: 'shareABC_123',
   title: '영희네 트리', pattern: 1, settings: {}, created_at: Date.now(), ...over
 });
 
 /** 로그인 칸 채우기 */
-export async function fillLogin(page, { name, birth, password }) {
+export async function fillLogin(page, { name, email, pin }) {
   await page.locator('#inName').fill(name);
-  await page.locator('#inBirth').fill(birth);
-  await page.locator('#inPassword').fill(password);
+  await page.locator('#inPin').fill(pin);
+  await page.locator('#inEmail').fill(email);
 }
 
 export const mockDb = page => page.evaluate(() => window.__mock.db());
