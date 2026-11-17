@@ -69,6 +69,22 @@ test('편집 중 세션 만료(unauthorized) → 로그인 화면으로', async 
   expect((await mockDb(page)).messages).toHaveLength(0);
 });
 
+test('느린 네트워크: 불러오는 동안에는 도구 막대 버튼을 숨김', async ({ page }) => {
+  const u = sampleUser();
+  await serverMode(page, { seed: seedDb({ users: [u], sessions: { cafe: { user: u.id, exp: Date.now() + 1e9 } } }), token: 'cafe' });
+  await page.addInitScript(() => { window.__mock.delays = { get_my_tree: 1500, get_tree: 1500 }; });
+  await page.goto('/');
+  await expect(page.locator('#screenText')).toHaveText('트리를 불러오는 중…');
+  await expect(page.locator('#toolbar')).toBeHidden();          // 아직 동작하지 않는 버튼을 누를 수 없음
+  await expect(page.locator('#btnEdit')).toBeVisible({ timeout: 5000 });
+  await page.locator('#btnEdit').click();
+  await expect(page.locator('#editPanel')).toBeVisible();        // 보이자마자 눌러도 동작
+
+  await page.goto('/?t=shareABC_123');
+  await expect(page.locator('#toolbar')).toBeHidden();
+  await expect(page.locator('#btnMake')).toBeVisible({ timeout: 5000 });
+});
+
 test('불러오기 실패(네트워크) → 오류 화면에서 다시 시도', async ({ page }) => {
   const u = sampleUser();
   await serverMode(page, { seed: seedDb({ users: [u], sessions: { cafe: { user: u.id, exp: Date.now() + 1e9 } } }), token: 'cafe' });

@@ -10,6 +10,7 @@
  *   window.__mock.db()            현재 상태(JSON)
  *   window.__mock.fail = { fn, error }   다음 fn 호출을 실패시킴 (error: 'network' 또는 오류 코드)
  *   window.__mock.expireSessions()      모든 세션 만료
+ *   window.__mock.delays = { fn: ms }   해당 RPC 응답을 늦춤 (느린 네트워크)
  */
 (() => {
   const KEY = '__mockdb';
@@ -151,6 +152,7 @@
   const wait = (ms = 40) => new Promise(r => setTimeout(r, ms));
   const mock = window.__mock = {
     fail: null,
+    delays: {},        // { get_my_tree: 1500 } 처럼 느린 네트워크 흉내 (ms)
     db: load,
     reset() { save(blank()); },
     expireSessions() { const db = load(); for (const s of Object.values(db.sessions)) s.exp = 0; save(db); }
@@ -172,7 +174,7 @@
     if (!url || !key) throw new Error('supabaseUrl and supabaseKey are required');
     return {
       async rpc(fn, args = {}) {
-        await wait();
+        await wait(mock.delays[fn] ?? 40);
         const failed = takeFailure(fn);
         if (failed) return failed;
         const db = load();

@@ -164,8 +164,10 @@ function showLogin() {
   tree.layout();
 }
 
+/* 불러오는 동안은 'boot'(도구 막대 숨김)로 두고, 화면이 연결된 뒤에 모드를 바꾼다.
+   그래야 로딩 중에 아직 동작하지 않는 버튼을 누르는 일이 없다. */
 async function showMine() {
-  switchTo('mine');
+  switchTo('boot');
   tree.setMessages([]);
   screen('loading', '트리를 불러오는 중…');
   let data;
@@ -179,6 +181,7 @@ async function showMine() {
   }
   screen(null);
   applyTree(data);
+  setMode('mine');
   current = mountEditor({
     api, tree, data,
     onLogout: () => showLogin(),
@@ -192,7 +195,7 @@ async function showMine() {
 }
 
 async function showShared(shareId) {
-  switchTo('shared');
+  switchTo('boot');
   tree.setMessages([]);
   screen('loading', '트리를 불러오는 중…');
   let data;
@@ -209,6 +212,7 @@ async function showShared(shareId) {
   }
   screen(null);
   applyTree(data);
+  setMode('shared');
   current = mountShare({ api, tree, data });
   if (!data.messages.length && !data.photos.length) setNotice('아직 꾸미는 중인 트리예요. 조금 뒤에 다시 와 주세요 🎄');
 }
