@@ -7,7 +7,9 @@
 - ✅ **Phase 1** DB·API 설계/구현 완료 — 마이그레이션, DB 테스트 55개 통과, `js/api.js`, `js/image.js`
 - ✅ **Phase 2** 프론트엔드 모듈 분리 완료 — 분리 전후 스크린샷 픽셀 비교 일치, Console 오류 0
 - ✅ **Phase 3** 사용자 화면 완료 — 로그인 / 내 트리(편집) / 공유 보기, E2E 테스트(Playwright + mock) 통과
-- ⏭ **다음: Phase 4** 실제 배포 — 코드 준비는 끝났고, Supabase 프로젝트·GitHub 설정은 사람이 직접 해야 함 (docs/DEPLOY.md)
+- ✅ **Phase 4** 실제 배포 — https://dae-won-kim.github.io/code-christmas-tree/ (Supabase GitHub 통합으로 마이그레이션 자동 적용)
+  - 남은 확인: Supabase **Security Advisor** 경고 검토 (대시보드에서만 가능)
+- ⏭ **다음: Phase 5** 오픈소스 마무리
 
 ---
 
@@ -75,7 +77,7 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
       — mock: `tests/e2e/mock-supabase.js` (RPC 오류 코드·티켓·제한을 SQL과 같게 흉내)
 - 새 RPC는 필요 없었음 (DB 변경 없음)
 
-## Phase 4 — 실제 배포 ⬜
+## Phase 4 — 실제 배포 ✅
 코드 쪽 준비 (완료)
 - [x] supabase-js 버전 고정(2.118.0) + SRI(integrity), 서버 모드에서만 로드
 - [x] Content-Security-Policy (스크립트 출처 제한), 웹에 secret key가 들어오면 즉시 중단
@@ -84,10 +86,17 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 
 사람이 할 일
 - [x] Supabase 프로젝트 생성 + GitHub 통합 연결 (Deploy to production: `main` push 때 `supabase/migrations` 자동 적용)
-- [ ] 마이그레이션 적용 확인 (docs/DEPLOY.md 2~3)
+- [x] 마이그레이션 적용 확인 — publishable key로 RPC 호출 시 `not_found`/`invalid_name` 정상 반환 (2026-11-17)
 - [x] GitHub 저장소 생성 (dae-won-kim/code-christmas-tree), Pages 소스를 GitHub Actions로 설정
-- [ ] GitHub Variables 등록 (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`)
-- [ ] DEPLOY.md 6번 체크리스트 전부 통과 (특히 Storage 정책 실동작)
+- [x] GitHub Variables 등록 (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`) → Pages 재배포
+- [x] DEPLOY.md 6번 체크리스트 (2026-11-17, 실제 사이트 + 실제 Supabase, Playwright)
+  - 새 트리 → 로그아웃 → 같은 이름+PIN으로 다시 열기 / 같은 이름·다른 PIN → "트리가 없어요"
+  - 사진 업로드 → 새로고침 후에도 보임 (Storage insert 정책·공개 URL 실동작), 사진 삭제 → 파일까지 삭제 (select/delete 정책)
+  - 공유 링크를 새 브라우저에서 열면 읽기 전용
+  - `from('tree_users').select()` → 42501 권한 오류, `private` 스키마는 API에 노출 안 됨 (PGRST106)
+  - CSP 위반 없음
+  - 점검 중 발견: 로딩 중 도구 막대 버튼이 반응하지 않던 문제 → 수정 + E2E 추가
+- [ ] Supabase **Advisors → Security Advisor** 경고 확인 (`security definer` 함수 경고는 의도된 설계)
 - [ ] 배포 후에는 `20261117000000_init.sql`을 수정하지 않고, 변경 사항은 새 마이그레이션 파일로 추가
 
 ## Phase 5 — 오픈소스 마무리 ⬜
