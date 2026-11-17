@@ -160,15 +160,26 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     return h('li', { className: 'editing', dataset: { id: t.id } }, input,
       h('button', { type: 'button', className: 'icon', text: '✓', 'aria-label': '이름 저장', onmousedown: e => e.preventDefault(), onclick: () => finish(true) }));
   }
+  // 순서는 화면에 바로 반영하고 저장 요청은 차례대로 보낸다.
+  // (응답을 기다렸다 다시 그리면, 빠르게 두 번 누를 때 두 번째가 옛 순서 기준이 되어 한 칸만 움직임)
+  let moving = Promise.resolve();
   async function move(i, d) {
-    const ids = mine.map(t => t.id), j = i + d;
-    if (j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    try { await api.reorderTrees(ids); } catch (e) { setError(e.message); }
-    await refresh();
+    const j = i + d;
+    if (j < 0 || j >= mine.length) return;
+    const next = mine.slice();
+    [next[i], next[j]] = [next[j], next[i]];
+    mine = next;
+    const ids = next.map(t => t.id), movedId = ids[j];
     // 옮긴 트리의 같은 방향 버튼에 포커스를 남겨 연속으로 옮길 수 있게
-    const li = mineList.querySelector(`li[data-id="${ids[j]}"]`);
-    (li?.querySelector(`button[title="${d < 0 ? '위로' : '아래로'}"]:not(:disabled)`) || li?.querySelector('a'))?.focus();
+    const refocus = () => {
+      const li = mineList.querySelector(`li[data-id="${movedId}"]`);
+      (li?.querySelector(`button[title="${d < 0 ? '위로' : '아래로'}"]:not(:disabled)`) || li?.querySelector('a'))?.focus();
+    };
+    render(); refocus();
+    const mine_ = moving = moving.then(() => api.reorderTrees(ids)).catch(e => setError(e.message));
+    await mine_;
+    if (mine_ !== moving) return;            // 뒤이은 이동이 있으면 마지막 것만 서버 목록으로 맞춤
+    await refresh(); refocus();
   }
   async function removeTree(t) {
     try {

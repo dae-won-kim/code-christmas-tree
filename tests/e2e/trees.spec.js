@@ -47,10 +47,13 @@ test('내 트리 여러 개: 만들기(3개까지) · 이름 · 순서 · 전환
   expect((await mockDb(page)).trees.find(t => t.id === third.id).title).toBe('셋째 트리');
 
   // 순서 바꾸기: 셋째를 맨 위로
+  // 응답을 기다리지 않고 연달아 눌러도 두 칸 모두 움직여야 함 (서버가 느린 경우를 흉내)
+  await page.evaluate(() => { window.__mock.delays.reorder_trees = 400; });
   await page.getByRole('button', { name: '위로: 셋째 트리' }).click();
   await page.getByRole('button', { name: '위로: 셋째 트리' }).click();
   await expect.poll(() => mineTitles(page)).toEqual(['셋째 트리', '민수네 트리', 'Merry Christmas']);
-  expect((await mockDb(page)).trees.find(t => t.id === third.id).position).toBe(0);
+  await page.evaluate(() => { delete window.__mock.delays.reorder_trees; });
+  await expect.poll(async () => (await mockDb(page)).trees.find(t => t.id === third.id).position).toBe(0);
   await expect(page.getByRole('button', { name: '위로: 셋째 트리' })).toBeDisabled();
   await page.waitForTimeout(300);
   await shot(page, '15-my-trees');
