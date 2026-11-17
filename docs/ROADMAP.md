@@ -15,7 +15,7 @@
   - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
 - 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스·제3자 고지 완료, README 정리·GIF 남음
 - ✅ **Phase 8** 풍성한 트리 — 장식 8종(달기·끌어 옮기기·떼기), 트리 아래 선물 상자, 밤하늘(별·달·눈 언덕), 사진 캡션 고치기, 사진 여러 장 삭제
-  — 브랜치 `feat/decor`, DB 테스트 `50_decorations_test.sql` 추가, E2E 4개 시나리오 추가(전체 83개 통과). 배포 전 README 정리 예정
+  — 브랜치 `feat/decor`, DB 테스트 193개(PostgreSQL 17.12, CI) · E2E 83개 통과. 배포 전 README 정리 예정
 - 🔒 **보안 업데이트** (2026-11-17 KISA PostgreSQL 보안 업데이트 권고, CVE 25건)
   - [x] 로컬·CI 테스트 DB 이미지를 `postgres:17.12`로 고정(운영 DB와 같은 버전), 패치 전 서버면 `test-db.sh`가 경고
   - [x] 운영 Supabase DB 버전 확인 — 17.12로 이미 해결 버전 (2026-11-17, 업그레이드 불필요)
