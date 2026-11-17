@@ -1,19 +1,26 @@
 -- =====================================================================
---  계정 v2 — (이름, 생년월일, 비밀번호) 복합 기본키 + 한 사람이 트리 여러 개(최대 3개) + 무늬 8종
+--  계정 v2 — (이름, 이메일) 복합 기본키 + 숫자 PIN(4~10자리) + 이메일로 PIN 복구
+--            + 한 사람이 트리 여러 개(최대 3개) + 무늬 8종
 --
 --  왜 바꾸나
---   - v1은 (이름, PIN)이라 동명이인이 같은 PIN을 고르면 같은 사람으로 합쳐졌다
---     → 생년월일 6자리(YYMMDD)를 키에 넣는다.
---   - 숫자 PIN → 영문·숫자·기호를 쓸 수 있는 비밀번호(6~64자)
+--   - v1은 (이름, PIN)이라 동명이인이 같은 PIN을 고르면 같은 사람으로 합쳐졌고, PIN을 잊으면 되찾을 수 없었다.
+--     → 이메일을 키에 넣는다. 사람마다 다른 값이라 겹치지 않고, PIN을 잊었을 때 복구 PIN을 받는 주소가 된다.
+--   - PIN은 기본키에서 빼고 "확인용 값"으로만 둔다.
+--     (키에 PIN이 있으면 PIN을 틀렸을 때 "없는 트리"가 되어 같은 사람의 트리가 하나 더 생기고,
+--      복구할 때 어느 계정의 PIN을 바꿀지 정할 수 없다)
 --   - 사용자 1명 = 트리 1개 → 사용자(tree_users)와 트리(trees)를 나누고 사용자당 3개까지
 --
 --  해시 (pepper는 init에서 만든 private.secrets의 값을 그대로 쓴다)
---   birth_hash = HMAC-SHA256(pepper, 'birth:' || 이름 || ':' || 생년월일)   ← 생년월일도 평문 저장 안 함
---   pw_hash    = HMAC-SHA256(pepper, 이름 || ':' || birth_hash || ':' || 비밀번호)
---   기본키     = (name, birth_hash, pw_hash)
+--   email_hash = HMAC-SHA256(pepper, 'email:' || 소문자 이메일)        ← 이메일은 트리 DB에 평문으로 저장하지 않음
+--   pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)  ← 사용자 id가 salt 역할
+--   기본키     = (name, email_hash)
+--
+--  PIN 복구: 메일 발송과 "이 메일의 주인이 맞는지" 확인은 Supabase Auth의 이메일 OTP가 맡는다.
+--   브라우저 signInWithOtp(email) → 메일로 온 복구 PIN(6자리) → verifyOtp → 그 로그인 상태로 reset_pin(name, new_pin)
+--   reset_pin은 JWT의 email과 amr(otp/magiclink, 15분 이내)을 확인한다. 성공하면 auth.users의 임시 사용자는 지운다.
 --
 --  ⚠ v1 데이터는 버린다 (운영자 결정, 2026-11-17 — 배포 직후라 데이터가 거의 없음)
---    tree_users에 v1 컬럼(pin_hash)이 있을 때만 v1 테이블을 지운다. 그 뒤 다시 실행하면 아무것도 지우지 않는다.
+--    tree_users에 email_hash 컬럼이 없을 때(= v1)만 v1 테이블을 지운다. 그 뒤 다시 실행하면 아무것도 지우지 않는다.
 --    Storage에 남은 v1 사진 파일은 대시보드 Storage 화면에서 지운다 (SQL로 지우면 실제 파일이 남을 수 있음).
 --
 --  배포 후 추가된 마이그레이션이므로 20261117000000_init.sql은 수정하지 않았다.
@@ -22,8 +29,9 @@
 -- ── 0. v1 정리 (처음 한 번만) ─────────────────────────────────────────
 do $$
 begin
-  if exists (select 1 from information_schema.columns
-              where table_schema = 'public' and table_name = 'tree_users' and column_name = 'pin_hash') then
+  if to_regclass('public.tree_users') is not null
+     and not exists (select 1 from information_schema.columns
+                      where table_schema = 'public' and table_name = 'tree_users' and column_name = 'email_hash') then
     drop function if exists public.enter_tree(text, text, boolean);
     drop function if exists public.get_my_tree(text);
     drop function if exists public.update_tree(text, text, int, jsonb);
@@ -43,17 +51,17 @@ end $$;
 -- ── 1. 테이블 ────────────────────────────────────────────────────────
 create table if not exists public.tree_users (
   name        text        not null,
-  birth_hash  text        not null,
-  pw_hash     text        not null,
+  email_hash  text        not null,
+  pin_hash    text        not null,                                -- 키가 아님: 바꿔도 사용자는 그대로
   id          uuid        not null default gen_random_uuid(),   -- 다른 테이블이 참조하는 대리키
   created_at  timestamptz not null default now(),
-  constraint tree_users_pkey        primary key (name, birth_hash, pw_hash),   -- 복합 기본키
+  constraint tree_users_pkey        primary key (name, email_hash),   -- 복합 기본키
   constraint tree_users_id_key      unique (id),
   constraint tree_users_name_hangul check (name ~ '^[가-힣]{2,10}$'),
-  constraint tree_users_birth_hash  check (birth_hash ~ '^[0-9a-f]{64}$'),
-  constraint tree_users_pw_hash     check (pw_hash ~ '^[0-9a-f]{64}$')
+  constraint tree_users_email_hash  check (email_hash ~ '^[0-9a-f]{64}$'),
+  constraint tree_users_pin_hash    check (pin_hash ~ '^[0-9a-f]{64}$')
 );
-comment on table public.tree_users is '사용자. (이름, 생년월일 해시, 비밀번호 해시) 복합 기본키, 트리는 trees에';
+comment on table public.tree_users is '사용자. (이름, 이메일 해시) 복합 기본키 + PIN 해시, 트리는 trees에';
 
 create table if not exists public.trees (
   id          uuid        not null default gen_random_uuid(),
@@ -101,9 +109,9 @@ create table if not exists private.sessions (
 );
 create index if not exists sessions_user_idx on private.sessions (user_id);
 
-create table if not exists private.auth_attempts (      -- 무차별 대입 방지: (이름, 생년월일) 단위로 기록
+create table if not exists private.auth_attempts (      -- 무차별 대입 방지: (이름, 이메일) 단위로 기록
   id          bigint generated always as identity primary key,
-  key         text        not null,                     -- 이름 || ':' || birth_hash
+  key         text        not null,                     -- 이름 || ':' || email_hash
   created_at  timestamptz not null default now()
 );
 create index if not exists auth_attempts_key_idx on private.auth_attempts (key, created_at);
@@ -138,34 +146,94 @@ as $$
   from private.secrets s where s.key = 'pin_pepper';
 $$;
 
--- 생년월일 YYMMDD 형식 + 실제로 있는 날짜인가 (2월 29일은 허용)
-create or replace function private.valid_birth(p text)
-returns boolean language plpgsql immutable set search_path = ''
-as $$
-begin
-  if coalesce(p, '') !~ '^[0-9]{6}$' then return false; end if;
-  perform make_date(2000, substr(p, 3, 2)::int, substr(p, 5, 2)::int);   -- 2000년은 윤년
-  return true;
-exception when others then
-  return false;
-end $$;
+-- 이메일: 앞뒤 공백 제거 + 소문자 (Kim@Mail.com과 kim@mail.com은 같은 주소)
+create or replace function private.normalize_email(p text)
+returns text language sql immutable set search_path = ''
+as $$ select lower(btrim(coalesce(p, ''))); $$;
 
--- 비밀번호: 6~64자, 제어 문자 없음 (영문·숫자·기호·한글·공백 모두 가능)
-create or replace function private.valid_password(p text)
+-- 이메일 형식: 아무개@도메인.최상위 (254자 이하, 공백·제어 문자 없음). 실제로 받을 수 있는지는 복구할 때 메일로 확인된다
+create or replace function private.valid_email(p text)
 returns boolean language sql immutable set search_path = ''
 as $$
-  select coalesce(char_length(p) between 6 and 64 and p !~ '[[:cntrl:]]', false);
+  select coalesce(char_length(p) <= 254
+                  and p ~ '^[^@[:space:][:cntrl:]]+@[^@[:space:][:cntrl:]]+\.[^@[:space:][:cntrl:].]{2,}$', false);
 $$;
 
--- (이름, 생년월일) 하나당 15분에 10번까지만 로그인·생성·비밀번호 변경 시도
+-- PIN: 숫자 4~10자리
+create or replace function private.valid_pin(p text)
+returns boolean language sql immutable set search_path = ''
+as $$ select coalesce(p ~ '^[0-9]{4,10}$', false); $$;
+
+create or replace function private.pin_hash_of(p_user uuid, p_pin text)
+returns text language sql stable set search_path = ''
+as $$ select private.hash_secret('pin:' || p_user::text || ':' || coalesce(p_pin, '')); $$;
+
+-- 로그인 세션 발급: 랜덤 32바이트 토큰, DB에는 sha256만, 30일
+create or replace function private.new_session(p_user uuid)
+returns text language plpgsql volatile set search_path = ''
+as $$
+declare v_token text := encode(extensions.gen_random_bytes(32), 'hex');
+begin
+  insert into private.sessions (token_hash, user_id, expires_at)
+    values (encode(extensions.digest(v_token, 'sha256'), 'hex'), p_user, now() + interval '30 days');
+  return v_token;
+end $$;
+
+-- (이름, 이메일) 하나당 15분에 10번, 하루에 30번까지만 로그인·생성·PIN 변경 시도
+-- (PIN이 4자리면 경우의 수가 1만 개뿐이라 하루 제한도 둔다. 막혀도 이메일 복구는 된다)
 create or replace function private.assert_rate(p_key text)
 returns void language plpgsql set search_path = ''
 as $$
 begin
   if (select count(*) from private.auth_attempts a
-      where a.key = p_key and a.created_at > now() - interval '15 minutes') >= 10 then
+      where a.key = p_key and a.created_at > now() - interval '15 minutes') >= 10
+  or (select count(*) from private.auth_attempts a
+      where a.key = p_key and a.created_at > now() - interval '1 day') >= 30 then
     raise exception 'rate_limited';
   end if;
+end $$;
+
+-- 이메일 OTP로 막 로그인한 Supabase Auth 사용자의 이메일 (아니면 email_unverified)
+--  - request.jwt.claims는 PostgREST가 검증한 JWT로만 채워진다 (브라우저가 직접 바꿀 수 없음)
+--  - 메일로 보낸 코드·링크로 15분 안에 로그인했을 때만 인정: otp, magiclink,
+--    email/signup(처음 보는 주소는 Supabase가 "가입 확인" 메일로 보냄), recovery
+--    비밀번호 로그인·익명 로그인처럼 메일 주인임을 증명하지 않은 세션은 거부
+create or replace function private.verified_email()
+returns text language plpgsql stable set search_path = ''
+as $$
+declare c jsonb;
+begin
+  begin
+    c := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
+  exception when others then
+    c := null;
+  end;
+  if c is null
+     or coalesce(c->>'role', '') <> 'authenticated'
+     or coalesce(c->>'is_anonymous', 'false') = 'true'
+     or coalesce(c->>'email', '') = ''
+     or jsonb_typeof(c->'amr') is distinct from 'array'
+     or not exists (select 1 from jsonb_array_elements(c->'amr') a
+                     where a->>'method' in ('otp', 'magiclink', 'email/signup', 'recovery')
+                       and coalesce(a->>'timestamp', '') ~ '^[0-9]+(\.[0-9]+)?$'
+                       and (a->>'timestamp')::numeric >= extract(epoch from now()) - 900) then
+    raise exception 'email_unverified';
+  end if;
+  return private.normalize_email(c->>'email');
+end $$;
+
+-- 복구에 쓴 Supabase Auth 임시 사용자 지우기 (auth.users에 평문 이메일을 남기지 않기 위해)
+-- 권한이 없거나 구조가 달라도 PIN 재설정 자체는 막지 않는다
+create or replace function private.forget_auth_user()
+returns void language plpgsql volatile set search_path = ''
+as $$
+declare v_sub text;
+begin
+  v_sub := nullif(current_setting('request.jwt.claims', true), '')::jsonb->>'sub';
+  if v_sub is null or to_regclass('auth.users') is null then return; end if;
+  execute 'delete from auth.users where id = $1::uuid' using v_sub;
+exception when others then
+  null;
 end $$;
 
 -- 트리 전체 JSON (내 트리 / 공유 보기 공통)
@@ -200,35 +268,40 @@ begin
   return v;
 end $$;
 
+create or replace function private.first_share(p_user uuid)
+returns text language sql stable set search_path = ''
+as $$ select t.share_id from public.trees t where t.owner_id = p_user order by t.position, t.created_at limit 1; $$;
+
 
 -- ── 3. 로그인 · 계정 RPC ─────────────────────────────────────────────
 --  p_create = false : 로그인 (없으면 {ok:false, error:'not_found'})
 --  p_create = true  : 없으면 새로 만들고(첫 트리 포함), 있으면 로그인
---  ※ not_found를 raise하지 않고 return하는 이유: raise하면 트랜잭션이 롤백되어
+--  있는데 PIN이 다르면 {ok:false, error:'wrong_pin'} — 새 트리를 만들지 않는다
+--  ※ 실패를 raise하지 않고 return하는 이유: raise하면 트랜잭션이 롤백되어
 --    시도 기록(auth_attempts)까지 사라져 무차별 대입 방지가 무력화된다.
-create or replace function public.enter_tree(p_name text, p_birth text, p_password text, p_create boolean default false)
+create or replace function public.enter_tree(p_name text, p_email text, p_pin text, p_create boolean default false)
 returns json language plpgsql volatile security definer set search_path = ''
 as $$
 declare
   v_name    text := private.normalize_name(p_name);
-  v_birth   text;
-  v_pw      text;
+  v_email   text := private.normalize_email(p_email);
+  v_eh      text;
+  v_key     text;
   v_id      uuid;
-  v_share   text;
+  v_hash    text;
   v_created boolean := false;
-  v_token   text;
 begin
   if v_name !~ '^[가-힣]{2,10}$' then raise exception 'invalid_name'; end if;
-  if not private.valid_birth(p_birth) then raise exception 'invalid_birth'; end if;
-  if not private.valid_password(p_password) then raise exception 'invalid_password'; end if;
+  if not private.valid_email(v_email) then raise exception 'invalid_email'; end if;
+  if not private.valid_pin(p_pin) then raise exception 'invalid_pin'; end if;
 
-  v_birth := private.hash_secret('birth:' || v_name || ':' || p_birth);
-  perform private.assert_rate(v_name || ':' || v_birth);
-  insert into private.auth_attempts (key) values (v_name || ':' || v_birth);   -- 성공·실패 모두 기록
+  v_eh  := private.hash_secret('email:' || v_email);
+  v_key := v_name || ':' || v_eh;
+  perform private.assert_rate(v_key);
+  insert into private.auth_attempts (key) values (v_key);   -- 성공·실패 모두 기록
 
-  v_pw := private.hash_secret(v_name || ':' || v_birth || ':' || p_password);
-  select u.id into v_id from public.tree_users u
-   where u.name = v_name and u.birth_hash = v_birth and u.pw_hash = v_pw;
+  select u.id, u.pin_hash into v_id, v_hash from public.tree_users u
+   where u.name = v_name and u.email_hash = v_eh;
 
   if v_id is null then
     if not coalesce(p_create, false) then
@@ -238,54 +311,69 @@ begin
     if (select count(*) from public.tree_users u where u.created_at > now() - interval '1 hour') >= 60 then
       return json_build_object('ok', false, 'error', 'rate_limited');
     end if;
-    insert into public.tree_users (name, birth_hash, pw_hash) values (v_name, v_birth, v_pw) returning id into v_id;
+    v_id := gen_random_uuid();
+    insert into public.tree_users (name, email_hash, pin_hash, id)
+      values (v_name, v_eh, private.pin_hash_of(v_id, p_pin), v_id);
     insert into public.trees (owner_id) values (v_id);
     v_created := true;
+  elsif private.pin_hash_of(v_id, p_pin) <> v_hash then
+    return json_build_object('ok', false, 'error', 'wrong_pin');
   end if;
-
-  select t.share_id into v_share from public.trees t where t.owner_id = v_id order by t.position, t.created_at limit 1;
-
-  v_token := encode(extensions.gen_random_bytes(32), 'hex');
-  insert into private.sessions (token_hash, user_id, expires_at)
-    values (encode(extensions.digest(v_token, 'sha256'), 'hex'), v_id, now() + interval '30 days');
+  delete from private.auth_attempts a where a.key = v_key;   -- 맞히면(또는 새로 만들면) 그동안의 시도 기록은 지운다
 
   perform private.cleanup();
-  return json_build_object('ok', true, 'token', v_token, 'name', v_name,
-                           'share_id', v_share, 'created', v_created);
+  return json_build_object('ok', true, 'token', private.new_session(v_id), 'name', v_name,
+                           'share_id', private.first_share(v_id), 'created', v_created);
 end $$;
 
--- 비밀번호 변경 (기본키가 바뀜 — 다른 테이블은 id로 참조하므로 영향 없음)
-create or replace function public.change_password(p_token text, p_old_password text, p_new_password text)
+-- PIN 변경 (로그인한 상태에서 지금 PIN을 알 때). 다른 기기의 로그인은 해제
+create or replace function public.change_pin(p_token text, p_old_pin text, p_new_pin text)
 returns json language plpgsql volatile security definer set search_path = ''
 as $$
 declare
-  v       uuid := private.require_user(p_token);
-  v_name  text;
-  v_birth text;
-  v_hash  text;
-  v_new   text;
+  v      uuid := private.require_user(p_token);
+  v_key  text;
+  v_hash text;
 begin
-  if not private.valid_password(p_new_password) then raise exception 'invalid_password'; end if;
-  select u.name, u.birth_hash, u.pw_hash into v_name, v_birth, v_hash from public.tree_users u where u.id = v;
+  if not private.valid_pin(p_new_pin) then raise exception 'invalid_pin'; end if;
+  select u.name || ':' || u.email_hash, u.pin_hash into v_key, v_hash from public.tree_users u where u.id = v;
 
-  perform private.assert_rate(v_name || ':' || v_birth);
-  insert into private.auth_attempts (key) values (v_name || ':' || v_birth);
+  perform private.assert_rate(v_key);
+  insert into private.auth_attempts (key) values (v_key);
 
-  if private.hash_secret(v_name || ':' || v_birth || ':' || coalesce(p_old_password, '')) <> v_hash then
-    return json_build_object('ok', false, 'error', 'wrong_password');
+  if private.pin_hash_of(v, p_old_pin) <> v_hash then
+    return json_build_object('ok', false, 'error', 'wrong_pin');
   end if;
-  v_new := private.hash_secret(v_name || ':' || v_birth || ':' || p_new_password);
-  if exists (select 1 from public.tree_users u where u.name = v_name and u.birth_hash = v_birth and u.pw_hash = v_new) then
-    -- 이름·생년월일이 같은 다른 사용자가 이미 그 비밀번호를 쓰는 중 (복합키 충돌)
-    return json_build_object('ok', false, 'error', 'password_unavailable');
-  end if;
-
-  update public.tree_users u set pw_hash = v_new where u.id = v;
-  -- 지금 쓰는 세션을 제외한 다른 기기의 로그인은 모두 해제
+  update public.tree_users u set pin_hash = private.pin_hash_of(v, p_new_pin) where u.id = v;
   delete from private.sessions s
    where s.user_id = v
      and s.token_hash <> encode(extensions.digest(p_token, 'sha256'), 'hex');
   return json_build_object('ok', true);
+end $$;
+
+-- PIN 재설정 (PIN을 잊었을 때). 이메일 OTP로 로그인한 Supabase Auth 세션으로만 부를 수 있다
+--  → 새 PIN 저장, 모든 기기 로그인 해제, 시도 제한 초기화, 새 세션 발급(바로 내 트리로)
+create or replace function public.reset_pin(p_name text, p_new_pin text)
+returns json language plpgsql volatile security definer set search_path = ''
+as $$
+declare
+  v_name text := private.normalize_name(p_name);
+  v_eh   text;
+  v_id   uuid;
+begin
+  if v_name !~ '^[가-힣]{2,10}$' then raise exception 'invalid_name'; end if;
+  if not private.valid_pin(p_new_pin) then raise exception 'invalid_pin'; end if;
+  v_eh := private.hash_secret('email:' || private.verified_email());
+
+  select u.id into v_id from public.tree_users u where u.name = v_name and u.email_hash = v_eh;
+  if v_id is null then raise exception 'not_found'; end if;   -- 메일 주인만 볼 수 있는 결과라 raise해도 된다
+
+  update public.tree_users u set pin_hash = private.pin_hash_of(v_id, p_new_pin) where u.id = v_id;
+  delete from private.sessions s where s.user_id = v_id;
+  delete from private.auth_attempts a where a.key = v_name || ':' || v_eh;
+  perform private.forget_auth_user();
+  return json_build_object('ok', true, 'token', private.new_session(v_id), 'name', v_name,
+                           'share_id', private.first_share(v_id), 'created', false);
 end $$;
 
 
@@ -529,8 +617,10 @@ end $$;
 
 -- ── 7. 실행 권한 ─────────────────────────────────────────────────────
 -- private 함수: 아무도 직접 실행 불가 (Storage 정책용 upload_allowed / delete_allowed는 init에서 허용)
-revoke all on function private.hash_secret(text), private.valid_birth(text), private.valid_password(text),
-  private.assert_rate(text), private.tree_json(uuid), private.owned_tree(uuid, uuid)
+revoke all on function private.hash_secret(text), private.normalize_email(text), private.valid_email(text),
+  private.valid_pin(text), private.pin_hash_of(uuid, text), private.new_session(uuid), private.verified_email(),
+  private.forget_auth_user(), private.assert_rate(text), private.tree_json(uuid), private.owned_tree(uuid, uuid),
+  private.first_share(uuid)
   from public, anon, authenticated;
 
 do $$
@@ -538,7 +628,8 @@ declare f text;
 begin
   foreach f in array array[
     'public.enter_tree(text, text, text, boolean)',
-    'public.change_password(text, text, text)',
+    'public.change_pin(text, text, text)',
+    'public.reset_pin(text, text)',
     'public.get_my_tree(text, uuid)',
     'public.get_tree(text)',
     'public.update_tree(text, text, int, jsonb, uuid)',

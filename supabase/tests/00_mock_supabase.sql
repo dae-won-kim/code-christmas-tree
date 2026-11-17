@@ -4,6 +4,8 @@
 --   - anon / authenticated / service_role 역할
 --   - extensions 스키마의 pgcrypto
 --   - storage.buckets / storage.objects 테이블 (필요한 컬럼만)
+--   - auth.users 테이블 (PIN 복구 후 임시 사용자 삭제 확인용, 필요한 컬럼만)
+--   - JWT는 PostgREST처럼 request.jwt.claims 설정으로 흉내 낸다 (테스트에서 set_config)
 -- =====================================================================
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'anon')          then create role anon nologin; end if;
@@ -30,3 +32,8 @@ create table if not exists storage.objects (
 alter table storage.objects enable row level security;
 grant select, insert, delete on storage.objects to anon, authenticated;
 grant usage on sequence storage.objects_id_seq to anon, authenticated;
+
+create schema if not exists auth;
+create table if not exists auth.users (
+  id uuid primary key, email text
+);

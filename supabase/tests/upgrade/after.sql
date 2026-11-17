@@ -35,15 +35,17 @@ select t.expect_err(format('select get_tree(%L)', :'a_share'), 'not_found', 'UP1
 select t.expect_err(format('select get_my_tree(%L)', :'a_tok'), 'unauthorized', 'UP2 v1 로그인 세션도 해제됨');
 select t.expect_err($$select enter_tree('배포전','123456',true)$$, 'does not exist', 'UP3 옛 로그인 RPC(이름+PIN)는 없어짐');
 
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('새계정','990101','NewTree#1',true) x) s \gset n_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('새계정','new@example.com','24681357',true) x) s \gset n_
 select add_message(:'n_tok', 'v2에서 쓴 글귀');
 select create_tree(:'n_tok', '두 번째');
 select t.ok(json_array_length(list_my_trees(:'n_tok')) = 2, 'UP4 v2 가입 · 트리 추가 동작');
 reset role;
 insert into t_upgrade.vars values ('n_tok', :'n_tok'), ('n_share', :'n_share');
 select t.ok((select count(*) from information_schema.columns
-              where table_schema = 'public' and table_name = 'tree_users' and column_name = 'pin_hash') = 0,
-            'UP5 tree_users가 v2 구조로 바뀜');
+              where table_schema = 'public' and table_name = 'tree_users' and column_name = 'email_hash') = 1
+            and (select count(*) from information_schema.columns
+              where table_schema = 'public' and table_name = 'tree_users' and column_name = 'share_id') = 0,
+            'UP5 tree_users가 v2 구조로 바뀜 (이메일 키, 트리는 trees로 분리)');
 
 drop schema t cascade;
 \o

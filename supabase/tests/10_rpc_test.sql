@@ -29,39 +29,44 @@ grant execute on all functions in schema t to anon;
 set role anon;
 
 -- ── T1~T2 입력 검증 ──────────────────────────────────────────────
-select t.expect_err($$select enter_tree('Kim','990101','Tree#2026',true)$$,   'invalid_name', 'T1 영문 이름 거부');
-select t.expect_err($$select enter_tree('김','990101','Tree#2026',true)$$,    'invalid_name', 'T1 한 글자 이름 거부');
-select t.expect_err($$select enter_tree('ㄱㄴㄷ','990101','Tree#2026',true)$$, 'invalid_name', 'T1 자음만 있는 이름 거부');
-select t.expect_err($$select enter_tree('김민수1','990101','Tree#2026',true)$$, 'invalid_name', 'T1 숫자 섞인 이름 거부');
-select t.expect_err($$select enter_tree('김민수','991301','Tree#2026',true)$$,  'invalid_birth', 'T2 없는 달(13월) 생년월일 거부');
-select t.expect_err($$select enter_tree('김민수','990230','Tree#2026',true)$$,  'invalid_birth', 'T2 없는 날짜(2월 30일) 거부');
-select t.expect_err($$select enter_tree('김민수','9901','Tree#2026',true)$$,    'invalid_birth', 'T2 4자리 생년월일 거부');
-select t.expect_err($$select enter_tree('김민수','990101','abc12',true)$$,      'invalid_password', 'T2 5자 비밀번호 거부');
-select t.expect_err(format('select enter_tree(%L, %L, %L, true)', '김민수', '990101', repeat('a', 65)),
-                    'invalid_password', 'T2 65자 비밀번호 거부');
-select t.ok((enter_tree('이모지','000229','pass 한글 OK!',true))->>'ok' = 'true', 'T2 비밀번호에 영문·숫자·기호·한글·공백 가능, 2월 29일 허용');
+select t.expect_err($$select enter_tree('Kim','kim@example.com','1234',true)$$,    'invalid_name', 'T1 영문 이름 거부');
+select t.expect_err($$select enter_tree('김','kim@example.com','1234',true)$$,     'invalid_name', 'T1 한 글자 이름 거부');
+select t.expect_err($$select enter_tree('ㄱㄴㄷ','kim@example.com','1234',true)$$,  'invalid_name', 'T1 자음만 있는 이름 거부');
+select t.expect_err($$select enter_tree('김민수1','kim@example.com','1234',true)$$, 'invalid_name', 'T1 숫자 섞인 이름 거부');
+select t.expect_err($$select enter_tree('김민수','not-an-email','1234',true)$$,     'invalid_email', 'T2 @ 없는 이메일 거부');
+select t.expect_err($$select enter_tree('김민수','kim@localhost','1234',true)$$,    'invalid_email', 'T2 도메인 끝(.com 등)이 없는 이메일 거부');
+select t.expect_err($$select enter_tree('김민수','kim min@example.com','1234',true)$$, 'invalid_email', 'T2 공백 섞인 이메일 거부');
+select t.expect_err($$select enter_tree('김민수','kim@example.com','123',true)$$,    'invalid_pin', 'T2 3자리 PIN 거부');
+select t.expect_err($$select enter_tree('김민수','kim@example.com','12345678901',true)$$, 'invalid_pin', 'T2 11자리 PIN 거부');
+select t.expect_err($$select enter_tree('김민수','kim@example.com','12ab',true)$$,   'invalid_pin', 'T2 문자 섞인 PIN 거부');
+select t.ok((enter_tree('이모지','edge@example.com','0123456789',true))->>'ok' = 'true', 'T2 10자리 PIN(0으로 시작) 허용');
 
 -- ── T3~T7 생성 / 로그인 / 복합키 ────────────────────────────────────
 select x->>'token' as tok, x->>'created' as created
-  from (select enter_tree('김민수','990101','Tree#2026',true) x) s \gset a_
+  from (select enter_tree('김민수','minsu@example.com','1234',true) x) s \gset a_
 select t.ok(:'a_created' = 'true', 'T3 새 트리 생성');
 select (get_my_tree(:'a_tok'))->>'share_id' as a_share \gset
 
 select x->>'token' as tok, x->>'created' as created
-  from (select enter_tree('김민수','990101','Tree#2026',false) x) s \gset a2_
-select t.ok(:'a2_created' = 'false' and :'a2_tok' <> :'a_tok', 'T4 같은 이름+생년월일+비밀번호 → 로그인(새 세션 토큰)');
+  from (select enter_tree('김민수','minsu@example.com','1234',false) x) s \gset a2_
+select t.ok(:'a2_created' = 'false' and :'a2_tok' <> :'a_tok', 'T4 같은 이름+이메일+PIN → 로그인(새 세션 토큰)');
 
-select t.ok((enter_tree(normalize('김민수', NFD), '990101', 'Tree#2026', false))->>'ok' = 'true',
+select t.ok((enter_tree(normalize('김민수', NFD), 'minsu@example.com', '1234', false))->>'ok' = 'true',
             'T5 자모 분리형(NFD) 이름도 같은 사용자로 인식');
+select t.ok((enter_tree('김민수', '  MinSu@Example.COM ', '1234', false))->>'share_id' = :'a_share',
+            'T5 이메일 대소문자·앞뒤 공백은 구분하지 않음');
 
-select t.ok((enter_tree('김민수','990101','tree#2026',false))->>'error' = 'not_found', 'T6 비밀번호가 다르면(대소문자 포함) not_found');
+select t.ok((enter_tree('김민수','minsu@example.com','4321',false))->>'error' = 'wrong_pin', 'T6 PIN이 다르면 wrong_pin');
+select t.ok((enter_tree('김민수','minsu@example.com','4321',true))->>'error' = 'wrong_pin',
+            'T6 [새로 만들기]여도 PIN이 다르면 트리를 하나 더 만들지 않음');
+select t.ok((enter_tree('김민수','nobody@example.com','1234',false))->>'error' = 'not_found', 'T6 없는 (이름, 이메일)은 not_found');
 
 select x->>'token' as tok, x->>'share_id' as share
-  from (select enter_tree('김민수','000202','Tree#2026',true) x) s \gset b_
-select t.ok(:'b_share' <> :'a_share', 'T7 동명이인이 같은 비밀번호를 써도 생년월일이 다르면 다른 사용자 (복합 기본키)');
+  from (select enter_tree('김민수','minsu2@example.com','1234',true) x) s \gset b_
+select t.ok(:'b_share' <> :'a_share', 'T7 동명이인이 같은 PIN을 써도 이메일이 다르면 다른 사용자 (복합 기본키)');
 select x->>'token' as tok, x->>'share_id' as share
-  from (select enter_tree('김민수','990101','Other#2026',true) x) s \gset c_
-select t.ok(:'c_share' <> :'a_share', 'T7 이름·생년월일이 같아도 비밀번호가 다르면 다른 사용자');
+  from (select enter_tree('김민지','minsu@example.com','1234',true) x) s \gset c_
+select t.ok(:'c_share' <> :'a_share', 'T7 이메일이 같아도 이름이 다르면 다른 사용자 (가족이 메일 하나를 같이 쓰는 경우)');
 
 -- ── T8 직접 접근 차단 ──────────────────────────────────────────────
 select t.expect_err($$select * from tree_users$$,                'permission denied', 'T8 tree_users 직접 읽기 차단');
@@ -71,6 +76,7 @@ select t.expect_err($$insert into photos(tree_id, path) values (gen_random_uuid(
 select t.expect_err($$select * from private.secrets$$,           'permission denied', 'T8 pepper(비밀값) 읽기 차단');
 select t.expect_err($$select * from private.sessions$$,          'permission denied', 'T8 세션 테이블 읽기 차단');
 select t.expect_err($$select private.hash_secret('김민수')$$,     'permission denied', 'T8 해시 함수 직접 호출 차단');
+select t.expect_err($$select private.verified_email()$$,         'permission denied', 'T8 이메일 확인 함수 직접 호출 차단');
 
 -- ── T9~T11 트리 상태 / 글귀 ─────────────────────────────────────────
 select t.expect_err($$select get_my_tree('deadbeef')$$, 'unauthorized', 'T9 잘못된 토큰 거부');
@@ -112,24 +118,40 @@ with d as (delete from storage.objects where name = :'dp' returning 1)
 select t.ok(finish_photo_delete(:'a_tok', :ph1), 'T13 사진 삭제 확정');
 select t.ok(json_array_length((get_tree(:'a_share'))->'photos') = 0, 'T13 공유 보기에서도 사라짐');
 
--- ── T14 비밀번호 변경 ──────────────────────────────────────────────
-select t.ok((change_password(:'a_tok', 'Wrong#0000', 'NewPass#1'))->>'error' = 'wrong_password', 'T14 기존 비밀번호 틀리면 거부');
-select t.ok((change_password(:'a_tok', 'Tree#2026', 'Other#2026'))->>'error' = 'password_unavailable',
-            'T14 이름·생년월일이 같은 다른 사용자의 비밀번호와 충돌 거부');
-select t.expect_err(format('select change_password(%L, %L, %L)', :'a_tok', 'Tree#2026', 'short'), 'invalid_password', 'T14 새 비밀번호 형식 검사');
-select t.ok((change_password(:'a_tok', 'Tree#2026', 'NewPass#1'))->>'ok' = 'true', 'T14 비밀번호 변경 성공');
+-- ── T14 PIN 변경 ──────────────────────────────────────────────────
+select t.ok((change_pin(:'a_tok', '0000', '5678'))->>'error' = 'wrong_pin', 'T14 지금 PIN이 틀리면 거부');
+select t.expect_err(format('select change_pin(%L, %L, %L)', :'a_tok', '1234', '12'), 'invalid_pin', 'T14 새 PIN 형식 검사');
+select t.ok((change_pin(:'a_tok', '1234', '5678'))->>'ok' = 'true', 'T14 PIN 변경 성공');
 select t.expect_err(format('select get_my_tree(%L)', :'a2_tok'), 'unauthorized', 'T14 다른 기기 세션은 해제');
-select t.ok((get_my_tree(:'a_tok'))->>'title' = '민수네 트리', 'T14 현재 세션·데이터 유지 (id 참조라 PK 변경 영향 없음)');
-select t.ok((enter_tree('김민수', '990101', 'NewPass#1', false))->>'ok' = 'true',  'T14 새 비밀번호로 로그인');
-select t.ok((enter_tree('김민수', '990101', 'Tree#2026', false))->>'error' = 'not_found', 'T14 옛 비밀번호 거부');
+select t.ok((get_my_tree(:'a_tok'))->>'title' = '민수네 트리', 'T14 현재 세션·데이터 유지');
+select t.ok((enter_tree('김민수', 'minsu@example.com', '5678', false))->>'share_id' = :'a_share', 'T14 새 PIN으로 같은 트리에 로그인');
+select t.ok((enter_tree('김민수', 'minsu@example.com', '1234', false))->>'error' = 'wrong_pin', 'T14 옛 PIN 거부');
+select t.ok((enter_tree('김민지', 'minsu@example.com', '1234', false))->>'ok' = 'true', 'T14 같은 이메일을 쓰는 다른 사람의 PIN은 그대로');
 
 -- ── T15 무차별 대입 방지 ───────────────────────────────────────────
--- 위에서 ('김민수', 990101)로 10번 시도함 → 11번째 차단
-select t.expect_err($$select enter_tree('김민수','990101','NewPass#1',false)$$, 'rate_limited', 'T15 (이름, 생년월일)당 15분 10회 초과 차단');
-select t.ok((enter_tree('김민수','000202','Tree#2026',false))->>'ok' = 'true', 'T15 생년월일이 다른 동명이인은 따로 센다');
+select enter_tree('박서준','seojun@example.com','2468',true);
 -- 서로 다른 트랜잭션 10번 실패 → 실패 기록이 롤백되지 않고 쌓이는지
-select format('select enter_tree(%L, %L, %L, false)', '박서준', '990101', 'guess-' || g) from generate_series(1, 10) g \gexec
-select t.expect_err($$select enter_tree('박서준','990101','guess-99',false)$$, 'rate_limited', 'T15 실패 시도 기록이 롤백되지 않음');
+select format('select enter_tree(%L, %L, %L, false)', '박서준', 'seojun@example.com', lpad(g::text, 4, '0')) from generate_series(1, 10) g \gexec
+select t.expect_err($$select enter_tree('박서준','seojun@example.com','2468',false)$$, 'rate_limited',
+                    'T15 (이름, 이메일)당 15분 10회 초과 차단 — 맞는 PIN도 잠시 막힘 (실패 기록이 롤백되지 않음)');
+select t.ok((enter_tree('박서준','seojun2@example.com','2468',true))->>'ok' = 'true', 'T15 이메일이 다른 동명이인은 따로 센다');
+
+-- PIN을 맞히면 그동안의 실패 기록은 지워진다 (9번 틀림 → 맞힘 → 9번 틀림 → 맞힘)
+select enter_tree('정초기','reset-count@example.com','1357',true);
+select format('select enter_tree(%L, %L, %L, false)', '정초기', 'reset-count@example.com', '000' || g) from generate_series(1, 9) g \gexec
+select enter_tree('정초기','reset-count@example.com','1357',false);
+select format('select enter_tree(%L, %L, %L, false)', '정초기', 'reset-count@example.com', '000' || g) from generate_series(1, 9) g \gexec
+select t.ok((enter_tree('정초기','reset-count@example.com','1357',false))->>'ok' = 'true', 'T15 맞히면 실패 횟수 초기화');
+
+-- 하루 30번 제한 (15분 제한만으로는 4자리 PIN을 며칠이면 다 시도할 수 있어서)
+select enter_tree('최하루','daily@example.com','9753',true);
+reset role;
+insert into private.auth_attempts (key, created_at)
+  select '최하루:' || private.hash_secret('email:daily@example.com'), now() - interval '2 hours' from generate_series(1, 25);
+set role anon;
+select format('select enter_tree(%L, %L, %L, false)', '최하루', 'daily@example.com', '000' || g) from generate_series(1, 4) g \gexec
+select t.ok((enter_tree('최하루','daily@example.com','0005',false))->>'error' = 'wrong_pin', 'T15 하루 29번째까지는 시도 가능');
+select t.expect_err($$select enter_tree('최하루','daily@example.com','9753',false)$$, 'rate_limited', 'T15 하루 30번 넘으면 차단');
 
 -- ── T16 개수 제한 ──────────────────────────────────────────────────
 select format('select add_message(%L, %L)', :'b_tok', '글귀 ' || g) from generate_series(1, 50) g \gexec
@@ -144,10 +166,12 @@ select t.expect_err($$select get_tree('no-such-id')$$, 'not_found', 'T18 없는 
 
 -- ── T19 저장 형태 확인 (관리자 권한) ──────────────────────────────
 reset role;
-select t.ok((select count(*) from tree_users where pw_hash ~ 'Tree|NewPass|Other') = 0, 'T19 비밀번호가 평문으로 저장되지 않음');
 select t.ok((select count(*) from information_schema.columns
-              where table_schema = 'public' and table_name = 'tree_users' and column_name ~ 'birth$|^pin') = 0
-            and (select count(*) from tree_users where birth_hash ~ '990101|000202') = 0, 'T19 생년월일도 평문으로 저장되지 않음');
+              where table_schema = 'public' and table_name = 'tree_users' and column_name in ('email', 'pin')) = 0
+            and (select count(*) from tree_users where email_hash ~ '@|example') = 0, 'T19 이메일이 평문으로 저장되지 않음');
+select t.ok((select count(*) from tree_users where pin_hash ~ '^(1234|5678|2468)$') = 0
+            and (select count(distinct pin_hash) from tree_users where name in ('김민지', '김민수')) = 3,
+            'T19 PIN이 평문으로 저장되지 않고, 같은 PIN도 사람마다 해시가 다름');
 select t.ok((select count(*) from private.sessions where token_hash = :'a_tok') = 0,       'T19 세션 토큰이 평문으로 저장되지 않음');
 
 drop schema t cascade;

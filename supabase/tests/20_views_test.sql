@@ -27,9 +27,9 @@ grant execute on all functions in schema t to anon;
 set role anon;
 
 -- 트리 주인 '하늘', 보는 사람 '바다', 또 다른 사람 '구름'
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('하늘', '990101', 'pw-135790', true) x) s \gset o_
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('바다', '990101', 'pw-246802', true) x) s \gset v_
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('구름', '990101', 'pw-112233', true) x) s \gset w_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('하늘', 'sky@example.com', '135790', true) x) s \gset o_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('바다', 'sea@example.com', '246802', true) x) s \gset v_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('구름', 'cloud@example.com', '112233', true) x) s \gset w_
 
 -- ── T20 본 기록 ────────────────────────────────────────────────────
 select t.ok((record_view(:'v_tok', :'o_share'))->>'own' = 'false', 'T20 남의 트리를 보면 기록됨');
@@ -85,8 +85,8 @@ select t.expect_err(format('select merge_views(%L, %L)', :'w_tok', '{"a":1}'), '
 -- ── T25 기록 50개 제한 (담은 트리는 기록만 빠지고 남음) ─────────────────
 reset role;
 -- created_at을 과거로: "전체 1시간 60개" 가입 제한이 다음 테스트 파일에 영향을 주지 않도록
-insert into tree_users (name, birth_hash, pw_hash, created_at)
-  select '기록' || chr(44032 + g), encode(extensions.digest('views-birth-' || g, 'sha256'), 'hex'),
+insert into tree_users (name, email_hash, pin_hash, created_at)
+  select '기록' || chr(44032 + g), encode(extensions.digest('views-email-' || g, 'sha256'), 'hex'),
          encode(extensions.digest('views-test-' || g, 'sha256'), 'hex'), now() - interval '2 hours'
     from generate_series(1, 55) g;
 insert into trees (owner_id) select id from tree_users where name like '기록%';

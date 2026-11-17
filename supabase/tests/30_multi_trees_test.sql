@@ -26,8 +26,8 @@ grant execute on all functions in schema t to anon;
 
 set role anon;
 
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('여러트리', '990101', 'pw-135246', true) x) s \gset a_
-select x->>'token' as tok from (select enter_tree('남의트리', '990101', 'pw-975310', true) x) s \gset z_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('여러트리', 'many@example.com', '135246', true) x) s \gset a_
+select x->>'token' as tok from (select enter_tree('남의트리', 'other@example.com', '975310', true) x) s \gset z_
 
 -- ── T30 첫 트리 ───────────────────────────────────────────────────
 select (list_my_trees(:'a_tok'))->0->>'id' as t1 \gset
@@ -83,7 +83,7 @@ select reorder_trees(:'a_tok', array[:'t3', :'t1', :'t2']::uuid[]);
 select t.ok((list_my_trees(:'a_tok'))->0->>'id' = :'t3' and (list_my_trees(:'a_tok'))->2->>'id' = :'t2',
             'T36 순서 바꾸기');
 select t.ok((get_my_tree(:'a_tok'))->>'id' = :'t3', 'T36 트리를 지정하지 않으면 맨 앞 트리');
-select t.ok((enter_tree('여러트리', '990101', 'pw-135246', false))->>'share_id' = (list_my_trees(:'a_tok'))->0->>'share_id',
+select t.ok((enter_tree('여러트리', 'many@example.com', '135246', false))->>'share_id' = (list_my_trees(:'a_tok'))->0->>'share_id',
             'T36 로그인 응답의 공유 링크도 맨 앞 트리');
 select t.expect_err(format('select reorder_trees(%L, %L::uuid[])', :'a_tok', array[:'t1', :'t2']), 'invalid_order', 'T36 일부만 보내면 거부');
 select t.expect_err(format('select reorder_trees(%L, %L::uuid[])', :'a_tok', array[:'t1', :'t1', :'t2']), 'invalid_order', 'T36 중복 거부');
