@@ -3,7 +3,7 @@
 이 파일은 Claude Code가 이 저장소에서 작업할 때 따르는 지침입니다.
 
 ## 프로젝트 한 줄 요약
-한글 이름 + 숫자 PIN으로 자기만의 **파티클 3D 크리스마스 트리**를 만들고,
+**한글 이름 + 생년월일 + 비밀번호**로 자기만의 **파티클 3D 크리스마스 트리**(사용자당 3개)를 만들고,
 글귀·사진을 걸어 공유 링크로 보여주는 웹앱입니다.
 정적 프론트엔드(GitHub Pages)와 Supabase(DB+Storage, 무료 플랜)로 구성되고, 서버 코드는 없습니다.
 
@@ -59,7 +59,7 @@ npm run test:e2e
 - 새 RPC는 `docs/DATABASE.md`의 "새 RPC 체크리스트" 8단계를 모두 따릅니다.
   - `security definer` + `set search_path = ''` + 스키마까지 붙인 이름
   - grant 목록 추가, 테스트 추가
-- 실패 기록을 남겨야 하는 경로(로그인·PIN 확인)는 raise 대신 `{ok:false, error}`를 return합니다. raise하면 트랜잭션 롤백으로 기록이 사라집니다.
+- 실패 기록을 남겨야 하는 경로(로그인·비밀번호 확인)는 raise 대신 `{ok:false, error}`를 return합니다. raise하면 트랜잭션 롤백으로 기록이 사라집니다.
 - 사용자 입력(이름·제목·글귀·캡션)은 DOM에 **`textContent`로만** 넣습니다. `innerHTML` 금지(토큰이 localStorage에 있으므로 XSS 치명적).
 - `web/config.js`, `.env`, secret key, service_role key, DB 비밀번호를 커밋하지 않습니다.
 - pepper(`private.secrets`)는 DB 안에서 생성됩니다. 코드나 문서에 값을 쓰지 않습니다.
@@ -75,9 +75,10 @@ npm run test:e2e
 - 오류 표시는 `TreeError.message`(한국어)를 씁니다. 새 오류 코드는 `ERROR_MESSAGES`에 추가합니다.
 
 ### DB 마이그레이션
-- 아직 실제 배포 전(Phase 4 이전)이라 `20261117000000_init.sql`을 직접 수정해도 됩니다.
-- **Phase 4에서 배포한 뒤로는** 기존 파일을 수정하지 말고 `supabase/migrations/<타임스탬프>_<설명>.sql`을 새로 추가합니다.
-- 마이그레이션을 바꾸면 반드시 `./scripts/test-db.sh`가 통과해야 합니다. 2회 연속 적용도 성공해야 합니다(재실행 안전성).
+- **배포된 마이그레이션은 수정하지 않습니다.** 변경은 `supabase/migrations/<타임스탬프>_<설명>.sql`을 새로 추가합니다.
+  (`main`에 push하면 Supabase GitHub 통합이 운영 DB에 자동 적용합니다)
+- 운영 데이터를 지우는 마이그레이션은 사람의 명시적 결정이 있을 때만 만들고, 재실행 시에는 아무것도 지우지 않게 가드를 둡니다(예: `accounts_v2`).
+- 마이그레이션을 바꾸면 반드시 `./scripts/test-db.sh`가 통과해야 합니다. 파일마다 2회 연속 적용(재실행 안전성)과, 배포된 DB에 적용하는 업그레이드 테스트(`supabase/tests/upgrade/`)도 함께 돕니다.
 
 ### 작업 방식
 - 단계 하나를 끝내면 `docs/ROADMAP.md`의 체크박스와 "현재 상태"를 갱신합니다.
@@ -88,5 +89,8 @@ npm run test:e2e
 
 ## 알려진 제약 / 주의점
 - mock 테스트는 `storage.objects`의 일부 컬럼만 흉내 냅니다. Storage 정책의 **실제 동작은 Phase 4에서 실제 Supabase로 확인**해야 합니다(DEPLOY.md 6번).
-- PIN은 4~6자리라 근본적으로 약합니다. 서비스 문구에서 "강한 비밀번호"처럼 표현하지 않습니다.
+- 사용자 = (이름, 생년월일, 비밀번호). 세 값이 모두 같으면 같은 사람으로 열리므로 로그인 화면의 안내 문구(`#pwWarn`)를 없애지 않습니다.
+- 해시는 조회를 위해 빠른 HMAC입니다. DB와 pepper가 함께 유출되면 짧은 비밀번호는 풀릴 수 있으니, 보안을 과장하는 문구를 쓰지 않습니다.
+- 생년월일·비밀번호는 평문으로 저장하지 않습니다(해시만). 새 기능에서도 평문 컬럼을 만들지 않습니다.
+- 무늬 번호는 DB에 저장됩니다. `PATTERNS`에 새 무늬는 **맨 뒤에만** 추가하고, 늘리면 `trees_pattern` 제약도 새 마이그레이션으로 바꿉니다.
 - Supabase 무료 프로젝트는 7일 동안 요청이 없으면 일시정지됩니다.
