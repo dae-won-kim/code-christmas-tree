@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Code Christmas Tree</title>
-<meta name="description" content="이름·생년월일·비밀번호로 나만의 파티클 3D 크리스마스 트리를 만들고, 글귀와 사진을 걸어 링크로 보여 주세요.">
+<meta name="description" content="이름·이메일·PIN으로 나만의 파티클 3D 크리스마스 트리를 만들고, 글귀와 사진을 걸어 링크로 보여 주세요.">
 <!-- 세션 토큰이 localStorage에 있으므로 XSS 피해를 줄이기 위해 스크립트 출처를 제한한다.
      Supabase를 커스텀 도메인으로 쓰면 connect-src / img-src에 그 도메인을 추가할 것 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -36,28 +36,25 @@
     <div class="fields">
       <div class="field">
         <label for="inName">이름 <span class="sub">(한글 2~10자)</span></label>
-        <input id="inName" name="name" lang="ko" autocomplete="username" autocapitalize="off" spellcheck="false"
+        <input id="inName" name="name" lang="ko" autocomplete="nickname" autocapitalize="off" spellcheck="false"
                placeholder="김민수" aria-describedby="nameMsg">
       </div>
-      <div class="field birth">
-        <label for="inBirth">생년월일 <span class="sub">(6자리)</span></label>
-        <input id="inBirth" name="birth" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"
-               placeholder="990101" aria-describedby="birthMsg">
+      <div class="field pin">
+        <label for="inPin">PIN <span class="sub">(숫자 4~10자리)</span></label>
+        <input id="inPin" name="pin" type="password" inputmode="numeric" autocomplete="current-password"
+               maxlength="10" pattern="[0-9]*" aria-describedby="pinMsg">
       </div>
     </div>
     <p id="nameMsg" class="msg" aria-live="polite"></p>
-    <p id="birthMsg" class="msg" aria-live="polite"></p>
-    <div class="field pw">
-      <label for="inPassword">비밀번호 <span class="sub">(6~64자 · 영문·숫자·기호 가능)</span></label>
-      <div class="inline">
-        <input id="inPassword" name="password" type="password" autocomplete="current-password" maxlength="64"
-               aria-describedby="pwMsg pwWarn">
-        <button type="button" id="btnShowPw" aria-pressed="false" aria-label="비밀번호 보기">보기</button>
-      </div>
+    <p id="pinMsg" class="msg" aria-live="polite"></p>
+    <div class="field email">
+      <label for="inEmail">이메일 <span class="sub">(PIN을 잊었을 때 복구용)</span></label>
+      <input id="inEmail" name="email" type="email" inputmode="email" autocomplete="username email" autocapitalize="off"
+             spellcheck="false" maxlength="254" placeholder="name@example.com" aria-describedby="emailMsg emailWarn">
     </div>
-    <p id="pwMsg" class="msg" aria-live="polite"></p>
-    <p id="pwWarn" class="warn">⚠ 이름·생년월일·비밀번호가 <b>모두 같으면 같은 트리</b>로 열려요.
-      동명이인과 겹치지 않도록 <b>나만 아는 비밀번호</b>를 정해 주세요.</p>
+    <p id="emailMsg" class="msg" aria-live="polite"></p>
+    <p id="emailWarn" class="warn">📧 PIN을 잊으면 <b>이 이메일로 복구 PIN</b>을 보내 드려요.
+      메일을 받을 수 있는 주소를 정확히 적어 주세요.</p>
     <p id="loginError" class="msg error" role="alert"></p>
     <div id="createConfirm" class="confirm" hidden>
       <p id="createText"></p>
@@ -66,11 +63,50 @@
         <button type="button" id="btnCreate" class="primary">새 트리 만들기</button>
       </div>
     </div>
-    <div class="row" id="loginActions">
+    <div class="row spread" id="loginActions">
+      <button type="button" id="btnForgot" class="ghost">PIN을 잊었어요</button>
       <button type="submit" id="btnEnter" class="primary">내 트리 열기</button>
     </div>
-    <p class="hint">처음이면 이름·생년월일·비밀번호를 정해서 새 트리를 만들 수 있어요.<br>
-      다른 서비스에서 쓰는 비밀번호는 쓰지 마세요. 비밀번호를 잊으면 되찾을 수 없어요.</p>
+    <p class="hint">처음이면 이름·이메일·PIN을 정해서 새 트리를 만들 수 있어요.<br>
+      이메일은 트리 DB에 해시로만 저장돼요. 카드·휴대폰 비밀번호처럼 다른 곳에 쓰는 숫자는 PIN으로 쓰지 마세요.</p>
+  </form>
+
+  <!-- PIN 복구: 메일로 받은 복구 PIN(6자리)으로 새 PIN 정하기 -->
+  <form id="recoverCard" class="card" hidden novalidate aria-labelledby="recoverHeading">
+    <h1 id="recoverHeading">PIN 복구</h1>
+    <p class="hint top">트리를 만들 때 적은 이름과 이메일을 입력하면 그 주소로 <b>복구 PIN</b>(숫자 6자리)을 보내 드려요.</p>
+    <div class="fields">
+      <div class="field">
+        <label for="rcName">이름</label>
+        <input id="rcName" lang="ko" autocomplete="nickname" autocapitalize="off" spellcheck="false" placeholder="김민수">
+      </div>
+      <div class="field email-wide">
+        <label for="rcEmail">이메일</label>
+        <input id="rcEmail" type="email" inputmode="email" autocomplete="username email" autocapitalize="off"
+               spellcheck="false" maxlength="254" placeholder="name@example.com">
+      </div>
+    </div>
+    <div id="rcStep2" hidden>
+      <p id="rcSent" class="msg good" role="status"></p>
+      <div class="field rc-code">
+        <label for="rcCode">메일로 받은 복구 PIN</label>
+        <input id="rcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]*" placeholder="123456">
+      </div>
+      <div class="fields">
+        <div class="field"><label for="rcPin">새 PIN <span class="sub">(숫자 4~10자리)</span></label>
+          <input id="rcPin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
+        <div class="field"><label for="rcPin2">새 PIN 확인</label>
+          <input id="rcPin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
+      </div>
+    </div>
+    <p id="rcError" class="msg error" role="alert"></p>
+    <div class="row spread">
+      <button type="button" id="btnRecoverBack" class="ghost">← 로그인으로</button>
+      <span class="row-gap">
+        <button type="button" id="btnResend" hidden>메일 다시 보내기</button>
+        <button type="submit" id="btnRecover" class="primary">복구 PIN 보내기</button>
+      </span>
+    </div>
   </form>
 
   <div id="toolbar">
@@ -159,20 +195,21 @@
     <p id="copyState" class="msg" aria-live="polite"></p>
     <p><a id="shareOpen" href="#" target="_blank" rel="noopener">공유 화면 새 탭에서 보기 ↗</a></p>
 
-    <h3 class="list-head">비밀번호 바꾸기</h3>
-    <form id="pwForm" novalidate>
+    <h3 class="list-head">PIN 바꾸기</h3>
+    <form id="pinForm" novalidate>
       <div class="fields three">
-        <div class="field"><label for="pwOld">현재 비밀번호</label>
-          <input id="pwOld" type="password" autocomplete="current-password" maxlength="64"></div>
-        <div class="field"><label for="pwNew">새 비밀번호</label>
-          <input id="pwNew" type="password" autocomplete="new-password" maxlength="64"></div>
-        <div class="field"><label for="pwNew2">새 비밀번호 확인</label>
-          <input id="pwNew2" type="password" autocomplete="new-password" maxlength="64"></div>
+        <div class="field"><label for="pinOld">지금 PIN</label>
+          <input id="pinOld" type="password" inputmode="numeric" autocomplete="current-password" maxlength="10" pattern="[0-9]*"></div>
+        <div class="field"><label for="pinNew">새 PIN</label>
+          <input id="pinNew" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
+        <div class="field"><label for="pinNew2">새 PIN 확인</label>
+          <input id="pinNew2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
       </div>
-      <p id="pwState" class="msg" role="status"></p>
-      <div class="row"><button type="submit" id="btnPw">비밀번호 바꾸기</button></div>
+      <p id="pinState" class="msg" role="status"></p>
+      <div class="row"><button type="submit" id="btnPin">PIN 바꾸기</button></div>
     </form>
-    <p class="hint">비밀번호를 바꾸면 지금 쓰는 기기를 뺀 다른 기기는 모두 로그아웃돼요.</p>
+    <p class="hint">PIN을 바꾸면 지금 쓰는 기기를 뺀 다른 기기는 모두 로그아웃돼요.
+      지금 PIN이 기억나지 않으면 로그아웃한 뒤 [PIN을 잊었어요]로 이메일 복구를 해 주세요.</p>
 
     <div class="row spread">
       <span id="whoami" class="sub"></span>

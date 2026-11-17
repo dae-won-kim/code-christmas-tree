@@ -16,10 +16,15 @@ const TOKEN_KEY = 'code-christmas-tree.token';
 
 export const ERROR_MESSAGES = {
   invalid_name:      '이름은 한글 2~10자로 입력해 주세요. (공백·영문·숫자 불가)',
-  invalid_birth:     '생년월일은 6자리 숫자(예: 990101)로 입력해 주세요.',
-  invalid_password:  '비밀번호는 6~64자로 입력해 주세요.',
-  not_found:         '이름·생년월일·비밀번호가 맞는 트리가 없어요.',
-  rate_limited:      '시도가 너무 많아요. 15분 뒤에 다시 시도해 주세요.',
+  invalid_email:     '이메일 주소를 확인해 주세요. (예: name@example.com)',
+  invalid_pin:       'PIN은 숫자 4~10자리로 입력해 주세요.',
+  not_found:         '이 이름과 이메일로 된 트리가 없어요.',
+  wrong_pin:         'PIN이 맞지 않아요.',
+  rate_limited:      '시도가 너무 많아요. 잠시 뒤에 다시 시도하거나, PIN을 잊었다면 이메일로 복구해 주세요.',
+  email_unverified:  '메일 확인 시간이 지났어요. 복구 PIN을 다시 받아 주세요.',
+  otp_invalid:       '복구 PIN이 맞지 않거나 만료됐어요. 메일의 숫자를 다시 확인하거나 새로 받아 주세요.',
+  otp_rate_limited:  '메일은 잠시 뒤에 다시 보낼 수 있어요. (1분에 한 번, 시간당 몇 통까지)',
+  otp_send_failed:   '복구 메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요.',
   unauthorized:      '로그인이 만료됐어요. 다시 로그인해 주세요.',
   invalid_title:     '제목은 1~30자로 입력해 주세요.',
   invalid_pattern:   '알 수 없는 트리 무늬예요.',
@@ -29,8 +34,6 @@ export const ERROR_MESSAGES = {
   invalid_ticket:    '사진 업로드가 만료됐어요. 다시 시도해 주세요.',
   file_missing:      '사진 파일이 업로드되지 않았어요. 다시 시도해 주세요.',
   file_still_exists: '사진 파일을 지우지 못했어요. 다시 시도해 주세요.',
-  wrong_password:    '현재 비밀번호가 맞지 않아요.',
-  password_unavailable: '그 비밀번호는 쓸 수 없어요. 다른 비밀번호를 골라 주세요.',
   tree_limit:        '트리는 3개까지 만들 수 있어요.',
   last_tree:         '마지막 남은 트리는 지울 수 없어요.',
   tree_has_photos:   '사진이 있는 트리는 지울 수 없어요. 꾸미기 → 사진에서 먼저 지워 주세요.',
@@ -66,22 +69,33 @@ function toTreeError(err) {
 /** 이름 정규화 (DB의 private.normalize_name과 동일 규칙) */
 export const normalizeName = name => String(name || '').trim().normalize('NFC');
 export const isValidName = name => /^[가-힣]{2,10}$/.test(normalizeName(name));
-/** 생년월일 YYMMDD (DB의 private.valid_birth와 같은 규칙: 실제로 있는 월·일, 2월 29일 허용) */
-export function isValidBirth(birth) {
-  const v = String(birth || '');
-  if (!/^[0-9]{6}$/.test(v)) return false;
-  const m = +v.slice(2, 4), d = +v.slice(4, 6);
-  return m >= 1 && m <= 12 && d >= 1 && d <= new Date(2000, m, 0).getDate();   // 2000년은 윤년
+/** 이메일 정규화·검증 (DB의 private.normalize_email / valid_email과 같은 규칙) */
+export const normalizeEmail = email => String(email ?? '').trim().toLowerCase();
+export const isValidEmail = email => {
+  const v = normalizeEmail(email);
+  return v.length <= 254 && /^[^@\s\u0000-\u001f\u007f]+@[^@\s\u0000-\u001f\u007f]+\.[^@\s\u0000-\u001f\u007f.]{2,}$/.test(v);
+};
+/** PIN: 숫자 4~10자리 (DB의 private.valid_pin) */
+export const isValidPin = pin => /^[0-9]{4,10}$/.test(String(pin ?? ''));
+
+/** Supabase Auth(복구 메일) 오류 → TreeError */
+function authError(err, fallback) {
+  const text = `${err?.code || ''} ${err?.message || err || ''}`;
+  if (err?.status === 429 || /rate.?limit|security purposes|request this after/i.test(text)) return new TreeError('otp_rate_limited', text);
+  if (/Failed to fetch|NetworkError/i.test(text)) return new TreeError('network', text);
+  if (/email_address_invalid|invalid.*email|email.*invalid/i.test(text) && fallback === 'otp_send_failed') return new TreeError('invalid_email', text);
+  return new TreeError(fallback, text);
 }
-/** 비밀번호: 6~64자, 제어 문자 없음 (영문·숫자·기호·한글·공백 가능) */
-export const isValidPassword = pw => { const n = [...String(pw ?? '')].length; return n >= 6 && n <= 64 && !/[\u0000-\u001f\u007f]/.test(pw); };
 
 export class TreeApi {
   /** @param {{url: string, key: string}} config  SUPABASE_URL, Publishable key */
   constructor({ url, key }) {
     if (!url || !key || !window.supabase?.createClient) throw new TreeError('not_configured');
-    // Supabase Auth는 쓰지 않으므로 세션 저장 끔
-    this.sb = window.supabase.createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    // Supabase Auth는 PIN 복구 메일 확인에만 잠깐 쓴다 → 세션을 저장하지 않고(메모리만) 끝나면 바로 로그아웃
+    this.sb = window.supabase.createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+    });
+    this.recoveryEmail = null;   // 복구 PIN으로 확인을 마친 이메일 (이름을 고쳐 다시 시도할 때 메일을 다시 안 받아도 되게)
     try { this.token = localStorage.getItem(TOKEN_KEY); } catch { this.token = null; }
   }
 
@@ -113,22 +127,71 @@ export class TreeApi {
 
   /**
    * 트리 열기. create=false면 로그인만, true면 없을 때 새로 만듦(첫 트리 포함).
-   * 사용자 = (이름, 생년월일 6자리, 비밀번호)
+   * 사용자 = (이름, 이메일), PIN으로 확인. 있는데 PIN이 다르면 wrong_pin
    * @returns {Promise<{token, name, share_id, created}>}
    */
-  async enter(name, birth, password, { create = false } = {}) {
+  async enter(name, email, pin, { create = false } = {}) {
     const r = await this.#rpc('enter_tree', {
-      p_name: normalizeName(name), p_birth: String(birth), p_password: String(password), p_create: create
+      p_name: normalizeName(name), p_email: normalizeEmail(email), p_pin: String(pin), p_create: create
     });
     if (!r.ok) throw new TreeError(r.error);
     this.#setToken(r.token);
     return r;
   }
 
-  async changePassword(oldPassword, newPassword) {
-    const r = await this.#auth('change_password', { p_old_password: String(oldPassword), p_new_password: String(newPassword) });
+  /** PIN 바꾸기 (지금 PIN을 알 때). 다른 기기는 로그아웃 */
+  async changePin(oldPin, newPin) {
+    const r = await this.#auth('change_pin', { p_old_pin: String(oldPin), p_new_pin: String(newPin) });
     if (!r.ok) throw new TreeError(r.error);
     return true;
+  }
+
+  /* ── PIN 복구 (이메일) ───────────────────────────────
+   *  ① sendRecovery(email): Supabase Auth가 그 주소로 복구 PIN(6자리 코드)을 보낸다
+   *  ② resetPin(...): 코드 확인(verifyOtp) → 그 로그인 상태로 reset_pin RPC → 새 PIN + 바로 내 트리
+   *  계정이 있는지는 ①에서 알려 주지 않는다(메일 주인만 ②에서 알 수 있음)
+   */
+  async sendRecovery(email) {
+    const e = normalizeEmail(email);
+    if (!isValidEmail(e)) throw new TreeError('invalid_email');
+    let res;
+    try { res = await this.sb.auth.signInWithOtp({ email: e, options: { shouldCreateUser: true } }); }
+    catch (x) { throw authError(x, 'otp_send_failed'); }
+    if (res?.error) throw authError(res.error, 'otp_send_failed');
+    if (this.recoveryEmail !== e) await this.#endRecovery();
+    return true;
+  }
+
+  /** @returns {Promise<{token, name, share_id}>} */
+  async resetPin(name, email, code, newPin) {
+    const e = normalizeEmail(email);
+    if (!isValidPin(newPin)) throw new TreeError('invalid_pin');
+    if (this.recoveryEmail !== e) {
+      const token = String(code ?? '').replace(/\s/g, '');
+      if (!/^[0-9]{6,10}$/.test(token)) throw new TreeError('otp_invalid');
+      let res;
+      try { res = await this.sb.auth.verifyOtp({ email: e, token, type: 'email' }); }
+      catch (x) { throw authError(x, 'otp_invalid'); }
+      if (res?.error) throw authError(res.error, 'otp_invalid');
+      this.recoveryEmail = e;
+    }
+    try {
+      const r = await this.#rpc('reset_pin', { p_name: normalizeName(name), p_new_pin: String(newPin) });
+      this.#setToken(r.token);
+      await this.#endRecovery();
+      return r;
+    } catch (err) {
+      if (err.code === 'email_unverified' || err.code === 'unauthorized') await this.#endRecovery();
+      throw err;   // not_found(이름 오타)·invalid_pin은 확인 상태를 유지 → 고쳐서 바로 다시 시도
+    }
+  }
+
+  get recoveryVerified() { return !!this.recoveryEmail; }
+
+  /** 복구용 Supabase Auth 로그인 끝내기 (이 브라우저의 메모리에서만 지움) */
+  async #endRecovery() {
+    this.recoveryEmail = null;
+    try { await this.sb.auth.signOut({ scope: 'local' }); } catch { /* 이미 로그아웃 */ }
   }
 
   async logout() {

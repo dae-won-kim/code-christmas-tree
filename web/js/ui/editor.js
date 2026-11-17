@@ -4,7 +4,7 @@
  *  - 제목·무늬·설정 변경은 800ms debounce 후 updateTree 한 번으로 저장
  *  - DB 접근은 TreeApi만 사용. unauthorized가 나면 onUnauthorized()로 로그인 화면에 보냄
  */
-import { TreeError, isValidPassword } from '../api.js';
+import { TreeError, isValidPin } from '../api.js';
 import { $, h, toast, busy, trackComposition, isImeEnter, confirmButton } from './dom.js';
 
 const SAVE_DELAY = 800;
@@ -317,20 +317,24 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     else { openPanel('tab-account'); shareInput.select(); }
   });
 
-  const pwForm = $('pwForm'), pwState = $('pwState');
-  on(pwForm, 'submit', async e => {
+  const pinForm = $('pinForm'), pinState = $('pinState');
+  on(pinForm, 'submit', async e => {
     e.preventDefault();
-    const oldPw = $('pwOld').value, newPw = $('pwNew').value, newPw2 = $('pwNew2').value;
-    pwState.className = 'msg bad';
-    if (!oldPw) { pwState.textContent = '현재 비밀번호를 입력해 주세요.'; $('pwOld').focus(); return; }
-    if (!isValidPassword(newPw)) { pwState.textContent = '새 비밀번호는 6~64자로 입력해 주세요.'; $('pwNew').focus(); return; }
-    if (newPw !== newPw2) { pwState.textContent = '새 비밀번호 확인이 일치하지 않아요.'; $('pwNew2').focus(); return; }
-    if (newPw === oldPw) { pwState.textContent = '지금 비밀번호와 다른 비밀번호를 골라 주세요.'; $('pwNew').focus(); return; }
+    const oldPin = $('pinOld').value, newPin = $('pinNew').value, newPin2 = $('pinNew2').value;
+    pinState.className = 'msg bad';
+    if (!oldPin) { pinState.textContent = '지금 PIN을 입력해 주세요.'; $('pinOld').focus(); return; }
+    if (!isValidPin(newPin)) { pinState.textContent = '새 PIN은 숫자 4~10자리로 입력해 주세요.'; $('pinNew').focus(); return; }
+    if (newPin !== newPin2) { pinState.textContent = '새 PIN 확인이 일치하지 않아요.'; $('pinNew2').focus(); return; }
+    if (newPin === oldPin) { pinState.textContent = '지금 PIN과 다른 숫자로 정해 주세요.'; $('pinNew').focus(); return; }
     try {
-      await busy($('btnPw'), '바꾸는 중…', () => call(() => api.changePassword(oldPw, newPw)));
-      pwForm.reset();
-      pwState.textContent = '비밀번호를 바꿨어요. 다른 기기는 로그아웃됐어요.'; pwState.className = 'msg good';
-    } catch (e2) { if (!e2.handled) pwState.textContent = errMsg(e2); }
+      await busy($('btnPin'), '바꾸는 중…', () => call(() => api.changePin(oldPin, newPin)));
+      pinForm.reset();
+      pinState.textContent = 'PIN을 바꿨어요. 다른 기기는 로그아웃됐어요.'; pinState.className = 'msg good';
+    } catch (e2) {
+      if (e2.handled) return;
+      pinState.textContent = e2.code === 'wrong_pin' ? '지금 PIN이 맞지 않아요.' : errMsg(e2);
+      if (e2.code === 'wrong_pin') $('pinOld').select();
+    }
   });
 
   on($('btnLogout'), 'click', async () => {
@@ -348,7 +352,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   renderMessages();
   renderPhotos();
   setSaveState('');
-  uploadState.textContent = ''; copyState.textContent = ''; pwState.textContent = ''; msgError.textContent = '';
+  uploadState.textContent = ''; copyState.textContent = ''; pinState.textContent = ''; msgError.textContent = '';
   updateMsgCount();
 
   return {

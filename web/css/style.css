@@ -166,14 +166,19 @@ button.icon { min-height: 32px; width: 32px; padding: 0; display: inline-flex; a
 .inline input { flex: 1; min-width: 0; }
 .fields { display: flex; gap: 10px; }
 .fields .field { flex: 1; min-width: 0; }
-.fields .field.birth { flex: 0 0 36%; }
-.card .field.pw { margin-top: 8px; }
+.fields .field.pin { flex: 0 0 38%; }
+.card .field.email, .card .field.rc-code, #rcStep2 .fields { margin-top: 8px; }
+.card .hint.top { margin: 0 0 8px; }
+.card .hint b { color: #ffe9a8; }
+.fields .field.email-wide { flex: 1.7; }
+.row-gap { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+button.ghost { background: transparent; border-color: transparent; color: #ffe9a8; text-decoration: underline; text-underline-offset: 3px; padding-left: 4px; padding-right: 4px; }
+button.ghost:hover { background: rgba(255, 255, 255, .06); }
 .card .warn {
   margin-top: 8px; padding: 7px 10px; border-radius: 8px; font-size: 12px; line-height: 1.55;
   color: #ffe2b0; background: rgba(255, 180, 80, .1); border: 1px solid rgba(255, 190, 100, .28);
 }
 .card .warn b { color: #fff1c9; font-weight: 700; }
-#btnShowPw { min-width: 56px; }
 .hint { color: #a9a39a; font-size: 12px; margin-top: 8px; line-height: 1.55; }
 
 /* ---------- 로그인 카드 ---------- */
@@ -257,7 +262,7 @@ button.confirming, .grid li button.confirming { background: #c94b4b; border-colo
 
 @media (max-width: 380px) {
   .fields:not(.three) { flex-direction: column; gap: 8px; }
-  .fields .field.birth { flex: 1; }
+  .fields .field.pin { flex: 1; }
 }
 @media (max-height: 480px) {
   .card { padding: 10px 12px; }
