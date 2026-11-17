@@ -11,9 +11,9 @@
   - 남은 확인: Supabase **Security Advisor** 경고 검토 (대시보드에서만 가능)
 - ✅ **Phase 6** 트리 목록(담기 · 최근 본 트리, 사이드 서랍)
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·루돌프 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
-  - ⚠ 아직 push 전: push하면 운영 DB의 v1 데이터가 지워지고 v2로 바뀜 (운영자 결정)
-  - ⚠ push 후 운영자 설정 필요: Supabase Auth 메일 템플릿(`{{ .Token }}`) + Custom SMTP (DEPLOY.md 2-1)
-- ⏭ **다음: Phase 5** 오픈소스 마무리 (CONTRIBUTING, 템플릿)
+  - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
+  - ⚠ 운영자 설정 필요: Supabase Auth 메일 템플릿(`{{ .Token }}`) + Custom SMTP (DEPLOY.md 2-1) — 이것 전까지 PIN 복구 메일만 실패
+- 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스 표기·GIF 남음
 
 ---
 
@@ -101,12 +101,14 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
   - CSP 위반 없음
   - 점검 중 발견: 로딩 중 도구 막대 버튼이 반응하지 않던 문제 → 수정 + E2E 추가
 - [ ] Supabase **Advisors → Security Advisor** 경고 확인 (`security definer` 함수 경고는 의도된 설계)
-- [ ] 배포 후에는 `20261117000000_init.sql`을 수정하지 않고, 변경 사항은 새 마이그레이션 파일로 추가
+- [x] 배포 후에는 `20261117000000_init.sql`을 수정하지 않고, 변경 사항은 새 마이그레이션 파일로 추가 (accounts_v2·tree_views 모두 새 파일로 추가)
 
-## Phase 5 — 오픈소스 마무리 ⬜
+## Phase 5 — 오픈소스 마무리 🔄
 - [x] README에 스크린샷, 데모 링크 — 사용 가이드 / 포트폴리오 두 부분으로 구성 (GIF는 아직)
-- [ ] CONTRIBUTING.md, 이슈/PR 템플릿
-- [ ] 라이선스 저작권자 표기 확인
+- [x] CONTRIBUTING.md, SECURITY.md(비공개 취약점 신고), 이슈 템플릿(버그·기능, 보안 신고 링크)·PR 템플릿
+- [ ] GitHub 설정: Settings → Code security → **Private vulnerability reporting** 켜기 (SECURITY.md가 이 경로를 안내함)
+- [ ] 라이선스 저작권자 표기 확인 (현재 `Code Christmas Tree contributors`)
+- [ ] README GIF
 
 ## Phase 6 — 트리 목록 (담기 · 본 기록) ✅
 - [x] DB: `tree_views` 테이블 + RPC 5개 (`record_view`, `list_trees`, `set_saved`, `forget_views`, `merge_views`)

@@ -266,8 +266,9 @@ Fork → Supabase 프로젝트 생성 → 마이그레이션 적용 → 복구 �
 | [`docs/DEPLOY.md`](docs/DEPLOY.md) | 배포 절차, 복구 메일 설정, 배포 후 체크리스트, 문제 해결 |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | 단계별 진행 상황 |
 
-**보안 문제를 발견하면** 공개 이슈 대신 저장소 관리자에게 비공개로 알려 주세요.
-이슈와 PR을 환영합니다. DB를 바꾸는 PR은 `./scripts/test-db.sh`, 화면을 바꾸는 PR은 `npm run test:e2e` 통과가 필요합니다(CI에서 자동 실행).
+**보안 문제를 발견하면** 공개 이슈 대신 [SECURITY.md](SECURITY.md)의 비공개 신고로 알려 주세요.
+이슈와 PR을 환영합니다. 규칙과 개발 환경은 [CONTRIBUTING.md](CONTRIBUTING.md)에 있습니다.
+DB를 바꾸는 PR은 `./scripts/test-db.sh`, 화면을 바꾸는 PR은 `npm run test:e2e` 통과가 필요합니다(CI에서 자동 실행).
 
 ## 라이선스
 

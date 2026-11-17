@@ -1,0 +1,27 @@
+name: ✨ 기능 제안
+description: 새 기능이나 개선 아이디어
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: 지금 계획은 [docs/ROADMAP.md](https://github.com/dae-won-kim/code-christmas-tree/blob/main/docs/ROADMAP.md)의 백로그에 있어요. 겹치는지 먼저 봐 주세요.
+  - type: textarea
+    id: problem
+    attributes:
+      label: 어떤 점이 불편하거나 아쉬운가요?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 제안하는 방법
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 영향 범위 (아는 만큼만)
+      options:
+        - label: DB 변경(새 마이그레이션·RPC)이 필요해 보여요
+        - label: 새 외부 리소스(CDN·폰트 등)가 필요해 보여요
+        - label: 직접 PR을 올려 볼게요

@@ -1,0 +1,58 @@
+name: 🐞 버그 신고
+description: 잘못 동작하는 부분을 알려 주세요
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        보안 문제라면 이 양식 대신 Security → Report a vulnerability로 알려 주세요.
+        **이메일·PIN·토큰(localStorage 값)은 절대 적지 마세요.**
+  - type: textarea
+    id: what
+    attributes:
+      label: 무슨 일이 있었나요?
+      description: 기대한 동작과 실제 동작
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      placeholder: |
+        1. 로그인 후 꾸미기를 누름
+        2. 사진 3장 업로드
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: 어디서 봤나요?
+      options:
+        - 배포된 사이트
+        - 로컬 데모 모드 (config.js 없음)
+        - 로컬 + 내 Supabase
+        - 포크한 사이트
+    validations:
+      required: true
+  - type: dropdown
+    id: screen
+    attributes:
+      label: 화면
+      multiple: true
+      options:
+        - 로그인 / PIN 복구
+        - 내 트리 (꾸미기)
+        - 공유 보기
+        - 사이드 목록
+        - 트리 렌더링 (무늬·사진·눈·캐릭터)
+  - type: input
+    id: env
+    attributes:
+      label: 기기·브라우저
+      placeholder: 예) iPhone 15 Safari, Windows Chrome 131
+  - type: textarea
+    id: logs
+    attributes:
+      label: 콘솔 오류·화면 메시지·스크린샷
+      description: 개발자도구 Console의 오류나 화면에 뜬 문구 (개인정보는 지워 주세요)
