@@ -4,133 +4,74 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Code Christmas Tree</title>
+<meta name="description" content="한글 이름과 PIN으로 나만의 파티클 3D 크리스마스 트리를 만들고, 글귀와 사진을 걸어 링크로 보여 주세요.">
+<!-- 세션 토큰이 localStorage에 있으므로 XSS 피해를 줄이기 위해 스크립트 출처를 제한한다.
+     Supabase를 커스텀 도메인으로 쓰면 connect-src / img-src에 그 도메인을 추가할 것 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #02030a; }
-  body { font-family: 'Gowun Batang', serif; color: #fff6e0; }
-  canvas { display: block; position: fixed; inset: 0; cursor: grab; touch-action: none; }
-  canvas.dragging { cursor: grabbing; }
-  canvas.hovering { cursor: zoom-in; }
-
-  /* ---------- 상단: 제목 + 무늬 이름 ---------- */
-  #top {
-    position: fixed; left: 0; right: 0;
-    top: calc(env(safe-area-inset-top) + clamp(10px, 2.5vh, 28px));
-    text-align: center; pointer-events: none;
-  }
-  #title {
-    font-family: 'Dancing Script', cursive;
-    font-size: clamp(26px, min(8vw, 8vh), 64px); line-height: 1.15;
-    color: #ffe9a8; text-shadow: 0 0 18px rgba(255, 200, 80, .7);
-    opacity: 0; transition: opacity 2s; padding: 0 12px;
-  }
-  #patternName {
-    margin-top: 4px; font-size: clamp(11px, min(2.8vw, 2.2vh), 15px);
-    letter-spacing: .3em; color: #cfe8ff; opacity: 0; transition: opacity .8s;
-  }
-  #patternName.show { opacity: .85; }
-
-  /* ---------- 하단: 글귀 + 도구 ---------- */
-  #bottom {
-    position: fixed; left: 0; right: 0;
-    bottom: calc(env(safe-area-inset-bottom) + clamp(10px, 2vh, 20px));
-    display: flex; flex-direction: column; align-items: center; gap: clamp(8px, 1.6vh, 16px);
-    pointer-events: none; padding: 0 12px;
-  }
-  #message {
-    width: min(100%, 640px); text-align: center; min-height: 1.6em;
-    font-size: clamp(15px, min(3.8vw, 3.2vh), 24px); line-height: 1.6;
-    text-shadow: 0 0 12px rgba(255, 210, 120, .6); white-space: pre-line;
-  }
-  #message .cursor { display: inline-block; width: 2px; height: 1em; background: #ffe9a8;
-    vertical-align: -0.15em; margin-left: 3px; animation: blink 1s step-end infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-
-  #toolbar { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; pointer-events: auto; max-width: 100%; }
-  button {
-    font-family: inherit; font-size: clamp(12px, 3.3vw, 14px);
-    min-height: 36px; padding: 6px clamp(10px, 3vw, 16px);
-    background: rgba(255, 255, 255, .08); color: #ffe9a8;
-    border: 1px solid rgba(255, 220, 140, .35); border-radius: 999px;
-    cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-    transition: background .2s, transform .1s; white-space: nowrap;
-  }
-  button:hover { background: rgba(255, 220, 140, .2); }
-  button:active { transform: scale(.96); }
-
-  /* ---------- 글귀 편집 패널 ---------- */
-  .panel {
-    position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: calc(env(safe-area-inset-bottom) + 120px);
-    width: min(92vw, 440px); max-height: 60vh; overflow: auto;
-    padding: 16px; border-radius: 14px; z-index: 6;
-    background: rgba(10, 14, 30, .92); border: 1px solid rgba(255, 220, 140, .3);
-    font-size: 13px; display: none;
-  }
-  .panel.open { display: block; }
-  .panel label { display: block; margin: 8px 0 4px; color: #ffe9a8; }
-  .panel input, .panel textarea {
-    width: 100%; background: rgba(255, 255, 255, .06); color: #fff;
-    border: 1px solid rgba(255, 255, 255, .15); border-radius: 8px;
-    padding: 8px; font-family: inherit; font-size: 16px; /* 16px 미만이면 iOS가 확대함 */
-    resize: vertical;
-  }
-  .panel .hint { color: #a9a39a; font-size: 12px; margin-top: 6px; line-height: 1.5; }
-  .panel .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
-
-  /* ---------- 사진 확대 보기 ---------- */
-  #viewer {
-    position: fixed; inset: 0; z-index: 10; display: none;
-    align-items: center; justify-content: center; cursor: zoom-out;
-    background: rgba(2, 3, 10, 0); transition: background .5s;
-  }
-  #viewer.open { display: flex; }
-  #viewer.show { background: rgba(2, 3, 10, .8); }
-  #card {
-    background: #fdfaf3; border-radius: 4px; position: relative;
-    box-shadow: 0 0 60px rgba(255, 210, 120, .35);
-    transform-origin: 50% 50%; will-change: transform;
-  }
-  #card img { display: block; }
-  #cardCap {
-    position: absolute; left: 0; right: 0; text-align: center; color: #3a2f24;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 10px;
-  }
-  #viewerHint {
-    position: fixed; left: 0; right: 0; text-align: center;
-    bottom: calc(env(safe-area-inset-bottom) + 18px);
-    font-size: 13px; color: #cbbfa8; opacity: 0; transition: opacity .5s; pointer-events: none;
-  }
-  #viewer.show #viewerHint { opacity: .8; }
-  #fileInput { display: none; }
-
-  /* 가로로 눕힌 휴대폰 등 세로 공간이 아주 좁을 때 */
-  @media (max-height: 480px) {
-    #patternName { display: none; }
-    #message { font-size: 14px; min-height: 1.4em; }
-    button { min-height: 30px; padding: 4px 10px; }
-    .panel { bottom: 70px; max-height: 70vh; }
-  }
-</style>
+<link rel="stylesheet" href="css/style.css">
+<!-- Supabase 연결 설정. 없으면 데모 모드로 동작 (배포 때는 워크플로가 생성) -->
+<script src="config.js"></script>
 </head>
-<body>
-<canvas id="c"></canvas>
+<body data-mode="boot">
+<canvas id="c" role="img" aria-label="빛 입자로 그린 3D 크리스마스 트리. 드래그해서 돌려 볼 수 있어요."></canvas>
 
 <div id="top">
   <div id="title">Merry Christmas</div>
-  <div id="patternName"></div>
+  <div id="owner" hidden></div>
+  <div id="patternName" aria-hidden="true"></div>
 </div>
 
 <div id="bottom">
-  <div id="message"></div>
+  <!-- 타이핑 효과는 화면 낭독기에 한 글자씩 읽히지 않도록 숨기고, 전체 글귀는 #srMessages로 제공 -->
+  <div id="message" aria-hidden="true"></div>
+  <ul id="srMessages" class="sr-only" aria-label="트리에 걸린 글귀"></ul>
+  <div id="notice" hidden></div>
+
+  <!-- 로그인 (login 모드) -->
+  <form id="loginCard" class="card" hidden novalidate aria-labelledby="loginHeading">
+    <h1 id="loginHeading">내 트리 열기</h1>
+    <div class="fields">
+      <div class="field">
+        <label for="inName">이름 <span class="sub">(한글 2~10자)</span></label>
+        <input id="inName" name="name" lang="ko" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="김민수" aria-describedby="nameMsg">
+      </div>
+      <div class="field pin">
+        <label for="inPin">PIN <span class="sub">(숫자 4~6자리)</span></label>
+        <input id="inPin" name="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6"
+               pattern="[0-9]*" placeholder="••••••" aria-describedby="pinMsg">
+      </div>
+    </div>
+    <p id="nameMsg" class="msg" aria-live="polite"></p>
+    <p id="pinMsg" class="msg" aria-live="polite"></p>
+    <p id="loginError" class="msg error" role="alert"></p>
+    <div id="createConfirm" class="confirm" hidden>
+      <p id="createText"></p>
+      <div class="row">
+        <button type="button" id="btnCreateCancel">취소</button>
+        <button type="button" id="btnCreate" class="primary">새 트리 만들기</button>
+      </div>
+    </div>
+    <div class="row" id="loginActions">
+      <button type="submit" id="btnEnter" class="primary">내 트리 열기</button>
+    </div>
+    <p class="hint">처음이면 이름과 PIN을 정해서 새 트리를 만들 수 있어요. PIN은 6자리를 권장해요.<br>
+      PIN은 트리를 구분하는 가벼운 번호예요. 다른 서비스와 같은 번호는 쓰지 마세요.</p>
+  </form>
+
   <div id="toolbar">
-    <button id="btnPattern">🎄 무늬 바꾸기</button>
-    <button id="btnText">✎ 글귀</button>
-    <button id="btnPhoto">📷 사진 추가</button>
+    <button id="btnPattern" data-modes="demo mine shared login" aria-label="무늬 바꾸기">🎄 무늬 바꾸기</button>
+    <button id="btnText" data-modes="demo" aria-label="글귀 편집">✎ 글귀</button>
+    <button id="btnPhoto" data-modes="demo" aria-label="사진 추가">📷 사진 추가</button>
+    <button id="btnEdit" data-modes="mine" aria-label="트리 꾸미기" aria-haspopup="dialog" aria-controls="editPanel" aria-expanded="false">✎ 꾸미기</button>
+    <button id="btnShare" data-modes="mine" aria-label="공유 링크 복사">🔗 공유</button>
+    <a id="btnMake" data-modes="shared" class="button" href="./">✨ 나도 트리 만들기</a>
   </div>
 </div>
 
+<!-- 데모 모드: 로컬에서만 바뀌는 글귀 편집 패널 -->
 <div class="panel" id="textPanel">
   <label for="inTitle">제목</label>
   <input id="inTitle" maxlength="40">
@@ -143,646 +84,105 @@
   </div>
 </div>
 
+<!-- 내 트리(편집) 패널 -->
+<section class="panel edit" id="editPanel" role="dialog" aria-modal="false" aria-labelledby="editHeading" hidden>
+  <div class="panel-head">
+    <h2 id="editHeading">트리 꾸미기</h2>
+    <span id="saveState" class="save-state" aria-live="polite"></span>
+    <button type="button" id="btnEditClose" class="icon" aria-label="꾸미기 닫기">✕</button>
+  </div>
+  <div class="tabs" role="tablist" aria-label="꾸미기 항목">
+    <button type="button" role="tab" id="tab-basic" aria-controls="pane-basic" aria-selected="true">기본</button>
+    <button type="button" role="tab" id="tab-msgs" aria-controls="pane-msgs" aria-selected="false" tabindex="-1">글귀</button>
+    <button type="button" role="tab" id="tab-photos" aria-controls="pane-photos" aria-selected="false" tabindex="-1">사진</button>
+    <button type="button" role="tab" id="tab-account" aria-controls="pane-account" aria-selected="false" tabindex="-1">공유·계정</button>
+  </div>
+
+  <div class="pane" role="tabpanel" id="pane-basic" aria-labelledby="tab-basic">
+    <label for="edTitle">제목 <span class="counter" id="edTitleCount"></span></label>
+    <input id="edTitle" maxlength="30" autocomplete="off" aria-describedby="edTitleMsg">
+    <p id="edTitleMsg" class="msg" aria-live="polite"></p>
+    <fieldset>
+      <legend>무늬</legend>
+      <div class="choices" id="patternChoices"></div>
+    </fieldset>
+    <label class="check"><input type="checkbox" id="edAutoRotate"> 자동으로 천천히 돌기</label>
+    <label class="check"><input type="checkbox" id="edPatternCycle"> 무늬 자동 전환 (12초마다)</label>
+    <p class="hint">바꾼 내용은 잠시 뒤 자동으로 저장돼요.</p>
+  </div>
+
+  <div class="pane" role="tabpanel" id="pane-msgs" aria-labelledby="tab-msgs" hidden>
+    <label for="edMsg">새 글귀 <span class="counter" id="edMsgCount">0/100</span></label>
+    <div class="inline">
+      <input id="edMsg" maxlength="100" autocomplete="off" placeholder="따뜻한 한마디를 적어 주세요" aria-describedby="msgError">
+      <button type="button" id="btnAddMsg" class="primary">추가</button>
+    </div>
+    <p id="msgError" class="msg error" role="alert"></p>
+    <h3 class="list-head">걸린 글귀 <span class="counter" id="msgTotal"></span></h3>
+    <ul id="msgList" class="items"></ul>
+    <p id="msgEmpty" class="empty" hidden>아직 글귀가 없어요. 첫 글귀를 적어 보세요.</p>
+  </div>
+
+  <div class="pane" role="tabpanel" id="pane-photos" aria-labelledby="tab-photos" hidden>
+    <label for="edCaption">캡션 <span class="sub">(선택, 30자 · 다음에 올릴 사진에 붙어요)</span></label>
+    <div class="inline">
+      <input id="edCaption" maxlength="30" autocomplete="off" placeholder="예: 우리 가족 첫 크리스마스">
+      <button type="button" id="btnUpload" class="primary">사진 올리기</button>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" multiple hidden>
+    <p id="uploadState" class="msg" aria-live="polite"></p>
+    <h3 class="list-head">걸린 사진 <span class="counter" id="photoTotal"></span></h3>
+    <ul id="photoGrid" class="grid"></ul>
+    <p id="photoEmpty" class="empty" hidden>아직 사진이 없어요. 사진을 올리면 트리 주변에 나타나요.</p>
+  </div>
+
+  <div class="pane" role="tabpanel" id="pane-account" aria-labelledby="tab-account" hidden>
+    <label for="shareUrl">공유 링크 <span class="sub">(받은 사람은 읽기만 할 수 있어요)</span></label>
+    <div class="inline">
+      <input id="shareUrl" readonly>
+      <button type="button" id="btnCopy" class="primary">복사</button>
+    </div>
+    <p id="copyState" class="msg" aria-live="polite"></p>
+    <p><a id="shareOpen" href="#" target="_blank" rel="noopener">공유 화면 새 탭에서 보기 ↗</a></p>
+
+    <h3 class="list-head">PIN 바꾸기</h3>
+    <form id="pinForm" novalidate>
+      <div class="fields three">
+        <div class="field"><label for="pinOld">현재 PIN</label>
+          <input id="pinOld" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"></div>
+        <div class="field"><label for="pinNew">새 PIN</label>
+          <input id="pinNew" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"></div>
+        <div class="field"><label for="pinNew2">새 PIN 확인</label>
+          <input id="pinNew2" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"></div>
+      </div>
+      <p id="pinState" class="msg" role="status"></p>
+      <div class="row"><button type="submit" id="btnPin">PIN 바꾸기</button></div>
+    </form>
+    <p class="hint">PIN을 바꾸면 지금 쓰는 기기를 뺀 다른 기기는 모두 로그아웃돼요.</p>
+
+    <div class="row spread">
+      <span id="whoami" class="sub"></span>
+      <button type="button" id="btnLogout">로그아웃</button>
+    </div>
+  </div>
+</section>
+
+<!-- 로딩 · 오류 화면 -->
+<div id="screen" hidden>
+  <div class="screen-box" role="status" aria-live="polite">
+    <p id="screenText"></p>
+    <div class="row center" id="screenActions"></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
 <div id="viewer">
   <div id="card"><img id="cardImg" alt=""><div id="cardCap"></div></div>
   <div id="viewerHint">사진을 누르면 트리로 돌아갑니다</div>
 </div>
 <input type="file" id="fileInput" accept="image/*" multiple>
 
-<script>
-/* =========================================================
- *  CONFIG — 글귀·사진을 고정하려면 여기를 수정하세요.
- *  photos: [{ src: 'photos/a.jpg' 또는 'data:image/jpeg;base64,...', caption: '설명' }]
- * ========================================================= */
-const CONFIG = {
-  title: 'Merry Christmas',
-  messages: [
-    '올 한 해도 정말 고생 많았어요.',
-    '따뜻하고 반짝이는 연말 보내세요 ✨',
-    'Merry Christmas & Happy New Year!'
-  ],
-  photos: [],
-  useSamplePhotos: true,   // 사진이 하나도 없을 때 샘플 사진 표시
-  patternInterval: 12,     // 무늬 자동 전환 간격(초)
-  morphDuration: 2.6,      // 무늬 전환 애니메이션 길이(초)
-  photoInterval: 3.2       // 사진 등장 간격(초)
-};
-
-/* ---------- 기기 판별 & 캔버스 ---------- */
-const isMobile = Math.min(innerWidth, innerHeight) < 700 || matchMedia('(pointer: coarse)').matches;
-const N = isMobile ? 1500 : 2600;          // 트리 입자 수
-const SNOW = isMobile ? 90 : 160;
-const TAU = Math.PI * 2;
-const rnd = (a, b) => a + Math.random() * (b - a);
-const clamp01 = x => Math.max(0, Math.min(1, x));
-const easeInOut = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-const easeOutBack = x => { const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
-
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-const titleEl = document.getElementById('title');
-const msgEl = document.getElementById('message');
-let W, H, DPR, scale, centerY;
-
-/* 상단 제목과 하단 글귀 사이의 빈 공간에 트리가 꽉 차도록 배율 계산 */
-function layout() {
-  DPR = Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2);
-  W = innerWidth; H = innerHeight;
-  canvas.width = W * DPR; canvas.height = H * DPR;
-  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-
-  const top = document.getElementById('top').getBoundingClientRect().bottom + 8;
-  const bottom = msgEl.getBoundingClientRect().top - 4;
-  const availH = Math.max(160, bottom - top);
-  // 트리의 월드 크기: 폭 ≈ 2R × 1.1(바닥 원반) × 1.1(원근), 높이 ≈ 별(-330) ~ 바닥(+315)
-  scale = Math.min((W * 0.94) / (2 * 230 * 1.21), availH / 670);
-  centerY = top + availH / 2 + 8 * scale;
-}
-addEventListener('resize', layout);
-layout();
-
-/* =========================================================
- *  트리 무늬 정의 — 각 함수는 정확히 N개의 목표점을 만든다
- *  좌표계: y 꼭대기 -300 → 바닥 +300, 반지름 최대 230
- * ========================================================= */
-const TOP = -300, TH = 600, R = 230;
-const C = {
-  gold: [255, 214, 120], white: [255, 255, 255], warm: [255, 238, 200],
-  red: [255, 95, 105], mint: [120, 255, 170], green: [60, 200, 115], deep: [40, 165, 85],
-  ice: [150, 215, 255], lav: [190, 170, 255], blue: [110, 150, 255]
-};
-const pt = (x, y, z, c, s, d = 1) => ({ x, y, z, c, s, d });
-
-/* 1) 나선 리본: 두 가닥 나선 + 원뿔 채움 */
-function genSpiral(out, M) {
-  const sN = Math.floor(M * 0.45);
-  for (let i = 0; i < sN; i++) {
-    const strand = i % 2, t = i / sN, a = t * TAU * 7 + strand * Math.PI, r = t * R;
-    out.push(pt(Math.cos(a) * r, TOP + t * TH, Math.sin(a) * r, strand ? C.gold : C.white, rnd(1.2, 2.8)));
-  }
-  for (let i = sN; i < M; i++) {
-    const t = Math.pow(Math.random(), 0.8), a = rnd(0, TAU), r = t * R * rnd(.75, 1.05);
-    const c = Math.random() < .08 ? C.red : (Math.random() < .5 ? C.mint : C.green);
-    out.push(pt(Math.cos(a) * r, TOP + t * TH, Math.sin(a) * r, c, rnd(.8, 2.2)));
-  }
-}
-
-/* 2) 층층 전나무: 원뿔 5개를 겹쳐 쌓고, 가장자리에 전구 + 오너먼트 */
-function genTiers(out, M) {
-  const tiers = 5, w = [...Array(tiers)].map((_, k) => (k + 1) ** 2), sw = w.reduce((a, b) => a + b);
-  for (let k = 0; k < tiers; k++) {
-    const cnt = Math.round(M * w[k] / sw);
-    const tTop = k * 0.16, tBot = Math.min(1, tTop + 0.36), Rk = R * (0.3 + 0.7 * (k + 1) / tiers);
-    for (let j = 0; j < cnt; j++) {
-      const rim = Math.random() < .24;
-      const u = rim ? 1 : Math.sqrt(Math.random());
-      const a = rnd(0, TAU), r = u * Rk * (rim ? 1 : rnd(.7, 1));
-      let y = TOP + (tTop + u * (tBot - tTop)) * TH + (r / Rk) ** 2 * 12;   // 가지 끝이 살짝 처짐
-      if (rim) y += Math.sin(a * 9) * 6;                                    // 물결 모양 가장자리
-      let c = Math.random() < .5 ? C.green : C.deep, s = rnd(.8, 2);
-      if (rim) { c = C.warm; s = rnd(1.4, 2.8); }
-      else if (Math.random() < .07) { c = Math.random() < .5 ? C.red : C.gold; s = rnd(2.4, 3.6); }
-      out.push(pt(Math.cos(a) * r, y, Math.sin(a) * r, c, s));
-    }
-  }
-}
-
-/* 3) 빛의 고리: 높이별 수평 고리(전구 줄)를 색을 바꿔가며 쌓음 */
-function genRings(out, M) {
-  const rings = 16, cols = [C.gold, C.red, C.white, C.ice, C.mint];
-  const ts = [...Array(rings)].map((_, k) => 0.06 + 0.94 * k / (rings - 1));
-  const sum = ts.reduce((a, b) => a + b);
-  ts.forEach((t, k) => {
-    const cnt = Math.round(M * t / sum), r = t * R;
-    for (let j = 0; j < cnt; j++) {
-      const a = j / cnt * TAU + k * 0.37;
-      out.push(pt(Math.cos(a) * r, TOP + t * TH + Math.sin(a * 3 + k) * 4, Math.sin(a) * r,
-                  cols[k % cols.length], rnd(1.2, 2.4)));
-    }
-  });
-}
-
-/* 4) 얼음 크리스탈: 비틀린 갈비뼈 8줄 + V자 잔가지 + 내부 반짝이 */
-function genCrystal(out, M) {
-  const ribs = 8;
-  for (let i = 0; i < M; i++) {
-    const roll = Math.random(), rib = i % ribs, base = rib / ribs * TAU;
-    let t, a, r, c, s;
-    if (roll < .5) {
-      t = Math.pow(Math.random(), .9); a = base + t * 1.4; r = t * R;
-      c = Math.random() < .5 ? C.white : C.ice; s = rnd(1, 2.4);
-    } else if (roll < .85) {
-      const t0 = rnd(.12, .95), u = Math.random(), side = Math.random() < .5 ? -1 : 1;
-      t = Math.min(1, t0 + u * 0.07); a = base + t0 * 1.4 + side * u * 0.32; r = t * R;
-      c = Math.random() < .6 ? C.ice : C.lav; s = rnd(.8, 1.8);
-    } else {
-      t = Math.random(); a = rnd(0, TAU); r = t * R * Math.random() * .8;
-      c = C.blue; s = rnd(.6, 1.6);
-    }
-    out.push(pt(Math.cos(a) * r, TOP + t * TH, Math.sin(a) * r, c, s));
-  }
-}
-
-const PATTERNS = [
-  { name: '나선 리본',     gen: genSpiral,  base: C.gold, bg: [11, 18, 48] },
-  { name: '층층 전나무',   gen: genTiers,   base: C.warm, bg: [5, 22, 22] },
-  { name: '빛의 고리',     gen: genRings,   base: C.red,  bg: [26, 10, 32] },
-  { name: '얼음 크리스탈', gen: genCrystal, base: C.ice,  bg: [6, 20, 54] }
-];
-
-/* 무늬 하나 = 몸통 + 바닥 원반, 항상 N개로 맞춘다(입자 1:1 대응을 위해) */
-const B = Math.floor(N * 0.07);
-const targets = PATTERNS.map(p => {
-  const arr = [];
-  p.gen(arr, N - B);
-  while (arr.length > N - B) arr.pop();
-  while (arr.length < N - B) arr.push({ ...arr[(Math.random() * arr.length) | 0] });
-  for (let i = 0; i < B; i++) {
-    const a = rnd(0, TAU), r = Math.sqrt(Math.random()) * R * 1.2;
-    arr.push(pt(Math.cos(a) * r, TOP + TH + 12, Math.sin(a) * r, p.base, rnd(.6, 1.6), .35));
-  }
-  return arr;
-});
-
-/* ---------- 입자 상태 & 무늬 전환(모핑) ---------- */
-const P = Array.from({ length: N }, () => {
-  const a = rnd(0, TAU), r = rnd(200, 700);   // 시작: 바닥에 넓게 흩어져 있다가 모여듦
-  return {
-    x: Math.cos(a) * r, y: TOP + TH + 80, z: Math.sin(a) * r, c: [255, 255, 255], s: 1, d: 0,
-    from: null, to: null, delay: 0, sx: 0, sy: 0, sz: 0,
-    phase: rnd(0, TAU), tw: rnd(.5, 3)
-  };
-});
-let current = -1, morphStart = 0, morphing = false, lastSwitch = 0;
-let bgFrom = [2, 3, 10], bgTo = PATTERNS[0].bg;
-
-function setPattern(idx, now) {
-  current = (idx + PATTERNS.length) % PATTERNS.length;
-  const tg = targets[current], dur = CONFIG.morphDuration;
-  for (let i = 0; i < N; i++) {
-    const p = P[i], t = tg[i];
-    p.from = { x: p.x, y: p.y, z: p.z, c: p.c.slice(), s: p.s, d: p.d };
-    p.to = t;
-    p.delay = clamp01((t.y - TOP) / TH) * dur * 0.3 + rnd(0, dur * 0.15);  // 위에서 아래로 물결치듯
-    const a = rnd(0, TAU), b = rnd(-1, 1), m = rnd(40, 140);              // 전환 중 흩어지는 방향
-    p.sx = Math.cos(a) * m; p.sy = b * m * .6; p.sz = Math.sin(a) * m;
-  }
-  bgFrom = currentBg.slice(); bgTo = PATTERNS[current].bg;
-  morphStart = now; morphing = true; lastSwitch = now;
-  showPatternName(PATTERNS[current].name);
-}
-
-let currentBg = [2, 3, 10];
-const pnEl = document.getElementById('patternName');
-let pnTimer;
-function showPatternName(name) {
-  pnEl.textContent = '— ' + name + ' —';
-  pnEl.classList.add('show');
-  clearTimeout(pnTimer);
-  pnTimer = setTimeout(() => pnEl.classList.remove('show'), 2800);
-}
-
-/* ---------- 눈 ---------- */
-const snow = Array.from({ length: SNOW }, () => newFlake(true));
-function newFlake(anyY) {
-  return { x: Math.random() * innerWidth, y: anyY ? Math.random() * innerHeight : -10,
-           r: rnd(.5, 2.2), vy: rnd(.3, 1.1), sway: rnd(0, TAU) };
-}
-
-/* ---------- 반짝이 입자(클릭 폭죽, 사진 등장/퇴장) ---------- */
-const sparks = [];
-function burst(x, y, n = 40, spread = 4) {
-  for (let i = 0; i < n; i++) {
-    const a = rnd(0, TAU), s = rnd(1, spread);
-    sparks.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1,
-                  c: [C.gold, C.white, C.red, C.mint][(Math.random() * 4) | 0] });
-  }
-}
-
-/* =========================================================
- *  사진: 라이브러리 + 화면 연출(show)
- *   - fall   : 화면 위에서 흔들리며 떨어짐
- *   - sparkle: 반짝 하고 나타났다가 잠시 후 사라짐
- * ========================================================= */
-const photoLib = [];   // { img, caption, sample }
-const shows = [];      // 현재 화면에 떠 있는 사진들
-let photoCursor = 0, lastPhotoSpawn = 0;
-
-function loadImage(src) {
-  return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
-}
-async function addPhoto(src, caption = '', opts = {}) {
-  const img = await loadImage(src);
-  const item = { img, caption, sample: !!opts.sample };
-  if (!item.sample) {                       // 진짜 사진이 들어오면 샘플은 제거
-    for (let i = photoLib.length - 1; i >= 0; i--) if (photoLib[i].sample) photoLib.splice(i, 1);
-  }
-  photoLib.push(item);
-  return item;
-}
-
-function photoBase() { return Math.max(90, Math.min(230, Math.min(W, H) * 0.24)); }
-
-function spawnShow(now, item, mode) {
-  const max = isMobile ? 2 : 3;
-  if (!item) {
-    if (!photoLib.length || shows.length >= max) return;
-    for (let k = 0; k < photoLib.length; k++) {
-      const cand = photoLib[(photoCursor + k) % photoLib.length];
-      if (!shows.some(s => s.item === cand)) { item = cand; photoCursor = (photoCursor + k + 1) % photoLib.length; break; }
-    }
-    if (!item) return;
-  }
-  const base = photoBase(), ar = item.img.width / item.img.height;
-  const iw = ar >= 1 ? base : base * ar, ih = ar >= 1 ? base / ar : base;
-  const pad = base * 0.06, bot = base * 0.2;
-  const s = {
-    item, mode: mode || (Math.random() < .5 ? 'fall' : 'sparkle'),
-    t0: now, pausedTotal: 0, paused: false, pauseStart: 0, hidden: false,
-    iw, ih, pad, bot, w: iw + pad * 2, h: ih + pad + bot, base,
-    phase: rnd(0, TAU), x: 0, y: 0, rot: 0, sc: 1, alpha: 0, burstIn: false, burstOut: false
-  };
-  if (s.mode === 'fall') {
-    s.x0 = rnd(.15, .85) * W; s.speed = H / rnd(7, 10);
-  } else {
-    // 다른 사진과 겹치지 않는 자리 찾기
-    // 넓은 화면이면 트리 양옆 빈 공간에, 좁은 화면이면 아무 곳에나
-    const half = R * 1.25 * scale + s.w / 2, side = (W / 2 - half) > s.w * .6;
-    for (let tries = 0; tries < 12; tries++) {
-      if (side) {
-        const left = Math.random() < .5, lo = s.w * .6, hi = W / 2 - half;
-        s.x = left ? rnd(lo, hi) : W - rnd(lo, hi);
-      } else s.x = rnd(.15, .85) * W;
-      s.y = rnd(.22, .72) * H;
-      if (shows.every(o => Math.hypot(o.x - s.x, o.y - s.y) > base * 1.1)) break;
-    }
-    s.rot = rnd(-.15, .15);
-  }
-  shows.push(s);
-}
-
-function localTime(s, now) { return (s.paused ? s.pauseStart : now) - s.t0 - s.pausedTotal; }
-
-/* 연출별 위치·크기·투명도 계산. 끝났으면 false 반환 */
-function updateShow(s, now) {
-  const t = localTime(s, now);
-  if (s.mode === 'fall') {
-    s.y = -s.h + t * s.speed;
-    s.x = s.x0 + Math.sin(t * 1.3 + s.phase) * s.base * 0.25;
-    s.rot = Math.sin(t * 0.9 + s.phase) * 0.22;
-    s.sc = 1;
-    const fadeOut = s.y > H * .82 ? clamp01((H + s.h / 2 - s.y) / (H * .18 + s.h / 2)) : 1;
-    s.alpha = clamp01(t / .4) * fadeOut;
-    return s.y - s.h / 2 < H;
-  } else {
-    const IN = .6, HOLD = 3.6, OUT = 4.4;
-    if (t < IN) { s.sc = Math.max(0.01, easeOutBack(t / IN)); s.alpha = clamp01(t / IN * 1.5); }
-    else if (t < HOLD) { s.sc = 1 + Math.sin((t - IN) * 2) * 0.015; s.alpha = 1; }
-    else { const k = clamp01((t - HOLD) / (OUT - HOLD)); s.sc = 1 - k * .2; s.alpha = 1 - k; }
-    if (!s.burstIn && t >= 0) { s.burstIn = true; burst(s.x, s.y, 50, 5); }
-    if (!s.burstOut && t >= HOLD) { s.burstOut = true; burst(s.x, s.y, 30, 3); }
-    return t < OUT;
-  }
-}
-
-function drawShow(s, time) {
-  if (s.hidden || s.alpha <= 0) return;
-  ctx.save();
-  ctx.globalAlpha = s.alpha;
-  ctx.translate(s.x, s.y); ctx.rotate(s.rot); ctx.scale(s.sc, s.sc);
-  ctx.shadowColor = 'rgba(255,210,120,0.65)'; ctx.shadowBlur = 22;
-  ctx.fillStyle = '#fdfaf3'; ctx.fillRect(-s.w / 2, -s.h / 2, s.w, s.h);
-  ctx.shadowBlur = 0;
-  ctx.drawImage(s.item.img, -s.w / 2 + s.pad, -s.h / 2 + s.pad, s.iw, s.ih);
-  if (s.item.caption) {
-    ctx.fillStyle = '#3a2f24';
-    ctx.font = `${Math.round(s.base * 0.075)}px 'Gowun Batang', serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(s.item.caption, 0, s.h / 2 - s.bot / 2, s.w - s.pad * 2);
-  }
-  ctx.restore();
-  // 반짝 연출 중에는 모서리에 작은 별빛
-  if (s.mode === 'sparkle' && s.alpha > .3) {
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 4; i++) {
-      const a = time * 1.5 + i * TAU / 4 + s.phase;
-      const px = s.x + Math.cos(a) * s.w * .62 * s.sc, py = s.y + Math.sin(a) * s.h * .62 * s.sc;
-      drawTwinkle(px, py, 6 + 3 * Math.sin(time * 6 + i), s.alpha);
-    }
-    ctx.restore();
-  }
-}
-
-function drawTwinkle(x, y, r, a) {
-  ctx.strokeStyle = `rgba(255,240,200,${a})`; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x + r, y); ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke();
-}
-
-/* 클릭 좌표가 사진 안에 있는지: 회전·확대를 역으로 적용해 검사 */
-function hitShow(x, y) {
-  for (let i = shows.length - 1; i >= 0; i--) {
-    const s = shows[i];
-    if (s.hidden || s.alpha < .3) continue;
-    const dx = x - s.x, dy = y - s.y, c = Math.cos(-s.rot), sn = Math.sin(-s.rot);
-    const lx = (dx * c - dy * sn) / s.sc, ly = (dx * sn + dy * c) / s.sc;
-    if (Math.abs(lx) < s.w / 2 && Math.abs(ly) < s.h / 2) return s;
-  }
-  return null;
-}
-
-/* =========================================================
- *  확대 보기: 캔버스 속 사진 위치에서 화면 중앙으로 날아오는 FLIP 애니메이션
- * ========================================================= */
-const viewer = document.getElementById('viewer'), card = document.getElementById('card');
-const cardImg = document.getElementById('cardImg'), cardCap = document.getElementById('cardCap');
-let viewing = null, animating = false;
-
-function sizeCard(item) {
-  const pad = Math.round(Math.max(8, Math.min(16, W * .025))), bot = Math.round(pad * 3.4);
-  const maxW = Math.min(W * .9, 960) - pad * 2, maxH = H * .8 - pad - bot;
-  const nw = item.img.naturalWidth, nh = item.img.naturalHeight;
-  const k = Math.min(maxW / nw, maxH / nh, 2);
-  cardImg.style.width = Math.round(nw * k) + 'px'; cardImg.style.height = Math.round(nh * k) + 'px';
-  card.style.padding = `${pad}px ${pad}px ${bot}px`;
-  cardCap.style.bottom = Math.round(bot * .28) + 'px';
-  cardCap.style.fontSize = Math.max(13, Math.round(bot * .36)) + 'px';
-}
-function flipTransform(s) {   // 카드(확대 상태)를 캔버스 속 사진 자리로 되돌리는 transform
-  const r = card.getBoundingClientRect();
-  const k = (s.w * s.sc) / r.width;
-  return `translate(${s.x - (r.left + r.width / 2)}px, ${s.y - (r.top + r.height / 2)}px) rotate(${s.rot}rad) scale(${k})`;
-}
-function openViewer(s) {
-  if (animating) return;
-  animating = true; viewing = s;
-  s.paused = true; s.pauseStart = performance.now() / 1000;
-  cardImg.src = s.item.img.src; cardCap.textContent = s.item.caption;
-  sizeCard(s.item);
-  viewer.classList.add('open');
-  card.style.transition = 'none'; card.style.transform = 'none';
-  card.style.transform = flipTransform(s);
-  s.hidden = true;
-  card.getBoundingClientRect();               // 강제 리플로우 → 시작 위치 확정
-  card.style.transition = 'transform .6s cubic-bezier(.2,.8,.2,1)';
-  card.style.transform = 'none';
-  viewer.classList.add('show');
-  setTimeout(() => animating = false, 620);
-}
-function closeViewer() {
-  if (!viewing || animating) return;
-  animating = true;
-  const s = viewing;
-  card.style.transition = 'none'; card.style.transform = 'none';
-  const back = flipTransform(s);
-  card.getBoundingClientRect();
-  card.style.transition = 'transform .55s cubic-bezier(.4,0,.2,1)';
-  card.style.transform = back;
-  viewer.classList.remove('show');
-  setTimeout(() => {
-    viewer.classList.remove('open');
-    s.hidden = false; s.paused = false;
-    s.pausedTotal += performance.now() / 1000 - s.pauseStart;
-    viewing = null; animating = false;
-  }, 560);
-}
-viewer.addEventListener('click', closeViewer);
-addEventListener('keydown', e => { if (e.key === 'Escape') closeViewer(); });
-
-/* ---------- 회전(드래그) & 클릭 ---------- */
-let rotY = 0, rotX = 0.12, velY = 0.004, dragging = false, lastX = 0, lastY = 0, moved = 0;
-const AUTO = 0.004;
-canvas.addEventListener('pointerdown', e => {
-  dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY;
-  canvas.classList.add('dragging');
-});
-addEventListener('pointermove', e => {
-  if (!dragging) {
-    if (!isMobile) canvas.classList.toggle('hovering', !!hitShow(e.clientX, e.clientY));
-    return;
-  }
-  const dx = e.clientX - lastX, dy = e.clientY - lastY;
-  moved += Math.abs(dx) + Math.abs(dy);
-  rotY += dx * 0.008; velY = dx * 0.0008;
-  rotX = Math.max(-0.4, Math.min(0.5, rotX + dy * 0.004));
-  lastX = e.clientX; lastY = e.clientY;
-});
-function endDrag(e) {
-  if (!dragging) return;
-  dragging = false; canvas.classList.remove('dragging');
-  if (e.type === 'pointerup' && moved < 8) {
-    const s = hitShow(e.clientX, e.clientY);
-    s ? openViewer(s) : burst(e.clientX, e.clientY);
-  }
-}
-addEventListener('pointerup', endDrag);
-addEventListener('pointercancel', endDrag);
-
-/* =========================================================
- *  렌더 루프
- * ========================================================= */
-function frame(ms) {
-  const now = ms / 1000;
-  if (current < 0) setPattern(0, now);
-
-  // 무늬 자동 전환 (사진 확대 중엔 멈춤)
-  if (!viewing && !morphing && now - lastSwitch > CONFIG.patternInterval) setPattern(current + 1, now);
-  // 사진 등장
-  if (!viewing && now - lastPhotoSpawn > CONFIG.photoInterval) { lastPhotoSpawn = now; spawnShow(now); }
-
-  if (!dragging) { rotY += velY; velY += (AUTO - velY) * 0.02; }
-
-  // 배경 (무늬마다 색조가 달라짐)
-  const dur = CONFIG.morphDuration;
-  const g = easeInOut(clamp01((now - morphStart) / dur));
-  currentBg = bgFrom.map((v, i) => v + (bgTo[i] - v) * g);
-  const bg = ctx.createRadialGradient(W / 2, H * .6, 0, W / 2, H * .6, Math.max(W, H) * .8);
-  bg.addColorStop(0, `rgb(${currentBg.map(Math.round).join(',')})`); bg.addColorStop(1, '#02030a');
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-
-  // 3D 투영 준비
-  const cy = Math.cos(rotY), sy = Math.sin(rotY), cx = Math.cos(rotX), sx = Math.sin(rotX);
-  const FOCAL = 900, CAM = 900, cxs = W / 2;
-  const project = (x, y, z) => {
-    const x1 = x * cy - z * sy, z1 = x * sy + z * cy;
-    const y1 = y * cx - z1 * sx, z2 = y * sx + z1 * cx;
-    const k = FOCAL / (CAM + z2);
-    return [cxs + x1 * k * scale, centerY + y1 * k * scale, k, z2];
-  };
-
-  // 트리 입자: 가산 혼합으로 빛 번짐
-  ctx.globalCompositeOperation = 'lighter';
-  let allDone = true;
-  const span = dur * 0.55;   // 입자 하나가 이동하는 시간
-  for (const p of P) {
-    if (morphing) {
-      const e = clamp01((now - morphStart - p.delay) / span);
-      if (e < 1) allDone = false;
-      const k = easeInOut(e), f = p.from, t = p.to, bump = Math.sin(Math.PI * k);
-      p.x = f.x + (t.x - f.x) * k + p.sx * bump;
-      p.y = f.y + (t.y - f.y) * k + p.sy * bump;
-      p.z = f.z + (t.z - f.z) * k + p.sz * bump;
-      p.c[0] = f.c[0] + (t.c[0] - f.c[0]) * k;
-      p.c[1] = f.c[1] + (t.c[1] - f.c[1]) * k;
-      p.c[2] = f.c[2] + (t.c[2] - f.c[2]) * k;
-      p.s = f.s + (t.s - f.s) * k; p.d = f.d + (t.d - f.d) * k;
-    }
-    const [X, Y, k, z] = project(p.x, p.y, p.z);
-    const depth = Math.max(.25, Math.min(1, 1.15 - z / 500));
-    const a = depth * (.55 + .45 * Math.sin(now * p.tw + p.phase)) * p.d;
-    if (a < .02) continue;
-    const r = Math.max(.6, p.s * k * scale * 1.3);
-    const col = `${p.c[0] | 0},${p.c[1] | 0},${p.c[2] | 0}`;
-    ctx.fillStyle = `rgba(${col},${a * .18})`;
-    ctx.beginPath(); ctx.arc(X, Y, r * 2.6, 0, TAU); ctx.fill();
-    ctx.fillStyle = `rgba(${col},${a})`;
-    ctx.beginPath(); ctx.arc(X, Y, r, 0, TAU); ctx.fill();
-  }
-  if (morphing && allDone) morphing = false;
-
-  // 꼭대기 별
-  const starP = project(0, TOP - 22, 0);
-  drawStar(starP[0], starP[1], starP[2], now);
-
-  // 반짝이
-  for (let i = sparks.length - 1; i >= 0; i--) {
-    const s = sparks[i];
-    s.x += s.vx; s.y += s.vy; s.vy += .05; s.life -= .02;
-    if (s.life <= 0) { sparks.splice(i, 1); continue; }
-    ctx.fillStyle = `rgba(${s.c[0]},${s.c[1]},${s.c[2]},${s.life})`;
-    ctx.beginPath(); ctx.arc(s.x, s.y, 2, 0, TAU); ctx.fill();
-  }
-
-  // 사진
-  ctx.globalCompositeOperation = 'source-over';
-  for (let i = shows.length - 1; i >= 0; i--) {
-    if (!updateShow(shows[i], now) && shows[i] !== viewing) shows.splice(i, 1);
-  }
-  shows.forEach(s => drawShow(s, now));
-
-  // 눈
-  ctx.fillStyle = '#fff';
-  for (const f of snow) {
-    f.y += f.vy; f.sway += .01; f.x += Math.sin(f.sway) * .3;
-    if (f.y > H + 10) Object.assign(f, newFlake(false));
-    ctx.globalAlpha = .3 + f.r / 3.5;
-    ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, TAU); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-
-  requestAnimationFrame(frame);
-}
-
-function drawStar(x, y, k, time) {
-  const Rr = 20 * k * scale, r = Rr * .45, pulse = 1 + .08 * Math.sin(time * 3) + (morphing ? .15 : 0);
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, Rr * 4 * pulse);
-  glow.addColorStop(0, 'rgba(255,230,150,0.9)'); glow.addColorStop(1, 'rgba(255,200,80,0)');
-  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, Rr * 4 * pulse, 0, TAU); ctx.fill();
-  ctx.save(); ctx.translate(x, y); ctx.rotate(time * .5);
-  ctx.fillStyle = '#fff3c4'; ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const rad = (i % 2 ? r : Rr) * pulse, a = i / 10 * TAU - Math.PI / 2;
-    ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
-  }
-  ctx.closePath(); ctx.fill(); ctx.restore();
-}
-
-/* ---------- 글귀 타이핑 ---------- */
-let messages = [...CONFIG.messages], typingToken = 0;
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-async function typeLoop(initialDelay) {
-  const token = ++typingToken;
-  msgEl.innerHTML = '';
-  await sleep(initialDelay);
-  titleEl.style.opacity = 1;
-  for (let i = 0; token === typingToken && messages.length; i++) {
-    const text = messages[i % messages.length];
-    for (let c = 0; c <= text.length; c++) {
-      if (token !== typingToken) return;
-      msgEl.innerHTML = esc(text.slice(0, c)) + '<span class="cursor"></span>'; await sleep(75);
-    }
-    await sleep(2600);
-    for (let c = text.length; c >= 0; c--) {
-      if (token !== typingToken) return;
-      msgEl.innerHTML = esc(text.slice(0, c)) + '<span class="cursor"></span>'; await sleep(25);
-    }
-    await sleep(400);
-  }
-}
-
-/* ---------- 버튼들 ---------- */
-document.getElementById('btnPattern').onclick = () => setPattern(current + 1, performance.now() / 1000);
-
-const panel = document.getElementById('textPanel');
-document.getElementById('btnText').onclick = () => {
-  document.getElementById('inTitle').value = titleEl.textContent;
-  document.getElementById('inMsgs').value = messages.join('\n');
-  panel.classList.toggle('open');
-};
-document.getElementById('btnCancel').onclick = () => panel.classList.remove('open');
-document.getElementById('btnApply').onclick = () => {
-  titleEl.textContent = document.getElementById('inTitle').value.trim();
-  messages = document.getElementById('inMsgs').value.split('\n').map(s => s.trim()).filter(Boolean);
-  panel.classList.remove('open');
-  typeLoop(0);
-  layout();
-};
-
-const fileInput = document.getElementById('fileInput');
-document.getElementById('btnPhoto').onclick = () => fileInput.click();
-fileInput.onchange = async () => {
-  const files = [...fileInput.files];
-  fileInput.value = '';
-  for (const f of files) {
-    const item = await addPhoto(URL.createObjectURL(f), f.name.replace(/\.[^.]+$/, ''));
-    spawnShow(performance.now() / 1000, item, 'sparkle');   // 추가하자마자 반짝 등장
-  }
-};
-
-/* ---------- 샘플 사진 (내 사진을 넣으면 자동으로 빠짐) ---------- */
-function makeSample(emoji, c1, c2, label, w, h) {
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  const g = cv.getContext('2d');
-  const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, c1); gr.addColorStop(1, c2);
-  g.fillStyle = gr; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 26; i++) {           // 보케 조명
-    g.fillStyle = `rgba(255,${200 + Math.random() * 55 | 0},${150 + Math.random() * 80 | 0},${rnd(.08, .3)})`;
-    g.beginPath(); g.arc(Math.random() * w, Math.random() * h, rnd(8, 40), 0, TAU); g.fill();
-  }
-  g.font = `${Math.min(w, h) * .42}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(emoji, w / 2, h * .46);
-  g.fillStyle = 'rgba(255,255,255,.85)'; g.font = `${Math.min(w, h) * .06}px sans-serif`;
-  g.fillText('샘플 · 「사진 추가」로 내 사진을 넣어보세요', w / 2, h * .88, w * .92);
-  return { src: cv.toDataURL('image/jpeg', .85), caption: label };
-}
-
-(async function init() {
-  for (const p of CONFIG.photos) await addPhoto(p.src, p.caption).catch(() => {});
-  if (!photoLib.length && CONFIG.useSamplePhotos) {
-    const samples = [
-      makeSample('⛄', '#1d3a6e', '#5a8fd6', '눈사람', 640, 480),
-      makeSample('🎁', '#6e1d2a', '#d65a6a', '선물', 480, 600),
-      makeSample('🦌', '#2a4a2a', '#6aa86a', '루돌프', 640, 480),
-      makeSample('🕯️', '#3a2a12', '#c8963c', '촛불', 520, 520)
-    ];
-    for (const s of samples) await addPhoto(s.src, s.caption, { sample: true });
-  }
-})();
-
-/* 나중에 온라인 저장소(Supabase 등)와 연결할 때 쓸 수 있는 공개 함수 */
-window.tree = {
-  addPhoto: (src, caption) => addPhoto(src, caption).then(it => spawnShow(performance.now() / 1000, it, 'sparkle')),
-  setMessages: list => { messages = list.slice(); typeLoop(0); },
-  setPattern: i => setPattern(i, performance.now() / 1000)
-};
-
-titleEl.textContent = CONFIG.title;
-document.fonts && document.fonts.ready.then(layout);
-typeLoop(3200);
-lastPhotoSpawn = performance.now() / 1000;   // 트리가 모인 뒤부터 사진 등장
-requestAnimationFrame(frame);
-</script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
