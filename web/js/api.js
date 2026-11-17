@@ -16,8 +16,9 @@ const TOKEN_KEY = 'code-christmas-tree.token';
 
 export const ERROR_MESSAGES = {
   invalid_name:      '이름은 한글 2~10자로 입력해 주세요. (공백·영문·숫자 불가)',
-  invalid_pin:       'PIN은 숫자 4~6자리로 입력해 주세요.',
-  not_found:         '이름과 PIN이 맞는 트리가 없어요.',
+  invalid_birth:     '생년월일은 6자리 숫자(예: 990101)로 입력해 주세요.',
+  invalid_password:  '비밀번호는 6~64자로 입력해 주세요.',
+  not_found:         '이름·생년월일·비밀번호가 맞는 트리가 없어요.',
   rate_limited:      '시도가 너무 많아요. 15분 뒤에 다시 시도해 주세요.',
   unauthorized:      '로그인이 만료됐어요. 다시 로그인해 주세요.',
   invalid_title:     '제목은 1~30자로 입력해 주세요.',
@@ -28,8 +29,12 @@ export const ERROR_MESSAGES = {
   invalid_ticket:    '사진 업로드가 만료됐어요. 다시 시도해 주세요.',
   file_missing:      '사진 파일이 업로드되지 않았어요. 다시 시도해 주세요.',
   file_still_exists: '사진 파일을 지우지 못했어요. 다시 시도해 주세요.',
-  wrong_pin:         '현재 PIN이 맞지 않아요.',
-  pin_unavailable:   '그 PIN은 사용할 수 없어요. 다른 PIN을 골라 주세요.',
+  wrong_password:    '현재 비밀번호가 맞지 않아요.',
+  password_unavailable: '그 비밀번호는 쓸 수 없어요. 다른 비밀번호를 골라 주세요.',
+  tree_limit:        '트리는 3개까지 만들 수 있어요.',
+  last_tree:         '마지막 남은 트리는 지울 수 없어요.',
+  tree_has_photos:   '사진이 있는 트리는 지울 수 없어요. 꾸미기 → 사진에서 먼저 지워 주세요.',
+  invalid_order:     '트리 순서가 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
   own_tree:          '내 트리는 목록에 담을 수 없어요.',
   save_limit:        '담은 트리는 100개까지예요. 안 보는 트리를 빼 주세요.',
   invalid_items:     '기록 형식이 올바르지 않아요.',
@@ -61,7 +66,15 @@ function toTreeError(err) {
 /** 이름 정규화 (DB의 private.normalize_name과 동일 규칙) */
 export const normalizeName = name => String(name || '').trim().normalize('NFC');
 export const isValidName = name => /^[가-힣]{2,10}$/.test(normalizeName(name));
-export const isValidPin = pin => /^[0-9]{4,6}$/.test(String(pin || ''));
+/** 생년월일 YYMMDD (DB의 private.valid_birth와 같은 규칙: 실제로 있는 월·일, 2월 29일 허용) */
+export function isValidBirth(birth) {
+  const v = String(birth || '');
+  if (!/^[0-9]{6}$/.test(v)) return false;
+  const m = +v.slice(2, 4), d = +v.slice(4, 6);
+  return m >= 1 && m <= 12 && d >= 1 && d <= new Date(2000, m, 0).getDate();   // 2000년은 윤년
+}
+/** 비밀번호: 6~64자, 제어 문자 없음 (영문·숫자·기호·한글·공백 가능) */
+export const isValidPassword = pw => { const n = [...String(pw ?? '')].length; return n >= 6 && n <= 64 && !/[\u0000-\u001f\u007f]/.test(pw); };
 
 export class TreeApi {
   /** @param {{url: string, key: string}} config  SUPABASE_URL, Publishable key */
@@ -99,18 +112,21 @@ export class TreeApi {
   /* ── 로그인 / 계정 ─────────────────────────────────── */
 
   /**
-   * 트리 열기. create=false면 로그인만, true면 없을 때 새로 만듦.
+   * 트리 열기. create=false면 로그인만, true면 없을 때 새로 만듦(첫 트리 포함).
+   * 사용자 = (이름, 생년월일 6자리, 비밀번호)
    * @returns {Promise<{token, name, share_id, created}>}
    */
-  async enter(name, pin, { create = false } = {}) {
-    const r = await this.#rpc('enter_tree', { p_name: normalizeName(name), p_pin: String(pin), p_create: create });
+  async enter(name, birth, password, { create = false } = {}) {
+    const r = await this.#rpc('enter_tree', {
+      p_name: normalizeName(name), p_birth: String(birth), p_password: String(password), p_create: create
+    });
     if (!r.ok) throw new TreeError(r.error);
     this.#setToken(r.token);
     return r;
   }
 
-  async changePin(oldPin, newPin) {
-    const r = await this.#auth('change_pin', { p_old_pin: String(oldPin), p_new_pin: String(newPin) });
+  async changePassword(oldPassword, newPassword) {
+    const r = await this.#auth('change_password', { p_old_password: String(oldPassword), p_new_password: String(newPassword) });
     if (!r.ok) throw new TreeError(r.error);
     return true;
   }
@@ -122,20 +138,29 @@ export class TreeApi {
 
   /* ── 트리 ──────────────────────────────────────────── */
 
-  /** @returns {Promise<Tree>} 내 트리 전체 (제목·무늬·설정·글귀·사진) */
-  getMyTree() { return this.#auth('get_my_tree'); }
+  /** @returns {Promise<Tree>} 내 트리 전체 (제목·무늬·설정·글귀·사진). treeId가 없으면 맨 앞 트리 */
+  getMyTree(treeId = null) { return this.#auth('get_my_tree', { p_tree_id: treeId }); }
+
+  /** @returns {Promise<{id, share_id, title, pattern, position, messages, photos}[]>} 내 트리 목록(순서대로, 최대 3개) */
+  listMyTrees() { return this.#auth('list_my_trees'); }
+  /** 새 트리 (3개까지) → Tree */
+  createTree(title = null) { return this.#auth('create_tree', { p_title: title }); }
+  /** 트리 지우기 (사진이 없는 트리만, 마지막 1개는 불가) */
+  deleteTree(treeId) { return this.#auth('delete_tree', { p_tree_id: treeId }); }
+  /** 순서 바꾸기: 내 트리 id 전체를 원하는 순서로 */
+  reorderTrees(treeIds) { return this.#auth('reorder_trees', { p_tree_ids: treeIds }); }
 
   /** 공유 링크(?t=share_id)로 남의 트리 보기 — 로그인 불필요 */
   getTree(shareId) { return this.#rpc('get_tree', { p_share_id: shareId }); }
 
-  /** null/undefined인 값은 그대로 둠 */
-  updateTree({ title = null, pattern = null, settings = null } = {}) {
-    return this.#auth('update_tree', { p_title: title, p_pattern: pattern, p_settings: settings });
+  /** null/undefined인 값은 그대로 둠. 트리 이름 바꾸기 = title */
+  updateTree({ title = null, pattern = null, settings = null } = {}, treeId = null) {
+    return this.#auth('update_tree', { p_title: title, p_pattern: pattern, p_settings: settings, p_tree_id: treeId });
   }
 
   /* ── 글귀 ──────────────────────────────────────────── */
 
-  addMessage(body) { return this.#auth('add_message', { p_body: body }); }
+  addMessage(body, treeId = null) { return this.#auth('add_message', { p_body: body, p_tree_id: treeId }); }
   deleteMessage(id) { return this.#auth('delete_message', { p_id: id }); }
 
   /* ── 본 기록 · 담은 트리 (읽기 전용 목록) ─────────────── */
@@ -169,11 +194,11 @@ export class TreeApi {
    * @param {(step: 'resize'|'upload'|'save') => void} [onStep] 진행 표시용
    * @returns {Promise<{id, path, caption}>}
    */
-  async uploadPhoto(file, caption = '', onStep = () => {}) {
+  async uploadPhoto(file, caption = '', onStep = () => {}, treeId = null) {
     onStep('resize');
     let blob;
     try { blob = await shrinkImage(file); } catch (e) { throw toTreeError(e); }
-    const path = await this.#auth('begin_photo_upload');
+    const path = await this.#auth('begin_photo_upload', { p_tree_id: treeId });
     onStep('upload');
     const { error } = await this.sb.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
     if (error) throw toTreeError(error);
@@ -194,7 +219,8 @@ export class TreeApi {
  * @typedef {Object} Tree
  * @property {string} name
  * @property {string} title
- * @property {number} pattern   0 나선 리본 · 1 층층 전나무 · 2 빛의 고리 · 3 얼음 크리스탈
+ * @property {string} id        트리 id (사용자당 최대 3개)
+ * @property {number} pattern   0~7 (js/tree/patterns.js의 PATTERNS 순서)
  * @property {Object} settings  자유 형식(2KB 이내) — 예: { autoRotate: true, patternCycle: false }
  * @property {string} share_id
  * @property {{id:number, body:string}[]} messages

@@ -86,13 +86,86 @@ function genCrystal(out, M) {
   }
 }
 
-/** 무늬 목록. 순서(인덱스)는 DB의 tree_users.pattern(0~3)과 같다. */
+/* 5) 은하수 소용돌이: 다섯 갈래 팔이 감기며 올라가는 별빛 소용돌이 */
+function genGalaxy(out, M) {
+  const arms = 5;
+  for (let i = 0; i < M; i++) {
+    const t = Math.pow(Math.random(), 0.85), arm = i % arms;
+    const spread = (Math.random() - .5) * 0.55 * (1 - t * .5);           // 팔 두께: 위쪽일수록 넓게
+    const a = arm / arms * TAU + t * TAU * 1.6 + spread;
+    const r = t * R * (0.35 + 0.65 * Math.pow(Math.random(), .35));
+    const c = Math.random() < .15 ? C.white : (t < .4 ? C.lav : (Math.random() < .5 ? C.blue : C.ice));
+    out.push(pt(Math.cos(a) * r, TOP + t * TH + rnd(-6, 6), Math.sin(a) * r, c, rnd(.7, 2.2)));
+  }
+}
+
+/* 6) 캔디 스트라이프: 원뿔 표면에 빨강·하양 물결 띠 (사탕처럼)
+      ※ 사선 띠는 투명한 원뿔에서 앞·뒷면 줄이 엇갈려 격자처럼 보여서, 앞뒤가 겹쳐도 맞물리는 가로 물결로 함 */
+function genCandy(out, M) {
+  for (let i = 0; i < M; i++) {
+    const t = Math.pow(Math.random(), .75), a = rnd(0, TAU), r = t * R * rnd(.97, 1.02);   // 표면에 붙여야 줄이 또렷함
+    const band = Math.floor(t * 9 + Math.sin(a * 3) * .3) % 2;              // 높이 + 물결 → 굵은 띠
+    const c = Math.random() < .05 ? C.mint : (band ? C.red : C.white);
+    out.push(pt(Math.cos(a) * r, TOP + t * TH, Math.sin(a) * r, c, rnd(1, 2.4)));
+  }
+}
+
+/* 7) 눈꽃 결정층: 여섯 갈래 눈꽃 7장을 크기를 줄여 가며 층층이 띄움 */
+function genSnowflakes(out, M) {
+  const layers = 7, w = [...Array(layers)].map((_, k) => k + 1), sw = w.reduce((a, b) => a + b);
+  for (let k = 0; k < layers; k++) {
+    const t = (k + 1) / layers, y = TOP + t * TH * .97, Rk = t * R, rot = k * .45;
+    const cnt = Math.round(M * w[k] / sw);
+    for (let j = 0; j < cnt; j++) {
+      const base = (j % 6) / 6 * TAU + rot;
+      if (Math.random() < .35) {                                             // 잔가지: 팔 중간에서 ±60°로 뻗음
+        const at = rnd(.35, .8) * Rk, len = rnd(0, .28) * Rk, side = Math.random() < .5 ? -1 : 1;
+        const bx = Math.cos(base) * at + Math.cos(base + side * Math.PI / 3) * len;
+        const bz = Math.sin(base) * at + Math.sin(base + side * Math.PI / 3) * len;
+        out.push(pt(bx, y + rnd(-3, 3), bz, Math.random() < .5 ? C.white : C.ice, rnd(.8, 1.8)));
+        continue;
+      }
+      const u = Math.random(), tip = Math.random() > .95;                   // 팔 끝은 조금 더 밝게
+      const r = tip ? Rk * rnd(.95, 1.05) : u * Rk;
+      out.push(pt(Math.cos(base) * r, y + rnd(-3, 3), Math.sin(base) * r, tip || u > .9 ? C.white : C.ice, tip ? rnd(2, 3.2) : rnd(.9, 2)));
+    }
+  }
+}
+
+/* 8) 금빛 가랜드: 은은한 초록 원뿔 위에 금빛 줄을 늘어뜨리고 이음매마다 빨간 방울 */
+function genGarland(out, M) {
+  const tiers = 6, anchors = 7;
+  const tierT = k => .18 + .8 * k / (tiers - 1);
+  for (let i = 0; i < M; i++) {
+    const roll = Math.random();
+    if (roll < .55) {                                                        // 늘어진 금빛 줄
+      const k = i % tiers, t0 = tierT(k), seg = (Math.random() * anchors) | 0, u = Math.random();
+      const a = (seg + u) / anchors * TAU + k * .5, sag = Math.sin(u * Math.PI) * 26;
+      const r = Math.min(1, t0 + sag / TH) * R * 1.02;
+      out.push(pt(Math.cos(a) * r, TOP + t0 * TH + sag, Math.sin(a) * r, Math.random() < .7 ? C.gold : C.warm, rnd(1.1, 2.4)));
+    } else if (roll < .88) {                                                 // 몸통
+      const t = Math.pow(Math.random(), .8), a = rnd(0, TAU), r = t * R * rnd(.55, .98);
+      out.push(pt(Math.cos(a) * r, TOP + t * TH, Math.sin(a) * r, Math.random() < .5 ? C.deep : C.green, rnd(.6, 1.5)));
+    } else {                                                                 // 이음매 방울
+      const k = (Math.random() * tiers) | 0, t0 = tierT(k), seg = (Math.random() * anchors) | 0;
+      const a = seg / anchors * TAU + k * .5, r = t0 * R * 1.03;
+      out.push(pt(Math.cos(a) * r + rnd(-3, 3), TOP + t0 * TH + rnd(-3, 3), Math.sin(a) * r + rnd(-3, 3), C.red, rnd(2.2, 3.6)));
+    }
+  }
+}
+
+/** 무늬 목록. 순서(인덱스)는 DB의 trees.pattern(0~7)과 같다. 새 무늬는 항상 맨 뒤에 추가할 것 */
 export const PATTERNS = [
-  { name: '나선 리본',     gen: genSpiral,  base: C.gold, bg: [11, 18, 48] },
-  { name: '층층 전나무',   gen: genTiers,   base: C.warm, bg: [5, 22, 22] },
-  { name: '빛의 고리',     gen: genRings,   base: C.red,  bg: [26, 10, 32] },
-  { name: '얼음 크리스탈', gen: genCrystal, base: C.ice,  bg: [6, 20, 54] }
+  { name: '나선 리본',     gen: genSpiral,     base: C.gold,  bg: [11, 18, 48] },
+  { name: '층층 전나무',   gen: genTiers,      base: C.warm,  bg: [5, 22, 22] },
+  { name: '빛의 고리',     gen: genRings,      base: C.red,   bg: [26, 10, 32] },
+  { name: '얼음 크리스탈', gen: genCrystal,    base: C.ice,   bg: [6, 20, 54] },
+  { name: '은하수 소용돌이', gen: genGalaxy,   base: C.lav,   bg: [16, 8, 40] },
+  { name: '캔디 스트라이프', gen: genCandy,    base: C.white, bg: [36, 10, 18] },
+  { name: '눈꽃 결정층',   gen: genSnowflakes, base: C.ice,   bg: [8, 24, 48] },
+  { name: '금빛 가랜드',   gen: genGarland,    base: C.gold,  bg: [20, 18, 8] }
 ];
+export const PATTERN_NAMES = PATTERNS.map(p => p.name);
 
 /**
  * 무늬마다 N개의 목표점 배열을 만든다. 무늬 하나 = 몸통 + 바닥 원반.

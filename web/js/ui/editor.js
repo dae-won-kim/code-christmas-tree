@@ -4,12 +4,12 @@
  *  - 제목·무늬·설정 변경은 800ms debounce 후 updateTree 한 번으로 저장
  *  - DB 접근은 TreeApi만 사용. unauthorized가 나면 onUnauthorized()로 로그인 화면에 보냄
  */
-import { TreeError, isValidPin } from '../api.js';
+import { TreeError, isValidPassword } from '../api.js';
 import { $, h, toast, busy, trackComposition, isImeEnter, confirmButton } from './dom.js';
 
 const SAVE_DELAY = 800;
 const MAX_MESSAGES = 50, MAX_PHOTOS = 30;
-export const DEFAULT_SETTINGS = { autoRotate: true, patternCycle: true };
+export const DEFAULT_SETTINGS = { autoRotate: true, patternCycle: true, characters: true };
 
 /** 공유 링크: 현재 주소에서 쿼리·해시를 빼고 ?t=share_id */
 export function shareUrlFor(shareId) {
@@ -24,6 +24,7 @@ export function shareUrlFor(shareId) {
  */
 export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refreshNotice }) {
   const ac = new AbortController(), on = (el, ev, fn, o = {}) => el.addEventListener(ev, fn, { signal: ac.signal, ...o });
+  const treeId = data.id;   // 지금 편집 중인 트리 (사용자당 최대 3개)
   const state = {
     title: data.title,
     pattern: data.pattern,
@@ -77,6 +78,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     if (tabId) selectTab($(tabId));
     panel.hidden = false;
     btnEdit.setAttribute('aria-expanded', 'true');
+    document.dispatchEvent(new CustomEvent('editpanel:open'));   // 좁은 화면이면 사이드 목록이 접힘
     const pane = panel.querySelector('.pane:not([hidden])');
     (pane.querySelector('input:not([readonly]), button') || panel.querySelector('[aria-selected="true"]'))
       .focus({ preventScroll: true });
@@ -91,6 +93,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   const isOpen = () => !panel.hidden;
 
   on(btnEdit, 'click', () => (isOpen() ? closePanel() : openPanel()));
+  on(document, 'library:open', () => { if (isOpen() && innerWidth < 1100) closePanel(); });
   on($('btnEditClose'), 'click', closePanel);
   on(document, 'keydown', e => {
     if (e.key === 'Escape' && isOpen() && !tree.viewing && !e.defaultPrevented) { e.preventDefault(); closePanel(); }
@@ -114,8 +117,12 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     const patch = pendingSave; pendingSave = {};
     if (!Object.keys(patch).length) return saving;
     setSaveState('저장 중…');
-    saving = saving.then(() => call(() => api.updateTree(patch)))
-      .then(() => { if (!Object.keys(pendingSave).length) setSaveState('저장됨'); })
+    saving = saving.then(() => call(() => api.updateTree(patch, treeId)))
+      .then(() => {
+        if (!Object.keys(pendingSave).length) setSaveState('저장됨');
+        // 사이드 목록(내 트리)의 이름·무늬 표시를 맞춤
+        document.dispatchEvent(new CustomEvent('tree:updated', { detail: { id: treeId, ...patch } }));
+      })
       .catch(e => { if (!e.handled) setSaveState(errMsg(e), true); });
     return saving;
   }
@@ -153,15 +160,23 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   }
 
   // 설정
-  const edAuto = $('edAutoRotate'), edCycle = $('edPatternCycle');
+  const edAuto = $('edAutoRotate'), edCycle = $('edPatternCycle'), edChars = $('edCharacters');
   edAuto.checked = state.settings.autoRotate; edCycle.checked = state.settings.patternCycle;
+  edChars.checked = state.settings.characters !== false;
   function onSettings() {
-    state.settings = { ...state.settings, autoRotate: edAuto.checked, patternCycle: edCycle.checked };
+    state.settings = { ...state.settings, autoRotate: edAuto.checked, patternCycle: edCycle.checked, characters: edChars.checked };
     tree.setSettings(state.settings);
     queueSave({ settings: state.settings });
   }
   on(edAuto, 'change', onSettings);
   on(edCycle, 'change', onSettings);
+  on(edChars, 'change', onSettings);
+
+  // 사이드 목록에서 이 트리의 이름을 바꾸면 제목 칸·트리 제목도 맞춤
+  on(document, 'tree:renamed', e => {
+    if (e.detail.id !== treeId) return;
+    state.title = e.detail.title; edTitle.value = e.detail.title; updateTitleCount(); tree.setTitle(e.detail.title);
+  });
 
   // 도구 막대의 [무늬 바꾸기]는 내 트리에서는 "다음 무늬로 바꾸고 저장"
   on($('btnPattern'), 'click', () => choosePattern((tree.pattern + 1) % tree.patterns.length));
@@ -192,7 +207,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     if (!body) { msgError.textContent = '글귀를 입력해 주세요.'; edMsg.focus(); return; }
     if ([...body].length > 100) { msgError.textContent = '글귀는 100자까지예요.'; return; }
     try {
-      const m = await busy(btnAddMsg, '추가 중…', () => call(() => api.addMessage(body)));
+      const m = await busy(btnAddMsg, '추가 중…', () => call(() => api.addMessage(body, treeId)));
       state.messages.push(m);
       edMsg.value = ''; updateMsgCount();
       renderMessages();
@@ -245,7 +260,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
       const prefix = files.length > 1 ? `${i + 1}/${files.length} · ` : '';
       uploadState.className = 'msg';
       try {
-        const p = await call(() => api.uploadPhoto(files[i], caption, step => { uploadState.textContent = prefix + STEP[step]; }));
+        const p = await call(() => api.uploadPhoto(files[i], caption, step => { uploadState.textContent = prefix + STEP[step]; }, treeId));
         state.photos.push(p); ok++;
         renderPhotos();
         tree.addPhoto(api.photoUrl(p.path), p.caption, { id: p.id, show: 'sparkle' }).catch(() => {});
@@ -302,20 +317,20 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     else { openPanel('tab-account'); shareInput.select(); }
   });
 
-  const pinForm = $('pinForm'), pinState = $('pinState');
-  on(pinForm, 'submit', async e => {
+  const pwForm = $('pwForm'), pwState = $('pwState');
+  on(pwForm, 'submit', async e => {
     e.preventDefault();
-    const oldPin = $('pinOld').value, newPin = $('pinNew').value, newPin2 = $('pinNew2').value;
-    pinState.className = 'msg bad';
-    if (!isValidPin(oldPin)) { pinState.textContent = '현재 PIN을 숫자 4~6자리로 입력해 주세요.'; $('pinOld').focus(); return; }
-    if (!isValidPin(newPin)) { pinState.textContent = '새 PIN은 숫자 4~6자리로 입력해 주세요.'; $('pinNew').focus(); return; }
-    if (newPin !== newPin2) { pinState.textContent = '새 PIN 확인이 일치하지 않아요.'; $('pinNew2').focus(); return; }
-    if (newPin === oldPin) { pinState.textContent = '지금 PIN과 다른 번호를 골라 주세요.'; $('pinNew').focus(); return; }
+    const oldPw = $('pwOld').value, newPw = $('pwNew').value, newPw2 = $('pwNew2').value;
+    pwState.className = 'msg bad';
+    if (!oldPw) { pwState.textContent = '현재 비밀번호를 입력해 주세요.'; $('pwOld').focus(); return; }
+    if (!isValidPassword(newPw)) { pwState.textContent = '새 비밀번호는 6~64자로 입력해 주세요.'; $('pwNew').focus(); return; }
+    if (newPw !== newPw2) { pwState.textContent = '새 비밀번호 확인이 일치하지 않아요.'; $('pwNew2').focus(); return; }
+    if (newPw === oldPw) { pwState.textContent = '지금 비밀번호와 다른 비밀번호를 골라 주세요.'; $('pwNew').focus(); return; }
     try {
-      await busy($('btnPin'), '바꾸는 중…', () => call(() => api.changePin(oldPin, newPin)));
-      pinForm.reset();
-      pinState.textContent = 'PIN을 바꿨어요. 다른 기기는 로그아웃됐어요.'; pinState.className = 'msg good';
-    } catch (e2) { if (!e2.handled) pinState.textContent = errMsg(e2); }
+      await busy($('btnPw'), '바꾸는 중…', () => call(() => api.changePassword(oldPw, newPw)));
+      pwForm.reset();
+      pwState.textContent = '비밀번호를 바꿨어요. 다른 기기는 로그아웃됐어요.'; pwState.className = 'msg good';
+    } catch (e2) { if (!e2.handled) pwState.textContent = errMsg(e2); }
   });
 
   on($('btnLogout'), 'click', async () => {
@@ -333,7 +348,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   renderMessages();
   renderPhotos();
   setSaveState('');
-  uploadState.textContent = ''; copyState.textContent = ''; pinState.textContent = ''; msgError.textContent = '';
+  uploadState.textContent = ''; copyState.textContent = ''; pwState.textContent = ''; msgError.textContent = '';
   updateMsgCount();
 
   return {

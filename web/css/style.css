@@ -6,6 +6,7 @@ body { font-family: 'Gowun Batang', serif; color: #fff6e0; }
 canvas { display: block; position: fixed; inset: 0; cursor: grab; touch-action: none; }
 canvas.dragging { cursor: grabbing; }
 canvas.hovering { cursor: zoom-in; }
+canvas.pointing { cursor: pointer; }
 
 /* ---------- 상단: 제목 + 무늬 이름 ---------- */
 #top {
@@ -165,7 +166,14 @@ button.icon { min-height: 32px; width: 32px; padding: 0; display: inline-flex; a
 .inline input { flex: 1; min-width: 0; }
 .fields { display: flex; gap: 10px; }
 .fields .field { flex: 1; min-width: 0; }
-.fields .field.pin { flex: 0 0 38%; }
+.fields .field.birth { flex: 0 0 36%; }
+.card .field.pw { margin-top: 8px; }
+.card .warn {
+  margin-top: 8px; padding: 7px 10px; border-radius: 8px; font-size: 12px; line-height: 1.55;
+  color: #ffe2b0; background: rgba(255, 180, 80, .1); border: 1px solid rgba(255, 190, 100, .28);
+}
+.card .warn b { color: #fff1c9; font-weight: 700; }
+#btnShowPw { min-width: 56px; }
 .hint { color: #a9a39a; font-size: 12px; margin-top: 8px; line-height: 1.55; }
 
 /* ---------- 로그인 카드 ---------- */
@@ -249,7 +257,7 @@ button.confirming, .grid li button.confirming { background: #c94b4b; border-colo
 
 @media (max-width: 380px) {
   .fields:not(.three) { flex-direction: column; gap: 8px; }
-  .fields .field.pin { flex: 1; }
+  .fields .field.birth { flex: 1; }
 }
 @media (max-height: 480px) {
   .card { padding: 10px 12px; }
@@ -299,4 +307,14 @@ body.lib-open .side-toggle { visibility: hidden; }
 .lib-list button.icon { flex-shrink: 0; margin-right: 4px; min-height: 30px; width: 30px; backdrop-filter: none; -webkit-backdrop-filter: none; }
 #library .row { margin-top: 8px; }
 #library .hint { margin-top: 14px; }
+.lib-list.mine li { flex-wrap: wrap; }
+.lib-list .actions { display: flex; gap: 2px; margin-right: 4px; }
+.lib-list .actions button.icon { margin-right: 0; width: 28px; min-height: 28px; font-size: 13px; }
+.lib-list .actions button.icon:disabled { opacity: .3; }
+.lib-list li.editing { padding: 6px; gap: 6px; }
+.lib-list li.editing input {
+  flex: 1; min-width: 0; font-family: inherit; font-size: 16px; color: #fff;
+  background: rgba(255, 255, 255, .08); border: 1px solid #ffd678; border-radius: 6px; padding: 5px 8px;
+}
+#libMine .hint { margin-top: 6px; }
 button#btnSave[aria-pressed="true"] { background: rgba(255, 214, 120, .28); border-color: #ffd678; }

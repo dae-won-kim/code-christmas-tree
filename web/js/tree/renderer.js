@@ -12,6 +12,7 @@ import { PATTERNS, buildTargets, TAU, TOP, TH, C, rnd, clamp01, easeInOut } from
 import { createPhotoStage } from './photos.js';
 import { createViewer } from './viewer.js';
 import { createTyper } from './messages.js';
+import { createCharacters } from './characters.js';
 
 const $ = id => document.getElementById(id);
 
@@ -22,7 +23,8 @@ export function createTree(canvas, options = {}) {
     pattern: 0,
     autoRotate: true,        // 자동 회전
     patternCycle: true,      // 무늬 자동 전환
-    patternInterval: 12,     // 무늬 자동 전환 간격(초)
+    characters: true,        // 배경에 산타·루돌프
+    patternInterval: 60,     // 무늬 자동 전환 간격(초)
     morphDuration: 2.6,      // 무늬 전환 애니메이션 길이(초)
     photoInterval: 3.2,      // 사진 등장 간격(초)
     typingDelay: 3200,       // 첫 글귀가 나오기까지(ms) — 트리가 모이는 동안 기다림
@@ -38,7 +40,7 @@ export function createTree(canvas, options = {}) {
   /* ---------- 기기 판별 & 캔버스 ---------- */
   const isMobile = Math.min(innerWidth, innerHeight) < 700 || matchMedia('(pointer: coarse)').matches;
   const N = isMobile ? 1500 : 2600;          // 트리 입자 수
-  const SNOW = isMobile ? 90 : 160;
+  const SNOW = isMobile ? 170 : 300;         // 눈송이 수
   const ctx = canvas.getContext('2d');
   const view = { W: 0, H: 0, scale: 1 };     // 사진·확대 보기 모듈과 공유
   let DPR, centerY;
@@ -102,8 +104,11 @@ export function createTree(canvas, options = {}) {
   }
 
   /* ---------- 눈 ---------- */
-  const newFlake = anyY => ({ x: Math.random() * innerWidth, y: anyY ? Math.random() * innerHeight : -10,
-                              r: rnd(.5, 2.2), vy: rnd(.3, 1.1), sway: rnd(0, TAU) });
+  const newFlake = anyY => {
+    const r = Math.random() < .12 ? rnd(2.2, 3.4) : rnd(.5, 2.2);           // 가끔 큰 눈송이
+    return { x: Math.random() * innerWidth, y: anyY ? Math.random() * innerHeight : -10,
+             r, vy: rnd(.3, 1.1) * (.7 + r / 4), sway: rnd(0, TAU) };          // 큰 눈은 조금 빨리
+  };
   const snow = Array.from({ length: SNOW }, () => newFlake(true));
 
   /* ---------- 반짝이 입자(클릭 폭죽, 사진 등장/퇴장) ---------- */
@@ -119,6 +124,8 @@ export function createTree(canvas, options = {}) {
   /* ---------- 사진 · 확대 보기 · 글귀 ---------- */
   const photos = createPhotoStage({ ctx, view, isMobile, burst });
   const viewer = createViewer(el, view);
+  const characters = createCharacters({ ctx, view, burst, isMobile });
+  characters.setEnabled(opt.characters);
   const typer = createTyper(el.message, { srList: el.srMessages, onFirstStart: () => { el.title.style.opacity = 1; } });
   let lastPhotoSpawn = 0;
 
@@ -131,7 +138,11 @@ export function createTree(canvas, options = {}) {
   };
   const onMove = e => {
     if (!dragging) {
-      if (!isMobile) canvas.classList.toggle('hovering', !!photos.hit(e.clientX, e.clientY));
+      if (!isMobile) {
+        const onPhoto = !!photos.hit(e.clientX, e.clientY);
+        canvas.classList.toggle('hovering', onPhoto);
+        canvas.classList.toggle('pointing', !onPhoto && !!characters.hit(e.clientX, e.clientY));
+      }
       return;
     }
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
@@ -145,7 +156,10 @@ export function createTree(canvas, options = {}) {
     dragging = false; canvas.classList.remove('dragging');
     if (e.type === 'pointerup' && moved < 8) {
       const s = photos.hit(e.clientX, e.clientY);
-      s ? viewer.open(s) : burst(e.clientX, e.clientY);
+      const c = s ? null : characters.hit(e.clientX, e.clientY);
+      if (s) viewer.open(s);
+      else if (c) characters.react(c, performance.now() / 1000);
+      else burst(e.clientX, e.clientY);
     }
   };
   canvas.addEventListener('pointerdown', onDown);
@@ -178,6 +192,10 @@ export function createTree(canvas, options = {}) {
     bg.addColorStop(0, `rgb(${currentBg.map(Math.round).join(',')})`); bg.addColorStop(1, '#02030a');
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+    // 배경 캐릭터 (트리 뒤)
+    characters.step(now);
+    ctx.globalCompositeOperation = 'source-over';
 
     // 3D 투영 준비
     const cy = Math.cos(rotY), sy = Math.sin(rotY), cx = Math.cos(rotX), sx = Math.sin(rotX);
@@ -291,8 +309,9 @@ export function createTree(canvas, options = {}) {
 
     setTitle(text) { el.title.textContent = text; layout(); },
 
-    /** { autoRotate, patternCycle } 중 넘긴 값만 바꾼다 */
-    setSettings({ autoRotate, patternCycle } = {}) {
+    /** { autoRotate, patternCycle, characters } 중 넘긴 값만 바꾼다 */
+    setSettings({ autoRotate, patternCycle, characters: chars } = {}) {
+      if (typeof chars === 'boolean') { opt.characters = chars; characters.setEnabled(chars); }
       if (typeof autoRotate === 'boolean') { opt.autoRotate = autoRotate; AUTO = autoRotate ? 0.004 : 0; }
       if (typeof patternCycle === 'boolean') { opt.patternCycle = patternCycle; lastSwitch = nowSec(); }
     },
@@ -317,6 +336,9 @@ export function createTree(canvas, options = {}) {
     },
     clearPhotos() { viewer.closeNow(); photos.clear(); },
 
+    /** 테스트·디버그용: 산타·루돌프의 위치와 반응 상태 */
+    characterInfo: () => characters.info(),
+
     /** 레이아웃 다시 계산 (위·아래 UI 크기가 바뀌었을 때) */
     layout,
 
@@ -331,7 +353,7 @@ export function createTree(canvas, options = {}) {
       removeEventListener('pointermove', onMove);
       removeEventListener('pointerup', onUp);
       removeEventListener('pointercancel', onUp);
-      canvas.classList.remove('dragging', 'hovering');
+      canvas.classList.remove('dragging', 'hovering', 'pointing');
     }
   };
 }

@@ -1,13 +1,18 @@
 /**
- * 트리 목록 (사이드 서랍) — 담은 트리 + 최근 본 트리
+ * 트리 목록 (사이드 서랍) — 내 트리(최대 3개) + 담은 트리 + 최근 본 트리
+ *
+ *  - 내 트리: 로그인했을 때만. 이름(=제목) 바꾸기, 순서 바꾸기(▲▼), 새로 만들기, 지우기(사진이 없는 트리만)
  *
  *  - 로그인했으면 DB(list_trees)에서, 아니면 이 브라우저의 localStorage에서 읽는다.
  *    로그인하면 브라우저 기록을 DB로 합친다(main.js의 afterLogin).
  *  - 기본은 접힌 상태. 왼쪽 위 [☰ 목록] 버튼으로 펼치고, 펼침/접힘은 브라우저에 기억한다.
  *  - 목록은 읽기 전용: 항목을 누르면 그 트리의 공유 보기(?t=...)로 간다.
  */
-import { $, h, toast, confirmButton } from './dom.js';
+import { $, h, toast, confirmButton, trackComposition, isImeEnter } from './dom.js';
 import { shareUrlFor } from './editor.js';
+import { PATTERN_NAMES } from '../tree/patterns.js';
+
+const MAX_TREES = 3;
 
 const LOCAL_KEY = 'code-christmas-tree.history';     // 로그인 전 본 기록
 const OPEN_KEY = 'code-christmas-tree.library';      // 서랍 펼침 상태
@@ -52,25 +57,32 @@ function ago(iso) {
 }
 
 /**
- * @param {{ api, onOpen: (shareId: string) => void, isViewing?: () => boolean }} deps
+ * @param {{ api, onOpen: (shareId: string) => void, onOpenMine: (treeId: string|null) => void, isViewing?: () => boolean }} deps
  */
-export function createLibrary({ api, onOpen, isViewing = () => false }) {
+export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false }) {
   const toggle = $('btnLibrary'), panel = $('library'), closeBtn = $('libClose');
   const savedList = $('libSaved'), historyList = $('libHistory');
   const savedEmpty = $('libSavedEmpty'), historyEmpty = $('libHistoryEmpty');
   const errorEl = $('libError'), clearBtn = $('libClear');
-  let items = [], current = null, open = false, loading = null;
+  const mineSection = $('libMine'), mineList = $('libMineList'), newTreeBtn = $('libNewTree');
+  let items = [], mine = [], current = null, currentMine = null, open = false, loading = null, editingId = null;
 
   /* ---------- 데이터 ---------- */
+  // 동작(이름 바꾸기·지우기 등)에서 난 오류는 바로 뒤따르는 refresh()에서 지워지지 않게 한 번 남긴다
+  let keepError = false;
+  const setError = msg => { errorEl.textContent = msg; keepError = true; };
+
   async function load() {
-    errorEl.textContent = '';
+    if (!keepError) errorEl.textContent = '';
+    keepError = false;
     if (!api.loggedIn) {
       items = localHistory.list().map(x => ({ ...x, saved: false }));
+      mine = [];
       return;
     }
-    try { items = await api.listTrees(); }
+    try { [items, mine] = await Promise.all([api.listTrees(), api.listMyTrees()]); }
     catch (e) {
-      if (e.code === 'unauthorized') { items = localHistory.list().map(x => ({ ...x, saved: false })); return; }
+      if (e.code === 'unauthorized') { items = localHistory.list().map(x => ({ ...x, saved: false })); mine = []; return; }
       errorEl.textContent = `목록을 불러오지 못했어요. ${e.message}`;
     }
   }
@@ -98,7 +110,98 @@ export function createLibrary({ api, onOpen, isViewing = () => false }) {
     return h('li', {}, link, remove);
   }
 
+  /* ---------- 내 트리 ---------- */
+  function mineRow(t, i) {
+    if (t.id === editingId) return renameRow(t);
+    const link = h('a', { href: '#', className: 'item' },
+      h('span', { className: 'who', text: t.title }),
+      h('span', { className: 'meta', text: `${PATTERN_NAMES[t.pattern] ?? ''} · 글귀 ${t.messages} · 사진 ${t.photos}` }));
+    if (t.id === currentMine) link.setAttribute('aria-current', 'page');
+    link.addEventListener('click', e => {
+      e.preventDefault();
+      if (matchMedia('(max-width: 700px)').matches) setOpen(false, { focusToggle: false });
+      onOpenMine(t.id);
+    });
+    const btn = (text, label, onclick, disabled = false) =>
+      h('button', { type: 'button', className: 'icon', text, 'aria-label': `${label}: ${t.title}`, title: label, disabled, onclick });
+    const del = btn('🗑', '트리 지우기', null, mine.length <= 1);
+    confirmButton(del, '?', () => removeTree(t));
+    return h('li', { dataset: { id: t.id } }, link,
+      h('span', { className: 'actions' },
+        btn('✎', '이름 바꾸기', () => { editingId = t.id; render(); }),
+        btn('▲', '위로', () => move(i, -1), i === 0),
+        btn('▼', '아래로', () => move(i, 1), i === mine.length - 1),
+        del));
+  }
+  function renameRow(t) {
+    const input = h('input', { value: t.title, maxlength: '30', 'aria-label': `‘${t.title}’ 새 이름 (1~30자)` });
+    const ime = trackComposition(input);
+    let done = false;
+    const finish = async save => {
+      if (done) return; done = true;
+      const title = input.value.trim();
+      editingId = null;
+      if (save && title && title !== t.title) {
+        try {
+          await api.updateTree({ title }, t.id);
+          document.dispatchEvent(new CustomEvent('tree:renamed', { detail: { id: t.id, title } }));
+          toast('트리 이름을 바꿨어요.');
+        } catch (e) { setError(e.message); }
+      } else if (save && !title) setError('트리 이름은 1~30자로 입력해 주세요.');
+      await refresh();
+      mineList.querySelector(`li[data-id="${t.id}"] button`)?.focus();
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !isImeEnter(e) && !ime.composing) { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+    queueMicrotask(() => { input.focus(); input.select(); });
+    return h('li', { className: 'editing', dataset: { id: t.id } }, input,
+      h('button', { type: 'button', className: 'icon', text: '✓', 'aria-label': '이름 저장', onmousedown: e => e.preventDefault(), onclick: () => finish(true) }));
+  }
+  async function move(i, d) {
+    const ids = mine.map(t => t.id), j = i + d;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    try { await api.reorderTrees(ids); } catch (e) { setError(e.message); }
+    await refresh();
+    // 옮긴 트리의 같은 방향 버튼에 포커스를 남겨 연속으로 옮길 수 있게
+    const li = mineList.querySelector(`li[data-id="${ids[j]}"]`);
+    (li?.querySelector(`button[title="${d < 0 ? '위로' : '아래로'}"]:not(:disabled)`) || li?.querySelector('a'))?.focus();
+  }
+  async function removeTree(t) {
+    try {
+      await api.deleteTree(t.id);
+      toast(`‘${t.title}’ 트리를 지웠어요.`);
+      if (t.id === currentMine) onOpenMine(null);
+    } catch (e) { setError(e.message); toast(e.message, { error: true }); }
+    await refresh();
+  }
+  newTreeBtn.addEventListener('click', async () => {
+    newTreeBtn.disabled = true;
+    try {
+      const t = await api.createTree();
+      toast('새 트리를 만들었어요! ✎ 꾸미기로 이름과 무늬를 정해 보세요.');
+      if (matchMedia('(max-width: 700px)').matches) setOpen(false, { focusToggle: false });
+      onOpenMine(t.id);
+    } catch (e) { setError(e.message); }
+    await refresh();
+  });
+  // 꾸미기에서 제목·무늬를 바꾸면 목록도 다시 읽음 (잠깐 모아서 한 번)
+  let mineTimer;
+  document.addEventListener('tree:updated', () => { clearTimeout(mineTimer); mineTimer = setTimeout(refresh, 300); });
+
   function render() {
+    mineSection.hidden = !api.loggedIn;
+    if (api.loggedIn) {
+      mineList.replaceChildren(...mine.map(mineRow));
+      $('libMineCount').textContent = `${mine.length}/${MAX_TREES}`;
+      newTreeBtn.disabled = mine.length >= MAX_TREES;
+      $('libMineNote').textContent = mine.length >= MAX_TREES
+        ? '트리는 3개까지예요. 새로 만들려면 하나를 지워 주세요. (사진이 없는 트리만 지울 수 있어요)'
+        : '트리마다 공유 링크가 따로 있어요. 이름은 트리 위에 보이는 제목이에요.';
+    }
     const saved = items.filter(x => x.saved).sort((a, b) => String(b.saved_at).localeCompare(String(a.saved_at)));
     const history = items.filter(x => x.viewed_at).sort((a, b) => String(b.viewed_at).localeCompare(String(a.viewed_at)));
     savedList.replaceChildren(...saved.map(x => row(x, 'saved')));
@@ -119,17 +222,17 @@ export function createLibrary({ api, onOpen, isViewing = () => false }) {
       await api.setSaved(item.share_id, false);
       toast(`${item.name}님의 트리를 목록에서 뺐어요.`);
       document.dispatchEvent(new CustomEvent('tree:saved-change', { detail: { shareId: item.share_id, saved: false } }));
-    } catch (e) { errorEl.textContent = e.message; }
+    } catch (e) { setError(e.message); }
     await refresh();
   }
   async function forget(item) {
     try { api.loggedIn ? await api.forgetViews(item.share_id) : localHistory.remove(item.share_id); }
-    catch (e) { errorEl.textContent = e.message; }
+    catch (e) { setError(e.message); }
     await refresh();
   }
   confirmButton(clearBtn, '정말 다 지울까요?', async () => {
     try { api.loggedIn ? await api.forgetViews(null) : localHistory.clear(); toast('본 기록을 지웠어요. 담은 트리는 그대로예요.'); }
-    catch (e) { errorEl.textContent = e.message; }
+    catch (e) { setError(e.message); }
     await refresh();
   });
 
@@ -141,10 +244,16 @@ export function createLibrary({ api, onOpen, isViewing = () => false }) {
     toggle.setAttribute('aria-expanded', String(open));
     document.body.classList.toggle('lib-open', open);
     if (remember) store.set(localStorage, OPEN_KEY, open ? 'open' : 'closed');
-    if (open) { refresh(); if (focus) closeBtn.focus({ preventScroll: true }); }
+    if (open) {
+      refresh();
+      if (focus) closeBtn.focus({ preventScroll: true });
+      document.dispatchEvent(new CustomEvent('library:open'));   // 좁은 화면이면 꾸미기 패널이 닫힘
+    }
     else if (focusToggle && panel.contains(document.activeElement)) toggle.focus({ preventScroll: true });
   }
   toggle.addEventListener('click', () => setOpen(!open));
+  // 꾸미기 패널이 열릴 때 화면이 좁으면 서랍을 접는다 (둘이 겹쳐서 누를 수 없게 되는 것 방지)
+  document.addEventListener('editpanel:open', () => { if (open && innerWidth < 1100) setOpen(false, { focusToggle: false }); });
   closeBtn.addEventListener('click', () => setOpen(false));
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || !open || e.defaultPrevented || isViewing()) return;
@@ -159,6 +268,8 @@ export function createLibrary({ api, onOpen, isViewing = () => false }) {
     get isOpen() { return open; },
     /** 지금 보고 있는 트리 표시 (없으면 null) */
     setCurrent(shareId) { current = shareId; render(); },
+    /** 지금 편집 중인 내 트리 표시 (없으면 null) */
+    setCurrentMine(treeId) { currentMine = treeId; render(); },
     /** 서버 모드에서만 보이게 */
     show() {
       toggle.hidden = false; panel.hidden = false;

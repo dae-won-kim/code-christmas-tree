@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Code Christmas Tree</title>
-<meta name="description" content="한글 이름과 PIN으로 나만의 파티클 3D 크리스마스 트리를 만들고, 글귀와 사진을 걸어 링크로 보여 주세요.">
+<meta name="description" content="이름·생년월일·비밀번호로 나만의 파티클 3D 크리스마스 트리를 만들고, 글귀와 사진을 걸어 링크로 보여 주세요.">
 <!-- 세션 토큰이 localStorage에 있으므로 XSS 피해를 줄이기 위해 스크립트 출처를 제한한다.
      Supabase를 커스텀 도메인으로 쓰면 connect-src / img-src에 그 도메인을 추가할 것 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'">
@@ -36,17 +36,28 @@
     <div class="fields">
       <div class="field">
         <label for="inName">이름 <span class="sub">(한글 2~10자)</span></label>
-        <input id="inName" name="name" lang="ko" autocomplete="off" autocapitalize="off" spellcheck="false"
+        <input id="inName" name="name" lang="ko" autocomplete="username" autocapitalize="off" spellcheck="false"
                placeholder="김민수" aria-describedby="nameMsg">
       </div>
-      <div class="field pin">
-        <label for="inPin">PIN <span class="sub">(숫자 4~6자리)</span></label>
-        <input id="inPin" name="pin" type="password" inputmode="numeric" autocomplete="off" maxlength="6"
-               pattern="[0-9]*" placeholder="••••••" aria-describedby="pinMsg">
+      <div class="field birth">
+        <label for="inBirth">생년월일 <span class="sub">(6자리)</span></label>
+        <input id="inBirth" name="birth" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"
+               placeholder="990101" aria-describedby="birthMsg">
       </div>
     </div>
     <p id="nameMsg" class="msg" aria-live="polite"></p>
-    <p id="pinMsg" class="msg" aria-live="polite"></p>
+    <p id="birthMsg" class="msg" aria-live="polite"></p>
+    <div class="field pw">
+      <label for="inPassword">비밀번호 <span class="sub">(6~64자 · 영문·숫자·기호 가능)</span></label>
+      <div class="inline">
+        <input id="inPassword" name="password" type="password" autocomplete="current-password" maxlength="64"
+               aria-describedby="pwMsg pwWarn">
+        <button type="button" id="btnShowPw" aria-pressed="false" aria-label="비밀번호 보기">보기</button>
+      </div>
+    </div>
+    <p id="pwMsg" class="msg" aria-live="polite"></p>
+    <p id="pwWarn" class="warn">⚠ 이름·생년월일·비밀번호가 <b>모두 같으면 같은 트리</b>로 열려요.
+      동명이인과 겹치지 않도록 <b>나만 아는 비밀번호</b>를 정해 주세요.</p>
     <p id="loginError" class="msg error" role="alert"></p>
     <div id="createConfirm" class="confirm" hidden>
       <p id="createText"></p>
@@ -58,8 +69,8 @@
     <div class="row" id="loginActions">
       <button type="submit" id="btnEnter" class="primary">내 트리 열기</button>
     </div>
-    <p class="hint">처음이면 이름과 PIN을 정해서 새 트리를 만들 수 있어요. PIN은 6자리를 권장해요.<br>
-      PIN은 트리를 구분하는 가벼운 번호예요. 다른 서비스와 같은 번호는 쓰지 마세요.</p>
+    <p class="hint">처음이면 이름·생년월일·비밀번호를 정해서 새 트리를 만들 수 있어요.<br>
+      다른 서비스에서 쓰는 비밀번호는 쓰지 마세요. 비밀번호를 잊으면 되찾을 수 없어요.</p>
   </form>
 
   <div id="toolbar">
@@ -109,7 +120,8 @@
       <div class="choices" id="patternChoices"></div>
     </fieldset>
     <label class="check"><input type="checkbox" id="edAutoRotate"> 자동으로 천천히 돌기</label>
-    <label class="check"><input type="checkbox" id="edPatternCycle"> 무늬 자동 전환 (12초마다)</label>
+    <label class="check"><input type="checkbox" id="edPatternCycle"> 무늬 자동 전환 (1분마다)</label>
+    <label class="check"><input type="checkbox" id="edCharacters"> 산타·루돌프 날아다니기</label>
     <p class="hint">바꾼 내용은 잠시 뒤 자동으로 저장돼요.</p>
   </div>
 
@@ -147,20 +159,20 @@
     <p id="copyState" class="msg" aria-live="polite"></p>
     <p><a id="shareOpen" href="#" target="_blank" rel="noopener">공유 화면 새 탭에서 보기 ↗</a></p>
 
-    <h3 class="list-head">PIN 바꾸기</h3>
-    <form id="pinForm" novalidate>
+    <h3 class="list-head">비밀번호 바꾸기</h3>
+    <form id="pwForm" novalidate>
       <div class="fields three">
-        <div class="field"><label for="pinOld">현재 PIN</label>
-          <input id="pinOld" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"></div>
-        <div class="field"><label for="pinNew">새 PIN</label>
-          <input id="pinNew" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"></div>
-        <div class="field"><label for="pinNew2">새 PIN 확인</label>
-          <input id="pinNew2" type="password" inputmode="numeric" autocomplete="off" maxlength="6" pattern="[0-9]*"></div>
+        <div class="field"><label for="pwOld">현재 비밀번호</label>
+          <input id="pwOld" type="password" autocomplete="current-password" maxlength="64"></div>
+        <div class="field"><label for="pwNew">새 비밀번호</label>
+          <input id="pwNew" type="password" autocomplete="new-password" maxlength="64"></div>
+        <div class="field"><label for="pwNew2">새 비밀번호 확인</label>
+          <input id="pwNew2" type="password" autocomplete="new-password" maxlength="64"></div>
       </div>
-      <p id="pinState" class="msg" role="status"></p>
-      <div class="row"><button type="submit" id="btnPin">PIN 바꾸기</button></div>
+      <p id="pwState" class="msg" role="status"></p>
+      <div class="row"><button type="submit" id="btnPw">비밀번호 바꾸기</button></div>
     </form>
-    <p class="hint">PIN을 바꾸면 지금 쓰는 기기를 뺀 다른 기기는 모두 로그아웃돼요.</p>
+    <p class="hint">비밀번호를 바꾸면 지금 쓰는 기기를 뺀 다른 기기는 모두 로그아웃돼요.</p>
 
     <div class="row spread">
       <span id="whoami" class="sub"></span>
@@ -178,6 +190,12 @@
   </div>
   <div class="lib-body">
     <p id="libError" class="msg error" role="alert"></p>
+    <section id="libMine" aria-labelledby="libMineHead" hidden>
+      <h3 id="libMineHead" class="list-head">🎄 내 트리 <span class="counter" id="libMineCount"></span></h3>
+      <ul id="libMineList" class="lib-list mine"></ul>
+      <div class="row"><button type="button" id="libNewTree" class="primary">＋ 새 트리 만들기</button></div>
+      <p id="libMineNote" class="hint"></p>
+    </section>
     <section aria-labelledby="libSavedHead">
       <h3 id="libSavedHead" class="list-head">⭐ 담은 트리 <span class="counter" id="libSavedCount"></span></h3>
       <ul id="libSaved" class="lib-list"></ul>

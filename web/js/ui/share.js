@@ -16,10 +16,10 @@ export function homeUrl() {
 }
 
 /**
- * @param {{ api, tree, data, shareId: string, library, onHome: () => void }} deps
+ * @param {{ api, tree, data, shareId: string, library, onHome: () => void, onOpenMine: (treeId) => void }} deps
  * @returns {{ destroy(): void }}
  */
-export function mountShare({ api, tree, data, shareId, library, onHome }) {
+export function mountShare({ api, tree, data, shareId, library, onHome, onOpenMine }) {
   const ac = new AbortController(), on = (el, ev, fn) => el.addEventListener(ev, fn, { signal: ac.signal });
   const owner = $('owner'), make = $('btnMake'), save = $('btnSave');
   let saved = false, own = false, busy = false, destroyed = false;
@@ -30,7 +30,7 @@ export function mountShare({ api, tree, data, shareId, library, onHome }) {
   make.href = homeUrl();
 
   function paint() {
-    make.textContent = api.loggedIn ? '🎄 내 트리로 가기' : '✨ 나도 트리 만들기';
+    make.textContent = own ? '✎ 이 트리 꾸미기' : api.loggedIn ? '🎄 내 트리로 가기' : '✨ 나도 트리 만들기';
     save.hidden = own;
     save.textContent = saved ? '★ 담김' : '☆ 담기';
     save.setAttribute('aria-pressed', String(saved));
@@ -75,7 +75,7 @@ export function mountShare({ api, tree, data, shareId, library, onHome }) {
   on(make, 'click', e => {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
-    onHome();
+    own ? onOpenMine(data.id) : onHome();   // 내 트리의 공유 링크면 바로 그 트리 편집으로
   });
   on($('btnPattern'), 'click', () => tree.nextPattern());
   tree.layout();   // 제목 아래 줄이 생겨서 트리 배치를 다시 계산
