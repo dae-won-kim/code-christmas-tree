@@ -203,12 +203,17 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
 
   const kindButtons = ORNAMENTS.map(o => h('button', {
     type: 'button', 'aria-pressed': String(o.k === brush.kind), 'aria-label': `${o.name} 달기`, dataset: { k: o.k },
-    onclick: () => { brush.kind = o.k; markBrush(); tree.setDecorEditing(decorMode ? { kind: brush.kind } : null); }
+    onclick: () => {
+      brush.kind = o.k; markBrush();
+      if (!decorMode) return;
+      tree.setDecorEditing({ kind: brush.kind });
+      tree.clearDecorSelection();   // 종류를 바꾸면 "다음 장식"을 고르는 중 → 이어서 고른 색이 방금 단 장식에 칠해지지 않게
+    }
   }, h('span', { className: 'ico', 'aria-hidden': 'true', text: o.icon }), h('span', { text: o.name })));
   $('decorKinds').replaceChildren(...kindButtons);
   const colorButtons = DECOR_COLORS.map(([name, hex], i) => {
     const b = h('button', {
-      type: 'button', 'aria-pressed': String(i === brush.color), 'aria-label': `${name}색`, title: name,
+      type: 'button', 'aria-pressed': String(i === brush.color), 'aria-label': name.endsWith('색') ? name : `${name}색`, title: name,
       onclick: () => {
         brush.color = i; markBrush();
         if (decorMode) { tree.setDecorEditing({ color: i }); tree.recolorSelectedDecor(i); }

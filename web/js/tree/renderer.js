@@ -436,6 +436,8 @@ export function createTree(canvas, options = {}) {
       o.c = color; changed();
       return true;
     },
+    /** 고른 장식 선택 풀기 (다음에 고르는 색이 이미 단 장식을 바꾸지 않도록) */
+    clearDecorSelection() { if (decor.selected >= 0) { decor.select(-1); edit?.onSelect?.(-1); } },
     get selectedDecor() { const o = decor.items[decor.selected]; return o ? { ...o } : null; },
     /** 테스트·디버그용: 장식·선물의 화면 위치 */
     decorInfo: () => decor.info(),

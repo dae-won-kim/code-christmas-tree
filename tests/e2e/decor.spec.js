@@ -86,6 +86,20 @@ test('장식: 기본 장식 → 탭에서 달기 · 끌어 옮기기 · 밖으�
   await expect(page.locator('#decorTotal')).toHaveText('0/60');
   await expect.poll(async () => (await mockDb(page)).trees[0].decorations).toEqual([]);
 
+  // ⑤-1 방금 단 장식은 골라져 있어 색을 바로 바꿀 수 있지만, 종류를 바꾼 뒤 고른 색은 다음 장식에만 적용
+  await page.getByRole('button', { name: '양말 달기' }).click();
+  await page.getByRole('button', { name: '파랑색' }).click();
+  await page.locator('#btnDecorAdd').click();
+  await page.getByRole('button', { name: '초록색' }).click();                       // 방금 단 양말 → 초록
+  await expect.poll(async () => (await info(page)).items[0]?.c).toBe(3);
+  await page.getByRole('button', { name: '별 달기' }).click();                       // 종류를 바꾸면 선택이 풀림
+  await expect(page.locator('#btnDecorRemove')).toBeDisabled();
+  await page.getByRole('button', { name: '금색', exact: true }).click();
+  await page.locator('#btnDecorAdd').click();
+  await expect.poll(async () => (await info(page)).items.map(o => [o.k, o.c])).toEqual([['sock', 3], ['star', 1]]);
+  await page.locator('#btnDecorClear').click(); await page.locator('#btnDecorClear').click();
+  await expect(page.locator('#decorTotal')).toHaveText('0/60');
+
   // ⑥ 다시 몇 개 달고 저장 → 새로고침해도 그대로 → 공유 보기에서도 보임
   await page.getByRole('button', { name: '종 달기' }).click();
   await page.locator('#btnDecorAdd').click();
