@@ -4,7 +4,7 @@
 #
 #  사용법
 #    ./scripts/test-db.sh
-#        → Docker가 있으면 postgres:16 컨테이너를 잠깐 띄워서 테스트 후 삭제
+#        → Docker가 있으면 postgres:16.16 컨테이너를 잠깐 띄워서 테스트 후 삭제
 #    DATABASE_URL=postgresql://user:pass@localhost:5432/testdb ./scripts/test-db.sh
 #        → 이미 있는 "빈 테스트용" PostgreSQL 사용
 #
@@ -13,6 +13,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+PG_IMAGE="postgres:16.16"
 CONTAINER=""
 cleanup() { [ -n "$CONTAINER" ] && docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
@@ -22,7 +23,8 @@ if [ -z "${DATABASE_URL:-}" ]; then
     echo "DATABASE_URL이 없고 Docker도 없습니다. 둘 중 하나가 필요합니다." >&2; exit 1
   fi
   CONTAINER="tree-test-db-$$"
-  docker run -d --rm --name "$CONTAINER" -e POSTGRES_PASSWORD=postgres -p 54329:5432 postgres:16 >/dev/null
+  # 마이너 버전까지 고정: 2026-11-17 KISA 공지(PostgreSQL 보안 업데이트, CVE 25건)의 해결 버전 16.16
+  docker run -d --rm --name "$CONTAINER" -e POSTGRES_PASSWORD=postgres -p 54329:5432 "$PG_IMAGE" >/dev/null
   DATABASE_URL="postgresql://postgres:postgres@localhost:54329/postgres"
   echo "▶ 테스트용 PostgreSQL 컨테이너 시작 중..."
   for _ in $(seq 1 30); do
@@ -37,6 +39,16 @@ esac
 
 export PGOPTIONS="-c client_min_messages=warning"
 PSQL=(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -X)
+
+# 보안 패치가 빠진 서버인지 확인 (2026-11-17 KISA 공지의 해결 버전 기준).
+# DATABASE_URL로 직접 띄운 서버가 오래됐으면 경고만 한다 — 테스트 결과에는 영향 없음
+PG_NUM=$("${PSQL[@]}" -tAc "show server_version_num")
+case "${PG_NUM:0:2}" in
+  18) PG_MIN=180007 ;; 17) PG_MIN=170012 ;; 16) PG_MIN=160016 ;; 15) PG_MIN=150020 ;; 14) PG_MIN=140025 ;; *) PG_MIN=0 ;;
+esac
+if [ "$PG_NUM" -lt "$PG_MIN" ]; then
+  echo "⚠ PostgreSQL $("${PSQL[@]}" -tAc "show server_version")은 보안 패치 전 버전입니다. $((PG_MIN / 10000)).$((PG_MIN % 100)) 이상으로 올리세요." >&2
+fi
 
 echo "▶ Supabase mock 준비"
 "${PSQL[@]}" -f supabase/tests/00_mock_supabase.sql

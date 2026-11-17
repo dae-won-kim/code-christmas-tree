@@ -169,6 +169,21 @@ delete from messages where id = 123;
 select count(*) from tree_users; select count(*) from photos;
 ```
 
+### PostgreSQL 보안 업데이트
+운영 DB의 PostgreSQL은 Supabase가 관리하지만, **패치된 이미지로 올리는 것은 운영자가 직접** 해야 합니다.
+1. SQL Editor에서 `select version();` 으로 지금 버전을 확인합니다.
+2. **Project Settings → Infrastructure**에서 업그레이드할 수 있는 버전이 나오면 **Upgrade project**를 누릅니다.
+   업그레이드하는 동안 몇 분간 사이트가 DB에 접속하지 못합니다. 데이터·마이그레이션·Auth 설정은 그대로 남습니다.
+3. 다시 `select version();` 으로 해결 버전 이상인지 확인합니다.
+
+| 공지 | 해결 버전 |
+|---|---|
+| 2026-11-17 KISA "PostgreSQL 제품 보안 업데이트 권고" (CVE 25건) | 18.7 · 17.12 · 16.16 · 15.20 · 14.25 이상 |
+
+- 로컬·CI 테스트 DB는 `scripts/test-db.sh`와 `.github/workflows/db-test.yml`에 이미지 버전(`postgres:16.16`)을 고정해 두었습니다. 새 공지가 나오면 두 곳을 함께 올립니다.
+- 이 앱은 브라우저에 SQL 실행 권한을 주지 않고, 미리 만든 RPC만 열어 둡니다. 그래서 공격면은 작은 편이지만 업데이트는 해야 합니다.
+  직접 DB 접속(5432·6543 포트)은 DB 비밀번호만으로 열리므로, **Database → Network Restrictions**로 접속할 수 있는 IP를 제한하면 더 안전합니다.
+
 - **7일 동안 요청이 없으면 무료 프로젝트가 일시정지됩니다.** 대시보드에서 Restore하면 데이터는 그대로 돌아옵니다.
 - 사진 파일을 직접 지울 때는 SQL이 아니라 **Storage 화면이나 Storage API**를 쓰세요.
   SQL로 `storage.objects`를 지우면 실제 파일이 남을 수 있습니다.

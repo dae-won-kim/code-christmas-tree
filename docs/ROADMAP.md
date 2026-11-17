@@ -14,6 +14,9 @@
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
   - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
 - 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스 표기·GIF 남음
+- 🔒 **보안 업데이트** (2026-11-17 KISA PostgreSQL 보안 업데이트 권고, CVE 25건)
+  - [x] 로컬·CI 테스트 DB 이미지를 `postgres:16` → `postgres:16.16`으로 고정, 패치 전 서버면 `test-db.sh`가 경고
+  - [ ] 운영 Supabase DB 버전 확인 → Project Settings → Infrastructure에서 업그레이드 (DEPLOY.md 7 "PostgreSQL 보안 업데이트")
 
 ---
 

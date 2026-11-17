@@ -230,7 +230,7 @@ git push main ─┬─▶ GitHub Actions: pages.yml   → Variables로 config.j
 |---|---|
 | OS · 에디터 | Windows 11, VS Code |
 | 런타임 | Node.js 24 (E2E 도구 전용), Python 3.12 (로컬 개발 서버 `scripts/serve.py`) |
-| DB 테스트 | Docker Desktop의 `postgres:16` 컨테이너 (Supabase의 `storage` · `auth` 스키마는 mock으로 흉내) |
+| DB 테스트 | Docker Desktop의 `postgres:16.16` 컨테이너 (Supabase의 `storage` · `auth` 스키마는 mock으로 흉내) |
 | 협업 도구 | Claude Code(AI 코딩 에이전트)와 함께 개발 — 작업 규칙은 [`CLAUDE.md`](CLAUDE.md), 단계별 계획은 [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | CI | GitHub Actions (`ubuntu-latest`) — PostgreSQL 16 서비스 컨테이너, Playwright Chromium |
 
