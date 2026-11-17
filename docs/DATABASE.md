@@ -5,8 +5,9 @@
 | `20261117000000_init.sql` | 첫 배포 (v1: 이름+PIN, 사용자 1명 = 트리 1개). **이미 배포됨 — 수정 금지** |
 | `20261117110000_accounts_v2.sql` | 계정 v2: (이름, 이메일) 복합 기본키 + PIN, 이메일 PIN 복구, 트리 분리(사용자당 3개), 무늬 8종. v1 데이터는 버림 |
 | `20261117120000_tree_views.sql` | 본 트리 기록 · 담은 트리 |
+| `20261118000000_decorations.sql` | 트리 장식 위치(`trees.decorations`) · 사진 캡션 고치기 |
 
-테스트: `supabase/tests/10_rpc_test.sql`(기본·보안), `20_views_test.sql`(목록), `30_multi_trees_test.sql`(트리 여러 개), `40_pin_reset_test.sql`(PIN 복구),
+테스트: `supabase/tests/10_rpc_test.sql`(기본·보안), `20_views_test.sql`(목록), `30_multi_trees_test.sql`(트리 여러 개), `40_pin_reset_test.sql`(PIN 복구), `50_decorations_test.sql`(장식·캡션),
 `upgrade/`(배포된 v1 DB에 적용하는 상황) — `./scripts/test-db.sh`가 모두 실행합니다.
 
 ## 사용자 식별 — (이름, 이메일) + PIN
@@ -40,7 +41,8 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 | share_id | text | unique, 공유 링크용 랜덤 12자 |
 | title | text | 1~30자, 기본 'Merry Christmas' — 목록에 보이는 트리 **이름**도 이 값 |
 | pattern | smallint | 0~7 (`web/js/tree/patterns.js`의 `PATTERNS` 순서) |
-| settings | jsonb | object, 2KB 이하 — `{autoRotate, patternCycle, characters}` |
+| settings | jsonb | object, 2KB 이하 — `{autoRotate, patternCycle, characters, gifts}` |
+| decorations | jsonb | null(기본 장식) 또는 배열 60개 이하·8KB 이하 — `[{k, t, a, c}]` (아래 "장식 형식") |
 | position | smallint | 내 트리 목록 순서 (0부터) |
 | created_at / updated_at | timestamptz | updated_at은 트리거로 자동 갱신 |
 
@@ -71,7 +73,7 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 
 모든 public 테이블은 **RLS ON + 정책 없음 + anon/authenticated 권한 회수** 상태입니다. 접근은 아래 RPC로만 합니다.
 
-## RPC 함수 (브라우저가 호출) — 22개
+## RPC 함수 (브라우저가 호출) — 24개
 
 모두 `security definer`, `set search_path = ''`이고, anon/authenticated에게만 실행 권한이 있습니다.
 `p_tree_id`가 있는 함수는 생략하면 **순서상 맨 앞 트리**를 씁니다.
@@ -85,6 +87,7 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 | `get_my_tree` | p_token, p_tree_id? | Tree | unauthorized, not_found |
 | `get_tree` | p_share_id | Tree | not_found |
 | `update_tree` | p_token, p_title?, p_pattern?, p_settings?, p_tree_id? | Tree | unauthorized, not_found, invalid_title, invalid_pattern, invalid_settings |
+| `set_decorations` | p_token, p_items jsonb(null이면 기본 장식으로), p_tree_id? | `{decorations}` (DB가 정리한 목록) | unauthorized, not_found, invalid_decorations |
 | `list_my_trees` | p_token | `[{id, share_id, title, pattern, position, messages, photos}]` 순서대로 | unauthorized |
 | `create_tree` | p_token, p_title? | Tree | unauthorized, tree_limit, invalid_title |
 | `delete_tree` | p_token, p_tree_id | boolean | unauthorized, not_found, last_tree, tree_has_photos |
@@ -93,6 +96,7 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 | `delete_message` | p_token, p_id | boolean (내 글이 아니면 false) | unauthorized |
 | `begin_photo_upload` | p_token, p_tree_id? | path | unauthorized, not_found, limit_reached |
 | `finish_photo_upload` | p_token, p_path, p_caption='' | `{id, path, caption}` | unauthorized, invalid_ticket, file_missing |
+| `update_photo_caption` | p_token, p_photo_id, p_caption (빈 값 = 캡션 없음) | `{id, path, caption}` | unauthorized, not_found, invalid_caption |
 | `begin_photo_delete` | p_token, p_photo_id | path | unauthorized, not_found |
 | `finish_photo_delete` | p_token, p_photo_id | boolean | unauthorized, file_still_exists |
 | `record_view` | p_token, p_share_id | `{own, saved}` (내 트리면 기록 안 함) | unauthorized, not_found |
@@ -105,12 +109,24 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 ```json
 {
   "id": "<uuid>", "name": "김민수", "title": "민수네 트리", "pattern": 2, "position": 0,
-  "settings": { "autoRotate": true, "patternCycle": true, "characters": true },
+  "settings": { "autoRotate": true, "patternCycle": true, "characters": true, "gifts": true },
   "share_id": "aB3_xY9-kLm0",
+  "decorations": [{ "k": "sock", "t": 0.62, "a": 0.25, "c": 0 }],
   "messages": [{ "id": 1, "body": "메리 크리스마스" }],
   "photos":   [{ "id": 3, "path": "<tree_id>/<uuid>.jpg", "caption": "첫 사진" }]
 }
 ```
+
+**장식 형식** (`decorations`의 항목, `private.clean_decorations`가 검사·정리)
+| 키 | 값 | 뜻 |
+|---|---|---|
+| k | bulb · ball · star · sock · bell · candy · bow · flake | 종류 (전구·방울·별·양말·종·사탕·리본·눈꽃). 새 종류는 SQL과 `web/js/tree/decor.js`의 `ORNAMENTS`에 함께 추가 |
+| t | 0.05 ~ 1 | 트리 원뿔 표면의 높이 (꼭대기 0 → 바닥 1) |
+| a | 0 이상 1 미만 | 둘레 각도 (한 바퀴 = 1). 범위를 넘으면 DB가 0~1로 접음 |
+| c | 0 ~ 5 정수 (생략하면 0) | 색 — `DECOR_COLORS` 순서 (빨강·금색·파랑·초록·분홍·하양) |
+
+- 모르는 키는 버리고 숫자는 소수 4자리로 반올림해서 저장합니다. 위치가 트리 표면 좌표라서 장식이 트리와 함께 돕니다.
+- `null`은 "아직 손대지 않은 트리"(화면이 기본 장식을 보여 줌), `[]`는 "장식을 모두 뗀 트리"입니다.
 
 ## 제한 값 (바꾸려면 마이그레이션 + 테스트 + 이 표를 함께 수정)
 | 항목 | 값 | 위치 |
@@ -126,6 +142,8 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 | 무늬 | 0~7 | trees_pattern 제약, update_tree, patterns.js |
 | 글귀 | 100자, 트리당 50개 | add_message |
 | 사진 | 트리당 30장, 2MB, JPEG | begin_photo_upload, 버킷 설정 |
+| 사진 캡션 | 30자 | photos 제약, finish_photo_upload(잘라냄), update_photo_caption(거부) |
+| 장식 | 트리당 60개, 8KB | trees_decorations 제약, private.clean_decorations, decor.js `MAX_DECOR` |
 | 업로드/삭제 티켓 | 10분 | begin_photo_* |
 | 본 기록 | 보는 사람당 최근 50개 | private.trim_views, merge_views(입력 50개) |
 | 담은 트리 | 보는 사람당 100개 | set_saved |

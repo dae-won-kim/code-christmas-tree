@@ -44,7 +44,7 @@ export async function serverMode(page, { mock = true, seed, token } = {}) {
 export function seedDb({ users = [], trees = [], messages = [], photos = [], objects = {}, sessions = {}, attempts = [], views = [] } = {}) {
   const firstTrees = users.map(u => ({
     id: u.id, owner: u.id, share_id: u.share_id, title: u.title ?? 'Merry Christmas', pattern: u.pattern ?? 0,
-    settings: u.settings ?? {}, position: 0, created_at: u.created_at ?? Date.now()
+    settings: u.settings ?? {}, decorations: u.decorations ?? null, position: 0, created_at: u.created_at ?? Date.now()
   }));
   return {
     seq: 100,

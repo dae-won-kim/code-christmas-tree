@@ -142,6 +142,7 @@
   </div>
   <div class="tabs" role="tablist" aria-label="꾸미기 항목">
     <button type="button" role="tab" id="tab-basic" aria-controls="pane-basic" aria-selected="true">기본</button>
+    <button type="button" role="tab" id="tab-decor" aria-controls="pane-decor" aria-selected="false" tabindex="-1">장식</button>
     <button type="button" role="tab" id="tab-msgs" aria-controls="pane-msgs" aria-selected="false" tabindex="-1">글귀</button>
     <button type="button" role="tab" id="tab-photos" aria-controls="pane-photos" aria-selected="false" tabindex="-1">사진</button>
     <button type="button" role="tab" id="tab-account" aria-controls="pane-account" aria-selected="false" tabindex="-1">공유·계정</button>
@@ -158,7 +159,27 @@
     <label class="check"><input type="checkbox" id="edAutoRotate"> 자동으로 천천히 돌기</label>
     <label class="check"><input type="checkbox" id="edPatternCycle"> 무늬 자동 전환 (1분마다)</label>
     <label class="check"><input type="checkbox" id="edCharacters"> 산타·루돌프 날아다니기</label>
+    <p class="hint">✨ 전구·별·양말 같은 장식은 <b>장식</b> 탭에서 달 수 있어요.</p>
     <p class="hint">바꾼 내용은 잠시 뒤 자동으로 저장돼요.</p>
+  </div>
+
+  <div class="pane" role="tabpanel" id="pane-decor" aria-labelledby="tab-decor" hidden>
+    <p class="hint top" id="decorHelp">장식을 고르고 <b>트리를 누르면</b> 그 자리에 달려요. 달린 장식은 <b>끌어서 옮기고</b>, 트리 밖으로 끌어내면 떼어져요.</p>
+    <div class="decor-kinds" id="decorKinds" role="group" aria-label="달 장식 종류"></div>
+    <div class="decor-colors" id="decorColors" role="group" aria-label="장식 색 (고른 장식이 있으면 그 장식의 색도 바뀜)"></div>
+    <div class="row spread decor-actions">
+      <span class="counter" id="decorTotal" aria-live="polite"></span>
+      <span class="row-gap">
+        <button type="button" id="btnDecorAdd" class="primary">＋ 아무 곳에 달기</button>
+        <button type="button" id="btnDecorRemove" disabled>고른 장식 떼기</button>
+      </span>
+    </div>
+    <div class="row decor-actions">
+      <button type="button" id="btnDecorClear">모두 떼기</button>
+      <button type="button" id="btnDecorReset">기본 장식으로</button>
+    </div>
+    <p id="decorState" class="msg" aria-live="polite"></p>
+    <label class="check"><input type="checkbox" id="edGifts"> 트리 아래 선물 상자 (누르면 열려요)</label>
   </div>
 
   <div class="pane" role="tabpanel" id="pane-msgs" aria-labelledby="tab-msgs" hidden>
@@ -174,7 +195,7 @@
   </div>
 
   <div class="pane" role="tabpanel" id="pane-photos" aria-labelledby="tab-photos" hidden>
-    <label for="edCaption">캡션 <span class="sub">(선택, 30자 · 다음에 올릴 사진에 붙어요)</span></label>
+    <label for="edCaption">캡션 <span class="sub">(선택, 30자 · 이번에 올릴 사진 모두에 붙어요. 올린 뒤 사진마다 고칠 수 있어요)</span></label>
     <div class="inline">
       <input id="edCaption" maxlength="30" autocomplete="off" placeholder="예: 우리 가족 첫 크리스마스">
       <button type="button" id="btnUpload" class="primary">사진 올리기</button>
@@ -182,7 +203,12 @@
     <input type="file" id="photoInput" accept="image/*" multiple hidden>
     <p id="uploadState" class="msg" aria-live="polite"></p>
     <h3 class="list-head">걸린 사진 <span class="counter" id="photoTotal"></span></h3>
+    <div class="row spread photo-tools" id="photoTools">
+      <label class="check"><input type="checkbox" id="photoSelectAll"> 모두 선택</label>
+      <button type="button" id="btnPhotoDeleteSel" class="danger" disabled>선택한 사진 삭제</button>
+    </div>
     <ul id="photoGrid" class="grid"></ul>
+    <p class="hint" id="photoGridHint">사진 아래 칸에서 캡션을 바로 고칠 수 있어요. (입력을 마치면 자동 저장)</p>
     <p id="photoEmpty" class="empty" hidden>아직 사진이 없어요. 사진을 올리면 트리 주변에 나타나요.</p>
   </div>
 

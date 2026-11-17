@@ -1,15 +1,18 @@
 /**
  * 내 트리 (편집 모드)
- *  - 트리 배경 위에 편집 패널: 기본(제목·무늬·설정) / 글귀 / 사진 / 공유·계정
+ *  - 트리 배경 위에 편집 패널: 기본(제목·무늬·설정) / 장식 / 글귀 / 사진 / 공유·계정
  *  - 제목·무늬·설정 변경은 800ms debounce 후 updateTree 한 번으로 저장
+ *  - 장식은 트리를 직접 눌러 달고 끌어 옮김 → 800ms debounce 후 setDecorations로 목록 전체 저장
+ *  - 사진 캡션은 사진마다 바로 고침 (입력을 멈추거나 칸을 벗어나면 저장)
  *  - DB 접근은 TreeApi만 사용. unauthorized가 나면 onUnauthorized()로 로그인 화면에 보냄
  */
 import { TreeError, isValidPin } from '../api.js';
 import { $, h, toast, busy, trackComposition, isImeEnter, confirmButton } from './dom.js';
+import { ORNAMENTS, DECOR_COLORS, MAX_DECOR } from '../tree/decor.js';
 
 const SAVE_DELAY = 800;
 const MAX_MESSAGES = 50, MAX_PHOTOS = 30;
-export const DEFAULT_SETTINGS = { autoRotate: true, patternCycle: true, characters: true };
+export const DEFAULT_SETTINGS = { autoRotate: true, patternCycle: true, characters: true, gifts: true };
 
 /** 공유 링크: 현재 주소에서 쿼리·해시를 빼고 ?t=share_id */
 export function shareUrlFor(shareId) {
@@ -30,7 +33,8 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     pattern: data.pattern,
     settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
     messages: [...data.messages],
-    photos: [...data.photos]
+    photos: data.photos.map(p => ({ ...p })),
+    decorations: data.decorations ?? null    // null = 기본 장식
   };
   let destroyed = false;
 
@@ -62,6 +66,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
       $(t.getAttribute('aria-controls')).hidden = !sel;
     }
     if (focus) tab.focus();
+    syncDecorMode();
   }
   tabs.forEach((t, i) => {
     on(t, 'click', () => selectTab(t));
@@ -78,6 +83,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     if (tabId) selectTab($(tabId));
     panel.hidden = false;
     btnEdit.setAttribute('aria-expanded', 'true');
+    syncDecorMode();
     document.dispatchEvent(new CustomEvent('editpanel:open'));   // 좁은 화면이면 사이드 목록이 접힘
     const pane = panel.querySelector('.pane:not([hidden])');
     (pane.querySelector('input:not([readonly]), button') || panel.querySelector('[aria-selected="true"]'))
@@ -87,6 +93,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     if (panel.hidden) return;
     panel.hidden = true;
     btnEdit.setAttribute('aria-expanded', 'false');
+    syncDecorMode();
     flushSave();
     (opener && document.contains(opener) ? opener : btnEdit).focus({ preventScroll: true });
   }
@@ -113,9 +120,11 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     saveTimer = setTimeout(flushSave, SAVE_DELAY);
   }
   function flushSave() {
+    flushCaptions();
+    const decorDone = flushDecor();
     clearTimeout(saveTimer); saveTimer = null;
     const patch = pendingSave; pendingSave = {};
-    if (!Object.keys(patch).length) return saving;
+    if (!Object.keys(patch).length) return Promise.all([saving, decorDone]);
     setSaveState('저장 중…');
     saving = saving.then(() => call(() => api.updateTree(patch, treeId)))
       .then(() => {
@@ -124,7 +133,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
         document.dispatchEvent(new CustomEvent('tree:updated', { detail: { id: treeId, ...patch } }));
       })
       .catch(e => { if (!e.handled) setSaveState(errMsg(e), true); });
-    return saving;
+    return Promise.all([saving, decorDone]);
   }
 
   // 제목
@@ -160,17 +169,20 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   }
 
   // 설정
-  const edAuto = $('edAutoRotate'), edCycle = $('edPatternCycle'), edChars = $('edCharacters');
+  const edAuto = $('edAutoRotate'), edCycle = $('edPatternCycle'), edChars = $('edCharacters'), edGifts = $('edGifts');
   edAuto.checked = state.settings.autoRotate; edCycle.checked = state.settings.patternCycle;
   edChars.checked = state.settings.characters !== false;
+  edGifts.checked = state.settings.gifts !== false;
   function onSettings() {
-    state.settings = { ...state.settings, autoRotate: edAuto.checked, patternCycle: edCycle.checked, characters: edChars.checked };
+    state.settings = { ...state.settings, autoRotate: edAuto.checked, patternCycle: edCycle.checked,
+                       characters: edChars.checked, gifts: edGifts.checked };
     tree.setSettings(state.settings);
     queueSave({ settings: state.settings });
   }
   on(edAuto, 'change', onSettings);
   on(edCycle, 'change', onSettings);
   on(edChars, 'change', onSettings);
+  on(edGifts, 'change', onSettings);
 
   // 사이드 목록에서 이 트리의 이름을 바꾸면 제목 칸·트리 제목도 맞춤
   on(document, 'tree:renamed', e => {
@@ -180,6 +192,113 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
 
   // 도구 막대의 [무늬 바꾸기]는 내 트리에서는 "다음 무늬로 바꾸고 저장"
   on($('btnPattern'), 'click', () => choosePattern((tree.pattern + 1) % tree.patterns.length));
+
+  /* =========================================================
+   *  장식: 종류·색을 고르고 트리를 눌러 달기, 끌어서 옮기기, 밖으로 끌어내 떼기
+   * ========================================================= */
+  const decorTotal = $('decorTotal'), decorState = $('decorState');
+  const btnDecorAdd = $('btnDecorAdd'), btnDecorRemove = $('btnDecorRemove');
+  const brush = { kind: ORNAMENTS[0].k, color: 0 };
+  let decorPending, decorTimer = null, decorSaving = Promise.resolve();   // decorPending: undefined = 저장할 것 없음
+
+  const kindButtons = ORNAMENTS.map(o => h('button', {
+    type: 'button', 'aria-pressed': String(o.k === brush.kind), 'aria-label': `${o.name} 달기`, dataset: { k: o.k },
+    onclick: () => { brush.kind = o.k; markBrush(); tree.setDecorEditing(decorMode ? { kind: brush.kind } : null); }
+  }, h('span', { className: 'ico', 'aria-hidden': 'true', text: o.icon }), h('span', { text: o.name })));
+  $('decorKinds').replaceChildren(...kindButtons);
+  const colorButtons = DECOR_COLORS.map(([name, hex], i) => {
+    const b = h('button', {
+      type: 'button', 'aria-pressed': String(i === brush.color), 'aria-label': `${name}색`, title: name,
+      onclick: () => {
+        brush.color = i; markBrush();
+        if (decorMode) { tree.setDecorEditing({ color: i }); tree.recolorSelectedDecor(i); }
+      }
+    });
+    b.style.setProperty('--swatch', hex);   // style 속성 문자열은 CSP(style-src)에 막히므로 CSSOM으로
+    return b;
+  });
+  $('decorColors').replaceChildren(...colorButtons);
+  function markBrush() {
+    kindButtons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.k === brush.kind)));
+    colorButtons.forEach((b, i) => b.setAttribute('aria-pressed', String(i === brush.color)));
+  }
+
+  function renderDecorCount() {
+    const n = tree.decorations.length;
+    decorTotal.textContent = `${n}/${MAX_DECOR}` + (tree.decorationsAreDefault ? ' · 기본 장식' : '');
+    btnDecorAdd.disabled = n >= MAX_DECOR;
+  }
+  function queueDecorSave(list) {
+    state.decorations = list;
+    decorPending = list;
+    decorState.textContent = ''; decorState.className = 'msg';
+    renderDecorCount();
+    setSaveState('저장 대기…');
+    clearTimeout(decorTimer);
+    decorTimer = setTimeout(flushDecor, SAVE_DELAY);
+  }
+  function flushDecor() {
+    clearTimeout(decorTimer); decorTimer = null;
+    if (decorPending === undefined) return decorSaving;
+    const items = decorPending; decorPending = undefined;
+    setSaveState('저장 중…');
+    decorSaving = decorSaving.then(() => call(() => api.setDecorations(items, treeId)))
+      .then(() => { if (decorPending === undefined && !Object.keys(pendingSave).length) setSaveState('저장됨'); })
+      .catch(e => {
+        if (e.handled) return;
+        setSaveState(errMsg(e), true);
+        decorState.textContent = `장식을 저장하지 못했어요. ${errMsg(e)}`; decorState.className = 'msg error';
+      });
+    return decorSaving;
+  }
+
+  const decorHandlers = {
+    onChange: list => queueDecorSave(list),
+    onSelect: i => {
+      btnDecorRemove.disabled = i < 0;
+      const o = tree.selectedDecor;
+      if (o) { brush.color = o.c; markBrush(); tree.setDecorEditing({ color: o.c }); }
+    },
+    onLimit: () => { decorState.textContent = `장식은 ${MAX_DECOR}개까지 달 수 있어요.`; decorState.className = 'msg bad'; }
+  };
+
+  /* 장식 탭이 열려 있을 때만 편집 모드: 자동 회전 멈춤, 패널은 트리를 덜 가리는 자리로 */
+  let decorMode = false;
+  function syncDecorMode() {
+    const active = isOpen() && !$('pane-decor').hidden;
+    if (active !== decorMode) {
+      decorMode = active;
+      panel.classList.toggle('decor-mode', active);
+      tree.setDecorEditing(active ? { kind: brush.kind, color: brush.color, ...decorHandlers } : null);
+      btnDecorRemove.disabled = true;
+    }
+    fitTree();
+  }
+  /** 패널이 트리 가운데를 가리면(좁은 화면) 패널 위 공간에 트리를 맞춤 */
+  function fitTree() {
+    if (!decorMode) { tree.setInsetBottom(null); return; }
+    requestAnimationFrame(() => {
+      if (!decorMode || destroyed) return;
+      const r = panel.getBoundingClientRect(), mid = innerWidth / 2;
+      tree.setInsetBottom(r.left < mid && r.right > mid ? r.top : null);
+    });
+  }
+  on(window, 'resize', fitTree);
+
+  on(btnDecorAdd, 'click', () => {
+    if (!tree.addDecorAnywhere(brush.kind, brush.color)) decorHandlers.onLimit();
+  });
+  on(btnDecorRemove, 'click', () => { tree.removeSelectedDecor(); btnDecorAdd.focus(); });
+  confirmButton($('btnDecorClear'), '정말 모두 뗄까요?', () => {
+    tree.setDecorations([]); btnDecorRemove.disabled = true;
+    queueDecorSave([]);
+    decorState.textContent = '장식을 모두 뗐어요.'; decorState.className = 'msg good';
+  });
+  on($('btnDecorReset'), 'click', () => {
+    tree.setDecorations(null); btnDecorRemove.disabled = true;
+    queueDecorSave(null);
+    decorState.textContent = '기본 장식으로 바꿨어요.'; decorState.className = 'msg good';
+  });
 
   /* =========================================================
    *  글귀
@@ -228,32 +347,104 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   on(btnAddMsg, 'click', addMessage);
 
   /* =========================================================
-   *  사진
+   *  사진 — 올리기, 사진마다 캡션 고치기, 하나씩 또는 여러 장 골라 삭제
    * ========================================================= */
   const photoGrid = $('photoGrid'), photoEmpty = $('photoEmpty'), photoTotal = $('photoTotal');
   const photoInput = $('photoInput'), btnUpload = $('btnUpload'), uploadState = $('uploadState'), edCaption = $('edCaption');
-  let uploading = false;
+  const photoTools = $('photoTools'), photoGridHint = $('photoGridHint');
+  const photoSelectAll = $('photoSelectAll'), btnPhotoDeleteSel = $('btnPhotoDeleteSel');
+  const selectedPhotos = new Set();
+  const captionJobs = new Map();   // 사진 id → { timer, run } 저장 대기 중인 캡션
+  let uploading = false, deleting = false;
+  const setUploadState = (text, cls = '') => { uploadState.textContent = text; uploadState.className = 'msg' + (cls ? ' ' + cls : ''); };
 
   function photoCard(p) {
+    const pick = h('input', { type: 'checkbox', className: 'pick', 'aria-label': `사진 선택${p.caption ? ': ' + p.caption : ''}` });
+    const cap = h('input', { className: 'cap-input', maxlength: '30', autocomplete: 'off', enterkeyhint: 'done',
+                             placeholder: '캡션 적기', 'aria-label': '사진 캡션 (30자, 입력을 마치면 저장)' });
+    cap.value = p.caption || '';
+    const ime = trackComposition(cap);
     const del = h('button', { type: 'button', text: '삭제', 'aria-label': `사진 삭제${p.caption ? ': ' + p.caption : ''}` });
     confirmButton(del, '정말 삭제?', () => removePhoto(p, del));
-    return h('li', { dataset: { id: String(p.id) } },
+    const li = h('li', { dataset: { id: String(p.id) } },
+      pick,
       h('img', { src: api.photoUrl(p.path), alt: p.caption || '트리 사진', loading: 'lazy', decoding: 'async' }),
-      h('span', { className: 'cap', text: p.caption || ' ' }),
-      del);
+      cap, del);
+
+    on(pick, 'change', () => {
+      pick.checked ? selectedPhotos.add(p.id) : selectedPhotos.delete(p.id);
+      li.classList.toggle('selected', pick.checked);
+      updatePhotoTools();
+    });
+    on(cap, 'input', () => { cap.classList.remove('saved', 'bad'); if (!ime.composing) queueCaption(p, cap, 1200); });
+    on(cap, 'compositionend', () => queueCaption(p, cap, 1200));
+    on(cap, 'blur', () => queueCaption(p, cap, 0));
+    on(cap, 'keydown', e => { if (e.key === 'Enter' && !isImeEnter(e)) { e.preventDefault(); cap.blur(); } });
+    return li;
   }
+
+  function queueCaption(p, cap, ms) {
+    const job = captionJobs.get(p.id);
+    if (job) clearTimeout(job.timer);
+    const run = () => { captionJobs.delete(p.id); saveCaption(p, cap); };
+    captionJobs.set(p.id, { run, timer: setTimeout(run, ms) });
+  }
+  function flushCaptions() { for (const job of [...captionJobs.values()]) { clearTimeout(job.timer); job.run(); } }
+
+  async function saveCaption(p, cap) {
+    const v = cap.value.trim();
+    if (v === (p.caption || '') || destroyed) return;
+    if ([...v].length > 30) { cap.classList.add('bad'); setUploadState('캡션은 30자까지 적을 수 있어요.', 'error'); return; }
+    try {
+      const r = await call(() => api.updatePhotoCaption(p.id, v));
+      p.caption = r.caption;
+      tree.setPhotoCaption(p.id, r.caption);
+      if (document.activeElement !== cap) cap.value = r.caption;
+      cap.classList.add('saved');
+      const li = cap.closest('li');
+      li?.querySelector('img')?.setAttribute('alt', r.caption || '트리 사진');
+      setUploadState(r.caption ? `캡션을 "${r.caption}"(으)로 저장했어요.` : '캡션을 지웠어요.', 'good');
+    } catch (e) {
+      if (e.handled) return;
+      cap.classList.add('bad');
+      setUploadState(`캡션을 저장하지 못했어요. ${errMsg(e)}`, 'error');
+    }
+  }
+
+  /** 목록 다시 그리기: 이미 있는 카드는 그대로 두어 입력 중인 캡션 칸이 흔들리지 않게 */
   function renderPhotos() {
-    photoGrid.replaceChildren(...state.photos.map(photoCard));
+    const ids = new Set(state.photos.map(p => String(p.id)));
+    for (const li of [...photoGrid.children]) if (!ids.has(li.dataset.id)) li.remove();
+    const have = new Set([...photoGrid.children].map(li => li.dataset.id));
+    for (const p of state.photos) if (!have.has(String(p.id))) photoGrid.append(photoCard(p));
+    for (const id of [...selectedPhotos]) if (!ids.has(String(id))) selectedPhotos.delete(id);
     photoEmpty.hidden = state.photos.length > 0;
-    photoTotal.textContent = `${state.photos.length}/${MAX_PHOTOS}`;
-    btnUpload.disabled = uploading || state.photos.length >= MAX_PHOTOS;
+    photoTools.hidden = photoGridHint.hidden = state.photos.length === 0;
+    btnUpload.disabled = uploading || deleting || state.photos.length >= MAX_PHOTOS;
+    updatePhotoTools();
     refreshNotice(state);
   }
+  function updatePhotoTools() {
+    const n = selectedPhotos.size, total = state.photos.length;
+    photoTotal.textContent = `${total}/${MAX_PHOTOS}` + (n ? ` · ${n}장 선택` : '');
+    photoSelectAll.checked = total > 0 && n === total;
+    photoSelectAll.indeterminate = n > 0 && n < total;
+    btnPhotoDeleteSel.disabled = !n || deleting || uploading;
+  }
+  on(photoSelectAll, 'change', () => {
+    const all = photoSelectAll.checked;
+    for (const li of photoGrid.children) {
+      const id = Number(li.dataset.id), pick = li.querySelector('input.pick');
+      pick.checked = all; li.classList.toggle('selected', all);
+      all ? selectedPhotos.add(id) : selectedPhotos.delete(id);
+    }
+    updatePhotoTools();
+  });
 
   const STEP = { resize: '줄이는 중…', upload: '올리는 중…', save: '저장 중…' };
   async function upload(files) {
     if (!files.length) return;
-    uploading = true; btnUpload.disabled = true;
+    uploading = true; btnUpload.disabled = true; updatePhotoTools();
     const caption = edCaption.value.trim().slice(0, 30);
     let ok = 0, failed = 0, lastError = '';
     for (let i = 0; i < files.length && !destroyed; i++) {
@@ -261,7 +452,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
       uploadState.className = 'msg';
       try {
         const p = await call(() => api.uploadPhoto(files[i], caption, step => { uploadState.textContent = prefix + STEP[step]; }, treeId));
-        state.photos.push(p); ok++;
+        state.photos.push({ ...p }); ok++;
         renderPhotos();
         tree.addPhoto(api.photoUrl(p.path), p.caption, { id: p.id, show: 'sparkle' }).catch(() => {});
       } catch (e) {
@@ -272,20 +463,53 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     }
     uploading = false;
     renderPhotos();
-    if (failed) { uploadState.textContent = `${ok}장 올림, ${failed}장 실패 — ${lastError}`; uploadState.className = 'msg error'; }
-    else { uploadState.textContent = `${ok}장을 올렸어요.`; uploadState.className = 'msg good'; edCaption.value = ''; }
+    if (failed) setUploadState(`${ok}장 올림, ${failed}장 실패 — ${lastError}`, 'error');
+    else {
+      setUploadState(`${ok}장을 올렸어요.` + (ok > 1 ? ' 아래 목록에서 사진마다 캡션을 고칠 수 있어요.' : ''), 'good');
+      edCaption.value = '';
+    }
   }
   async function removePhoto(p, button) {
-    uploadState.textContent = '';
+    setUploadState('');
     try {
       await busy(button, '삭제 중…', () => call(() => api.deletePhoto(p.id)));
-      state.photos = state.photos.filter(x => x.id !== p.id);
-      tree.removePhoto(p.id);
+      dropPhoto(p);
       renderPhotos();
-      uploadState.textContent = '사진을 삭제했어요.'; uploadState.className = 'msg good';
+      setUploadState('사진을 삭제했어요.', 'good');
       (photoGrid.querySelector('button') || btnUpload).focus();
-    } catch (e) { if (!e.handled) { uploadState.textContent = errMsg(e); uploadState.className = 'msg error'; } }
+    } catch (e) { if (!e.handled) setUploadState(errMsg(e), 'error'); }
   }
+  function dropPhoto(p) {
+    const job = captionJobs.get(p.id);
+    if (job) { clearTimeout(job.timer); captionJobs.delete(p.id); }
+    state.photos = state.photos.filter(x => x.id !== p.id);
+    selectedPhotos.delete(p.id);
+    tree.removePhoto(p.id);
+  }
+  /** 고른 사진 여러 장 삭제 (한 장씩 차례로: 삭제 티켓 → 파일 → DB) */
+  async function removeSelected() {
+    const targets = state.photos.filter(p => selectedPhotos.has(p.id));
+    if (!targets.length) return;
+    deleting = true; btnUpload.disabled = true; updatePhotoTools();
+    let ok = 0, failed = 0, lastError = '';
+    for (let i = 0; i < targets.length && !destroyed; i++) {
+      setUploadState(`삭제 중… ${i + 1}/${targets.length}`);
+      try {
+        await call(() => api.deletePhoto(targets[i].id));
+        dropPhoto(targets[i]); ok++;
+        renderPhotos();
+      } catch (e) {
+        if (e.handled) return;
+        failed++; lastError = errMsg(e);
+      }
+    }
+    deleting = false;
+    renderPhotos();
+    if (failed) setUploadState(`${ok}장 삭제, ${failed}장 실패 — ${lastError}`, 'error');
+    else setUploadState(`사진 ${ok}장을 삭제했어요.`, 'good');
+    (photoGrid.querySelector('input') || btnUpload).focus();
+  }
+  confirmButton(btnPhotoDeleteSel, '정말 삭제할까요?', removeSelected);
   on(btnUpload, 'click', () => photoInput.click());
   on(photoInput, 'change', () => { const files = [...photoInput.files]; photoInput.value = ''; upload(files); });
 
@@ -351,6 +575,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   selectTab(tabs[0]);
   renderMessages();
   renderPhotos();
+  renderDecorCount();
   setSaveState('');
   uploadState.textContent = ''; copyState.textContent = ''; pinState.textContent = ''; msgError.textContent = '';
   updateMsgCount();
@@ -361,7 +586,11 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     destroy() {
       destroyed = true;
       ac.abort();
-      clearTimeout(saveTimer);
+      clearTimeout(saveTimer); clearTimeout(decorTimer);
+      for (const job of captionJobs.values()) clearTimeout(job.timer);
+      tree.setDecorEditing(null); tree.setInsetBottom(null);
+      decorMode = false; panel.classList.remove('decor-mode');
+      photoGrid.replaceChildren(); selectedPhotos.clear();
       panel.hidden = true;
       btnEdit.setAttribute('aria-expanded', 'false');
     }

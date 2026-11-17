@@ -93,7 +93,7 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await expect(page.locator('#saveState')).toHaveText('저장됨', { timeout: 5000 });
     const u = (await mockDb(page)).trees[0];
     expect(u.pattern).toBe(2);
-    expect(u.settings).toEqual({ autoRotate: false, patternCycle: true, characters: true });
+    expect(u.settings).toEqual({ autoRotate: false, patternCycle: true, characters: true, gifts: true });
     await shot(page, '04-edit-basic');
   });
 
@@ -128,7 +128,7 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await page.locator('#edCaption').fill('첫 사진');
     const files = [await makeJpeg(page, 'a.jpg'), await makeJpeg(page, 'b.jpg', { w: 480, h: 640, color: '#a53a4a' })];
     await page.locator('#photoInput').setInputFiles(files);
-    await expect(page.locator('#uploadState')).toHaveText('2장을 올렸어요.', { timeout: 15000 });
+    await expect(page.locator('#uploadState')).toContainText('2장을 올렸어요.', { timeout: 15000 });
     await expect(page.locator('#photoGrid li')).toHaveCount(2);
     await expect(page.locator('#photoTotal')).toHaveText('2/30');
     await expect(page.locator('#notice')).toBeHidden();

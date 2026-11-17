@@ -4,6 +4,8 @@
  *   const tree = createTree(canvas, { title, messages, pattern, autoRotate, patternCycle });
  *   tree.setPattern(2); tree.setMessages(['...']); await tree.addPhoto(url, '캡션', { id: 3, show: 'sparkle' });
  *   tree.removePhoto(3); tree.setTitle('...'); tree.destroy();
+ *   tree.setDecorations([{ k: 'sock', t: .6, a: .25, c: 0 }]);  // 장식 (null이면 기본 장식)
+ *   tree.setDecorEditing({ kind: 'bell', color: 1, onChange: list => save(list) });   // 트리를 눌러 달기·끌어 옮기기
  *
  * DOM 요소(제목·무늬 이름·글귀·확대 보기)는 options.elements로 바꿀 수 있고,
  * 기본값은 index.html의 id(#top, #title, #patternName, #message, #viewer, #card, #cardImg, #cardCap)이다.
@@ -13,6 +15,7 @@ import { createPhotoStage } from './photos.js';
 import { createViewer } from './viewer.js';
 import { createTyper } from './messages.js';
 import { createCharacters } from './characters.js';
+import { createDecor, MAX_DECOR } from './decor.js';
 
 const $ = id => document.getElementById(id);
 
@@ -24,6 +27,8 @@ export function createTree(canvas, options = {}) {
     autoRotate: true,        // 자동 회전
     patternCycle: true,      // 무늬 자동 전환
     characters: true,        // 배경에 산타·루돌프
+    gifts: true,             // 트리 아래 선물 상자
+    decorations: null,       // 장식 목록 (null이면 기본 장식)
     patternInterval: 60,     // 무늬 자동 전환 간격(초)
     morphDuration: 2.6,      // 무늬 전환 애니메이션 길이(초)
     photoInterval: 3.2,      // 사진 등장 간격(초)
@@ -43,7 +48,7 @@ export function createTree(canvas, options = {}) {
   const SNOW = isMobile ? 170 : 300;         // 눈송이 수
   const ctx = canvas.getContext('2d');
   const view = { W: 0, H: 0, scale: 1 };     // 사진·확대 보기 모듈과 공유
-  let DPR, centerY;
+  let DPR, centerY, insetBottom = null;      // insetBottom: 편집 패널이 트리 아래를 가릴 때 그 위까지만 트리를 그림
 
   /* 상단 제목과 하단 글귀 사이의 빈 공간에 트리가 꽉 차도록 배율 계산 */
   function layout() {
@@ -54,10 +59,10 @@ export function createTree(canvas, options = {}) {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
     const top = el.top.getBoundingClientRect().bottom + 8;
-    const bottom = el.message.getBoundingClientRect().top - 4;
+    const bottom = Math.min(el.message.getBoundingClientRect().top, insetBottom ?? Infinity) - 4;
     const availH = Math.max(160, bottom - top);
-    // 트리의 월드 크기: 폭 ≈ 2R × 1.1(바닥 원반) × 1.1(원근), 높이 ≈ 별(-330) ~ 바닥(+315)
-    view.scale = Math.min((W * 0.94) / (2 * 230 * 1.21), availH / 670);
+    // 트리의 월드 크기: 폭 ≈ 2R × 1.1(바닥 원반) × 1.1(원근), 높이 ≈ 별(-330) ~ 바닥(+315) + 앞쪽 선물 상자 여유
+    view.scale = Math.min((W * 0.94) / (2 * 230 * 1.21), availH / 700);
     centerY = top + availH / 2 + 8 * view.scale;
   }
   el.title.textContent = opt.title;
@@ -126,22 +131,54 @@ export function createTree(canvas, options = {}) {
   const viewer = createViewer(el, view);
   const characters = createCharacters({ ctx, view, burst, isMobile });
   characters.setEnabled(opt.characters);
+  const decor = createDecor({ ctx, view, burst, isMobile });
+  decor.set(opt.decorations);
+  decor.setGifts(opt.gifts);
+  let edit = null;   // 장식 편집 중이면 { kind, color, onChange, onSelect, onLimit }
   const typer = createTyper(el.message, { srList: el.srMessages, onFirstStart: () => { el.title.style.opacity = 1; } });
   let lastPhotoSpawn = 0;
 
   /* ---------- 회전(드래그) & 클릭 ---------- */
   let rotY = 0, rotX = 0.12, velY = 0.004, dragging = false, lastX = 0, lastY = 0, moved = 0;
   let AUTO = opt.autoRotate ? 0.004 : 0;
+  let dragOrn = -1, dragNew = false;   // 장식 편집: 끌고 있는 장식
+  const ON_TREE = 34;                   // 트리 표면에서 이만큼(px) 안이면 "트리 위"
+  const changed = () => edit?.onChange?.(decor.items.map(o => ({ ...o })));
   const onDown = e => {
-    dragging = true; moved = 0; lastX = e.clientX; lastY = e.clientY;
+    moved = 0; lastX = e.clientX; lastY = e.clientY;
+    if (edit && !viewer.viewing) {
+      const i = decor.hitOrnament(e.clientX, e.clientY);
+      if (i >= 0) { dragOrn = i; dragNew = false; decor.select(i); edit.onSelect?.(i); canvas.classList.add('dragging'); return; }
+      const s = edit.kind && decor.surfaceAt(e.clientX, e.clientY);
+      if (s && s.d < ON_TREE) {
+        if (decor.count >= MAX_DECOR) { edit.onLimit?.(); return; }
+        dragOrn = decor.add({ k: edit.kind, t: s.t, a: s.a, c: edit.color ?? 0 }); dragNew = true;
+        decor.select(dragOrn); edit.onSelect?.(dragOrn);
+        burst(e.clientX, e.clientY, 16, 2.4);
+        canvas.classList.add('dragging');
+        return;
+      }
+      decor.select(-1); edit.onSelect?.(-1);
+    }
+    dragging = true;
     canvas.classList.add('dragging');
   };
   const onMove = e => {
+    if (dragOrn >= 0) {
+      moved += Math.abs(e.clientX - lastX) + Math.abs(e.clientY - lastY);
+      lastX = e.clientX; lastY = e.clientY;
+      if (moved < 4 && !dragNew) return;
+      const s = decor.surfaceAt(e.clientX, e.clientY);
+      if (s && s.d < ON_TREE * 1.4) { decor.move(dragOrn, s.t, s.a); decor.setGhost(null); }
+      else decor.setGhost({ x: e.clientX, y: e.clientY });
+      return;
+    }
     if (!dragging) {
       if (!isMobile) {
-        const onPhoto = !!photos.hit(e.clientX, e.clientY);
+        const x = e.clientX, y = e.clientY, onPhoto = !!photos.hit(x, y);
         canvas.classList.toggle('hovering', onPhoto);
-        canvas.classList.toggle('pointing', !onPhoto && !!characters.hit(e.clientX, e.clientY));
+        canvas.classList.toggle('pointing', !onPhoto && !!(characters.hit(x, y) || decor.hitGift(x, y) || decor.hitOrnament(x, y) >= 0));
+        canvas.classList.toggle('placing', !!edit?.kind && !onPhoto && (decor.surfaceAt(x, y)?.d ?? 99) < ON_TREE);
       }
       return;
     }
@@ -152,13 +189,28 @@ export function createTree(canvas, options = {}) {
     lastX = e.clientX; lastY = e.clientY;
   };
   const onUp = e => {
+    if (dragOrn >= 0) {
+      const i = dragOrn; dragOrn = -1; canvas.classList.remove('dragging');
+      if (decor.ghost) {                                     // 트리 밖에 놓음 → 떼기
+        decor.setGhost(null); decor.remove(i); edit?.onSelect?.(-1);
+        burst(e.clientX, e.clientY, 20, 3);
+        changed();
+      } else if (dragNew || moved >= 4) changed();
+      else decor.jingle(i, performance.now() / 1000);
+      return;
+    }
     if (!dragging) return;
     dragging = false; canvas.classList.remove('dragging');
     if (e.type === 'pointerup' && moved < 8) {
+      const now = performance.now() / 1000;
       const s = photos.hit(e.clientX, e.clientY);
       const c = s ? null : characters.hit(e.clientX, e.clientY);
+      const g = s || c ? null : decor.hitGift(e.clientX, e.clientY);
+      const o = s || c || g ? -1 : decor.hitOrnament(e.clientX, e.clientY);
       if (s) viewer.open(s);
-      else if (c) characters.react(c, performance.now() / 1000);
+      else if (c) characters.react(c, now);
+      else if (g) decor.openGift(g, now);
+      else if (o >= 0) decor.jingle(o, now);
       else burst(e.clientX, e.clientY);
     }
   };
@@ -182,7 +234,7 @@ export function createTree(canvas, options = {}) {
     // 사진 등장
     if (!viewing && now - lastPhotoSpawn > opt.photoInterval) { lastPhotoSpawn = now; photos.spawn(now); }
 
-    if (!dragging) { rotY += velY; velY += (AUTO - velY) * 0.02; }
+    if (!dragging) { rotY += velY; velY += ((edit ? 0 : AUTO) - velY) * (edit ? 0.08 : 0.02); }   // 장식 편집 중엔 멈춤
 
     // 배경 (무늬마다 색조가 달라짐)
     const dur = opt.morphDuration;
@@ -193,10 +245,6 @@ export function createTree(canvas, options = {}) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
 
-    // 배경 캐릭터 (트리 뒤)
-    characters.step(now);
-    ctx.globalCompositeOperation = 'source-over';
-
     // 3D 투영 준비
     const cy = Math.cos(rotY), sy = Math.sin(rotY), cx = Math.cos(rotX), sx = Math.sin(rotX);
     const FOCAL = 900, CAM = 900, cxs = W / 2;
@@ -206,6 +254,14 @@ export function createTree(canvas, options = {}) {
       const k = FOCAL / (CAM + z2);
       return [cxs + x1 * k * scale, centerY + y1 * k * scale, k, z2];
     };
+    decor.prepare(project, y => y * sx, now);   // 트리 중심축(0, y, 0)의 깊이 = y·sin(rotX)
+
+    // 밤하늘(별·달) · 트리 뒤 불빛 · 눈 언덕 → 배경 캐릭터 (모두 트리 뒤)
+    decor.drawSky(now);
+    ctx.globalCompositeOperation = 'source-over';
+    characters.step(now);
+    ctx.globalCompositeOperation = 'source-over';
+    decor.drawBack(now);                  // 트리 너머의 장식·선물은 흐리게, 입자보다 먼저
 
     // 트리 입자: 가산 혼합으로 빛 번짐
     ctx.globalCompositeOperation = 'lighter';
@@ -237,7 +293,12 @@ export function createTree(canvas, options = {}) {
     }
     if (morphing && allDone) morphing = false;
 
+    // 앞쪽 장식 · 선물 상자
+    ctx.globalCompositeOperation = 'source-over';
+    decor.drawFront(now);
+
     // 꼭대기 별
+    ctx.globalCompositeOperation = 'lighter';
     const starP = project(0, TOP - 22, 0);
     drawStar(starP[0], starP[1], starP[2], now);
 
@@ -309,9 +370,10 @@ export function createTree(canvas, options = {}) {
 
     setTitle(text) { el.title.textContent = text; layout(); },
 
-    /** { autoRotate, patternCycle, characters } 중 넘긴 값만 바꾼다 */
-    setSettings({ autoRotate, patternCycle, characters: chars } = {}) {
+    /** { autoRotate, patternCycle, characters, gifts } 중 넘긴 값만 바꾼다 */
+    setSettings({ autoRotate, patternCycle, characters: chars, gifts } = {}) {
       if (typeof chars === 'boolean') { opt.characters = chars; characters.setEnabled(chars); }
+      if (typeof gifts === 'boolean') { opt.gifts = gifts; decor.setGifts(gifts); }
       if (typeof autoRotate === 'boolean') { opt.autoRotate = autoRotate; AUTO = autoRotate ? 0.004 : 0; }
       if (typeof patternCycle === 'boolean') { opt.patternCycle = patternCycle; lastSwitch = nowSec(); }
     },
@@ -335,6 +397,50 @@ export function createTree(canvas, options = {}) {
       return true;
     },
     clearPhotos() { viewer.closeNow(); photos.clear(); },
+    /** 걸린 사진의 캡션 바꾸기 (다음에 등장할 때부터 반영) */
+    setPhotoCaption(id, caption) { const item = photos.find(id); if (item) item.caption = caption; return !!item; },
+
+    /* ---------- 장식 ---------- */
+    /** 장식 목록 바꾸기. null이면 기본 장식 */
+    setDecorations(list) { decor.set(list); dragOrn = -1; },
+    /** 지금 장식 목록 (복사본) */
+    get decorations() { return decor.items.map(o => ({ ...o })); },
+    get decorationsAreDefault() { return decor.isDefault; },
+    /**
+     * 장식 편집 켜기/끄기. cfg가 null이면 끔.
+     *  { kind: 'ball' 등(없으면 옮기기만), color: 0~5, onChange(list), onSelect(index), onLimit() }
+     *  켜져 있는 동안 자동 회전을 멈추고, 트리를 누르면 그 자리에 달고, 장식을 끌면 옮기고, 트리 밖에 놓으면 뗀다.
+     */
+    setDecorEditing(cfg) {
+      edit = cfg ? { ...(edit || {}), ...cfg } : null;
+      if (!edit) { decor.select(-1); decor.setGhost(null); dragOrn = -1; canvas.classList.remove('placing'); }
+    },
+    /** 보이는 앞면의 빈 자리에 장식 하나 달기 (키보드용). 반환: 달았으면 true */
+    addDecorAnywhere(kind, color = 0) {
+      if (decor.count >= MAX_DECOR) return false;
+      const i = decor.add({ k: kind, ...decor.freeSpot(rotY), c: color });
+      decor.select(i); edit?.onSelect?.(i); decor.jingle(i, nowSec()); changed();
+      return true;
+    },
+    /** 고른 장식 떼기 */
+    removeSelectedDecor() {
+      const i = decor.selected;
+      if (i < 0 || !decor.remove(i)) return false;
+      edit?.onSelect?.(-1); changed();
+      return true;
+    },
+    /** 고른 장식의 색 바꾸기 */
+    recolorSelectedDecor(color) {
+      const o = decor.items[decor.selected];
+      if (!o) return false;
+      o.c = color; changed();
+      return true;
+    },
+    get selectedDecor() { const o = decor.items[decor.selected]; return o ? { ...o } : null; },
+    /** 테스트·디버그용: 장식·선물의 화면 위치 */
+    decorInfo: () => decor.info(),
+    /** 트리를 그릴 아래쪽 한계(px). null이면 글귀 위까지 (편집 패널이 트리를 가릴 때) */
+    setInsetBottom(px) { const v = px == null ? null : Math.round(px); if (v !== insetBottom) { insetBottom = v; layout(); } },
 
     /** 테스트·디버그용: 산타·루돌프의 위치와 반응 상태 */
     characterInfo: () => characters.info(),
@@ -353,7 +459,7 @@ export function createTree(canvas, options = {}) {
       removeEventListener('pointermove', onMove);
       removeEventListener('pointerup', onUp);
       removeEventListener('pointercancel', onUp);
-      canvas.classList.remove('dragging', 'hovering', 'pointing');
+      canvas.classList.remove('dragging', 'hovering', 'pointing', 'placing');
     }
   };
 }

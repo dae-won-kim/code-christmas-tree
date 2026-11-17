@@ -323,3 +323,65 @@ body.lib-open .side-toggle { visibility: hidden; }
 }
 #libMine .hint { margin-top: 6px; }
 button#btnSave[aria-pressed="true"] { background: rgba(255, 214, 120, .28); border-color: #ffd678; }
+
+/* =====================================================================
+ *  장식 · 사진 캡션 고치기 · 사진 여러 장 삭제
+ * ===================================================================== */
+canvas.placing { cursor: copy; }
+button.danger { color: #ffc2c2; border-color: rgba(255, 140, 140, .45); }
+.pane .hint.top { margin: 4px 0 8px; }
+.pane .hint b { color: #ffe9a8; font-weight: 400; }
+.decor-kinds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.decor-kinds button {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  border-radius: 10px; min-height: 52px; padding: 4px 2px; white-space: normal; line-height: 1.2;
+}
+.decor-kinds button .ico { font-size: 20px; line-height: 1.1; }
+.decor-kinds button[aria-pressed="true"] { background: rgba(255, 214, 120, .3); border-color: #ffd678; color: #fff; }
+.decor-colors { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.decor-colors button {
+  width: 32px; min-height: 32px; height: 32px; padding: 0; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .25); background: var(--swatch); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.decor-colors button:hover { background: var(--swatch); filter: brightness(1.15); }
+.decor-colors button[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 2px #ffd678; }
+.decor-actions { margin-top: 10px; }
+.decor-actions .counter { float: none; }
+
+/* 장식 탭: 트리가 보이도록 패널을 옆으로 (넓은 화면 · 가로 화면) */
+@media (min-width: 900px) {
+  .panel.edit.decor-mode {
+    left: auto; right: calc(env(safe-area-inset-right) + 16px); transform: none;
+    top: calc(env(safe-area-inset-top) + 64px); bottom: auto; width: 340px; max-height: calc(100vh - 160px);
+  }
+}
+@media (max-height: 480px) and (min-width: 600px) {
+  .panel.edit.decor-mode {
+    left: auto; right: calc(env(safe-area-inset-right) + 8px); transform: none;
+    top: 8px; bottom: 54px; width: 330px; max-height: none;
+  }
+}
+/* 좁은 세로 화면: 장식 탭은 패널을 낮게 → 트리는 패널 위 공간에 맞춰 줄어듦 */
+@media (max-width: 899px) and (min-height: 481px) {
+  .panel.edit.decor-mode { max-height: min(42vh, 330px); bottom: calc(env(safe-area-inset-bottom) + 64px); }
+  .panel.edit.decor-mode .hint.top { font-size: 11.5px; }
+  .panel.edit.decor-mode .decor-kinds button { min-height: 44px; }
+  .panel.edit.decor-mode .decor-kinds button .ico { font-size: 17px; }
+}
+
+/* 사진 카드: 선택 상자 + 캡션 입력 */
+.grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+.grid li { position: relative; }
+.grid li.selected { box-shadow: 0 0 0 3px #ffd678; }
+.panel.edit .grid input.cap-input {
+  font-size: 16px; color: #3a2f24; background: #fff; border: 1px solid rgba(58, 47, 36, .25);
+  border-radius: 4px; padding: 3px 6px; width: 100%; min-width: 0; text-align: center;
+}
+.panel.edit .grid input.cap-input:focus-visible { outline: 2px solid #c8963c; outline-offset: 0; }
+.panel.edit .grid input.cap-input.saved { border-color: #3fbf7f; }
+.panel.edit .grid input.cap-input.bad { border-color: #c94b4b; }
+.panel.edit .grid input.pick {
+  position: absolute; top: 9px; left: 9px; width: 22px; height: 22px; padding: 0; accent-color: #c8963c; cursor: pointer;
+}
+.photo-tools { margin: 0 0 8px; }
+.photo-tools label.check { margin: 0 !important; }

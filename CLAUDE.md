@@ -21,7 +21,7 @@ web/                 정적 사이트 (GitHub Pages로 배포되는 폴더)
   js/main.js         진입점: 모드 결정(demo/login/mine/shared), 화면 전환
   js/api.js          TreeApi — DB 접근의 유일한 통로
   js/image.js        업로드 전 사진 리사이즈
-  js/tree/           트리 렌더러 createTree(canvas, options) — renderer/patterns/photos/viewer/messages
+  js/tree/           트리 렌더러 createTree(canvas, options) — renderer/patterns/photos/viewer/messages/characters/decor(장식·선물·밤하늘)
   js/ui/             화면 — dom(공통)/login(로그인·PIN 복구)/editor/share/library(사이드 목록: 내 트리·담은 트리·본 기록)
   config.example.js  → config.js로 복사해서 사용 (config.js는 커밋 금지)
 supabase/
@@ -98,4 +98,5 @@ npm run test:e2e
 - 이메일·PIN은 평문으로 저장하지 않습니다(해시만). 새 기능에서도 평문 컬럼을 만들지 않습니다.
 - 복구 메일이 실제로 가려면 Supabase 대시보드 설정(메일 템플릿 `{{ .Token }}`, SMTP)이 필요합니다(`docs/DEPLOY.md` 2-1). mock E2E로는 검증되지 않습니다.
 - 무늬 번호는 DB에 저장됩니다. `PATTERNS`에 새 무늬는 **맨 뒤에만** 추가하고, 늘리면 `trees_pattern` 제약도 새 마이그레이션으로 바꿉니다.
+- 장식 종류(`ORNAMENTS`의 k)와 색 번호(`DECOR_COLORS` 순서)도 DB에 저장됩니다. 새 종류·색은 `private.clean_decorations`도 새 마이그레이션으로 함께 바꿉니다.
 - Supabase 무료 프로젝트는 7일 동안 요청이 없으면 일시정지됩니다.

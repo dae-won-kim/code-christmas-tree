@@ -41,6 +41,8 @@ export const ERROR_MESSAGES = {
   own_tree:          '내 트리는 목록에 담을 수 없어요.',
   save_limit:        '담은 트리는 100개까지예요. 안 보는 트리를 빼 주세요.',
   invalid_items:     '기록 형식이 올바르지 않아요.',
+  invalid_decorations: '장식 정보가 올바르지 않아요. (트리당 60개까지)',
+  invalid_caption:   '캡션은 30자까지 적을 수 있어요.',
   image_decode_failed: '사진을 읽지 못했어요. 다른 사진으로 시도해 주세요.',
   image_too_large:   '사진 용량이 너무 커요.',
   network:           '네트워크 연결을 확인해 주세요.',
@@ -221,6 +223,13 @@ export class TreeApi {
     return this.#auth('update_tree', { p_title: title, p_pattern: pattern, p_settings: settings, p_tree_id: treeId });
   }
 
+  /**
+   * 장식 저장 (목록 전체를 바꿈). items가 null이면 기본 장식으로 되돌림
+   * @param {{k:string, t:number, a:number, c:number}[]|null} items  최대 60개
+   * @returns {Promise<{decorations: object[]|null}>} DB가 정리한 목록
+   */
+  setDecorations(items, treeId = null) { return this.#auth('set_decorations', { p_items: items, p_tree_id: treeId }); }
+
   /* ── 글귀 ──────────────────────────────────────────── */
 
   addMessage(body, treeId = null) { return this.#auth('add_message', { p_body: body, p_tree_id: treeId }); }
@@ -269,6 +278,11 @@ export class TreeApi {
     return this.#auth('finish_photo_upload', { p_path: path, p_caption: caption });
   }
 
+  /** 올린 사진의 캡션 고치기 (30자, 빈 값이면 캡션 없음) → {id, path, caption} */
+  updatePhotoCaption(photoId, caption) {
+    return this.#auth('update_photo_caption', { p_photo_id: photoId, p_caption: String(caption ?? '') });
+  }
+
   /** 사진 삭제: ① 삭제 티켓 → ② Storage에서 파일 삭제 → ③ DB 행 삭제 확정 */
   async deletePhoto(photoId) {
     const path = await this.#auth('begin_photo_delete', { p_photo_id: photoId });
@@ -286,6 +300,7 @@ export class TreeApi {
  * @property {number} pattern   0~7 (js/tree/patterns.js의 PATTERNS 순서)
  * @property {Object} settings  자유 형식(2KB 이내) — 예: { autoRotate: true, patternCycle: false }
  * @property {string} share_id
+ * @property {{k:string, t:number, a:number, c:number}[]|null} decorations  장식 (null이면 기본 장식)
  * @property {{id:number, body:string}[]} messages
  * @property {{id:number, path:string, caption:string}[]} photos
  */

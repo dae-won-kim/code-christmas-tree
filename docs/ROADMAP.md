@@ -14,6 +14,8 @@
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
   - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
 - 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스·제3자 고지 완료, README 정리·GIF 남음
+- ✅ **Phase 8** 풍성한 트리 — 장식 8종(달기·끌어 옮기기·떼기), 트리 아래 선물 상자, 밤하늘(별·달·눈 언덕), 사진 캡션 고치기, 사진 여러 장 삭제
+  — 브랜치 `feat/decor`, DB 테스트 `50_decorations_test.sql` 추가, E2E 4개 시나리오 추가(전체 83개 통과). 배포 전 README 정리 예정
 - 🔒 **보안 업데이트** (2026-11-17 KISA PostgreSQL 보안 업데이트 권고, CVE 25건)
   - [x] 로컬·CI 테스트 DB 이미지를 `postgres:17.12`로 고정(운영 DB와 같은 버전), 패치 전 서버면 `test-db.sh`가 경고
   - [x] 운영 Supabase DB 버전 확인 — 17.12로 이미 해결 버전 (2026-11-17, 업그레이드 불필요)
@@ -142,6 +144,20 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [x] Supabase Auth 설정 — Confirm signup·Magic Link 템플릿에 `{{ .Token }}`, Custom SMTP, OTP 만료 900초 (DEPLOY.md 2-1) — 2026-11-17 완료 (Gmail SMTP)
 - [x] 실제 메일로 복구 흐름 확인 (2026-11-17)
 - [x] Authentication → Users에 임시 사용자가 남지 않음 확인 (2026-11-17)
+
+## Phase 8 — 풍성한 트리 (장식 · 선물 · 캡션) ✅
+- [x] DB: `trees.decorations`(jsonb, null = 기본 장식) + `set_decorations`, 사진 캡션 고치기 `update_photo_caption`
+      — 새 마이그레이션 `20261118000000_decorations.sql`, 테스트 `50_decorations_test.sql`, mock 동기화
+- [x] 장식 8종(방울·전구·별·양말·종·사탕·리본·눈꽃) × 색 6가지, 트리 원뿔 표면 좌표(높이·각도)라 트리와 함께 돎.
+      뒤쪽 장식은 입자 뒤에 흐리게 그려 깊이감 (`web/js/tree/decor.js`, 그림 파일 없이 캔버스 도형)
+- [x] 꾸미기 → **장식** 탭: 종류·색 고르기 → 트리를 눌러 달기, 끌어서 옮기기, 트리 밖으로 끌어내 떼기,
+      [아무 곳에 달기](키보드), [고른 장식 떼기], [모두 떼기], [기본 장식으로]. 편집 중에는 자동 회전 멈춤,
+      넓은·가로 화면은 패널을 오른쪽으로, 좁은 세로 화면은 패널 위 공간에 트리를 맞춤
+- [x] 트리 아래 선물 상자 7개 (누르면 뚜껑이 열리며 반짝임, 설정 `gifts`로 끄기), 장식을 누르면 흔들림
+- [x] 밤하늘 별·달, 트리 뒤 불빛, 눈 언덕. 처음 트리가 모이는 동안 장식·선물도 서서히 나타남
+- [x] 사진: 사진마다 캡션 칸(입력을 멈추거나 칸을 벗어나면 저장), [모두 선택] · [선택한 사진 삭제]
+- [x] 검증: DB 테스트(CI), E2E `decor.spec.js` 4개 × 3개 화면, 데스크톱·모바일·가로 스크린샷 확인
+- [ ] 배포 전: README 정리 (사용자 진행)
 
 ## 백로그 (아이디어)
 - 방문자 방명록: 공유 트리에 이름 없이 글귀 남기기 (승인제)

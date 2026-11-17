@@ -156,6 +156,7 @@ function applyTree(data) {
   tree.setTitle(data.title);
   tree.setPattern(data.pattern);
   tree.setSettings({ ...DEFAULT_SETTINGS, ...(data.settings || {}) });
+  tree.setDecorations(data.decorations ?? null);   // null = 기본 장식
   tree.setMessages(data.messages.map(m => m.body));
   for (const p of data.photos) tree.addPhoto(api.photoUrl(p.path), p.caption, { id: p.id }).catch(() => {});
 }
@@ -216,6 +217,7 @@ function showLogin() {
   library.setCurrent(null); library.setCurrentMine(null);
   tree.setTitle('Merry Christmas');
   tree.setSettings(DEFAULT_SETTINGS);
+  tree.setDecorations(null);
   tree.setMessages(LOGIN_MESSAGES);
   $('btnPattern').addEventListener('click', () => tree.nextPattern(), { signal });
   current = mountLogin({ api, onEnter: () => { afterLogin(); rememberTree(null); showMine(null); } });

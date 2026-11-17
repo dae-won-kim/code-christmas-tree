@@ -212,6 +212,9 @@ test('키보드: 탭 방향키 이동, 패널 열면 첫 입력칸으로 포커�
   await expect(page.locator('#edTitle')).toBeFocused();
   await page.getByRole('tab', { name: '기본' }).focus();
   await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: '장식' })).toBeFocused();
+  await expect(page.locator('#pane-decor')).toBeVisible();
+  await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('tab', { name: '글귀' })).toBeFocused();
   await expect(page.locator('#pane-msgs')).toBeVisible();
   await page.keyboard.press('End');

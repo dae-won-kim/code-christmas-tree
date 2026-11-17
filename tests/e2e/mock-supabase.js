@@ -62,12 +62,13 @@
     const u = db.users.find(x => x.id === t.owner);
     return {
       id: t.id, name: u.name, title: t.title, pattern: t.pattern, settings: t.settings, share_id: t.share_id, position: t.position,
+      decorations: t.decorations ?? null,
       messages: db.messages.filter(m => m.tree_id === t.id).map(m => ({ id: m.id, body: m.body })),
       photos: db.photos.filter(p => p.tree_id === t.id).map(p => ({ id: p.id, path: p.path, caption: p.caption }))
     };
   }
   const newTree = (owner, title = 'Merry Christmas', position = 0) =>
-    ({ id: uuid(), owner, share_id: shareId(), title, pattern: 0, settings: {}, position, created_at: now() });
+    ({ id: uuid(), owner, share_id: shareId(), title, pattern: 0, settings: {}, decorations: null, position, created_at: now() });
   const hasTicket = (db, path, kind, user) =>
     db.tickets.some(t => t.path === path && t.kind === kind && (!user || t.user === user) && t.exp > now());
   function treeByShare(db, shareIdValue) {
@@ -79,6 +80,20 @@
   function trimViews(db, v) {   // 본 기록은 최근 50개. 오래된 것 중 담은 트리는 기록만 지움
     const old = db.views.filter(r => r.viewer === v && r.viewed_at != null).sort((a, b) => b.viewed_at - a.viewed_at).slice(50);
     for (const r of old) r.saved ? (r.viewed_at = null) : (db.views = db.views.filter(x => x !== r));
+  }
+  // 장식 목록 검사·정리 (SQL의 private.clean_decorations)
+  const DECOR_KINDS = ['bulb', 'ball', 'star', 'sock', 'bell', 'candy', 'bow', 'flake'];
+  const r4 = x => Math.round(x * 1e4) / 1e4;
+  function cleanDecorations(p) {
+    if (p == null) return null;
+    if (!Array.isArray(p) || p.length > 60) raise('invalid_decorations');
+    return p.map(e => {
+      if (!e || typeof e !== 'object' || Array.isArray(e) || !DECOR_KINDS.includes(e.k)
+          || typeof e.t !== 'number' || typeof e.a !== 'number' || ('c' in e && typeof e.c !== 'number')) raise('invalid_decorations');
+      const c = e.c ?? 0;
+      if (!(e.t >= 0.05 && e.t <= 1) || Math.abs(e.a) > 1000 || ![0, 1, 2, 3, 4, 5].includes(c)) raise('invalid_decorations');
+      return { k: e.k, t: r4(e.t), a: Math.min(r4(e.a - Math.floor(e.a)), 0.9999), c };
+    });
   }
   const repack = (db, uid) => myTrees(db, uid).forEach((t, i) => { t.position = i; });
 
@@ -187,6 +202,12 @@
       return true;
     },
 
+    set_decorations(db, { p_token, p_items, p_tree_id = null }) {
+      const t = ownedTree(db, requireUser(db, p_token), p_tree_id);
+      t.decorations = cleanDecorations(p_items);
+      return { decorations: t.decorations };
+    },
+
     /* ── 글귀 ── */
     add_message(db, { p_token, p_body, p_tree_id = null }) {
       const t = ownedTree(db, requireUser(db, p_token), p_tree_id);
@@ -221,6 +242,15 @@
       const p = { id: db.seq++, tree_id: k.tree, path: p_path, caption: [...String(p_caption ?? '').trim()].slice(0, 30).join('') };
       db.photos.push(p);
       db.tickets = db.tickets.filter(x => !(x.path === p_path && x.kind === 'upload'));
+      return { id: p.id, path: p.path, caption: p.caption };
+    },
+    update_photo_caption(db, { p_token, p_photo_id, p_caption }) {
+      const v = requireUser(db, p_token);
+      const c = String(p_caption ?? '').trim();
+      if (len(c) > 30) raise('invalid_caption');
+      const p = db.photos.find(x => x.id === p_photo_id && db.trees.some(t => t.id === x.tree_id && t.owner === v));
+      if (!p) raise('not_found');
+      p.caption = c;
       return { id: p.id, path: p.path, caption: p.caption };
     },
     begin_photo_delete(db, { p_token, p_photo_id }) {
