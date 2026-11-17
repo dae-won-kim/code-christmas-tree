@@ -16,7 +16,7 @@
 - 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스 표기·GIF 남음
 - 🔒 **보안 업데이트** (2026-11-17 KISA PostgreSQL 보안 업데이트 권고, CVE 25건)
   - [x] 로컬·CI 테스트 DB 이미지를 `postgres:16` → `postgres:16.16`으로 고정, 패치 전 서버면 `test-db.sh`가 경고
-  - [ ] 운영 Supabase DB 버전 확인 → Project Settings → Infrastructure에서 업그레이드 (DEPLOY.md 7 "PostgreSQL 보안 업데이트")
+  - [x] 운영 Supabase DB 버전 확인 — 17.12로 이미 해결 버전 (2026-11-17, 업그레이드 불필요)
 
 ---
 
