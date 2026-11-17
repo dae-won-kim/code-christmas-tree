@@ -1,0 +1,29 @@
+# DB 마이그레이션 + RPC 보안 테스트 (PostgreSQL 16 서비스 컨테이너)
+name: DB tests
+
+on:
+  push:
+    paths: ['supabase/**', 'scripts/test-db.sh', '.github/workflows/db-test.yml']
+  pull_request:
+    paths: ['supabase/**', 'scripts/test-db.sh', '.github/workflows/db-test.yml']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: psql 준비
+        run: command -v psql || (sudo apt-get update && sudo apt-get install -y postgresql-client)
+      - name: 테스트 실행
+        run: ./scripts/test-db.sh
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres

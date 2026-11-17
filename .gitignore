@@ -1,0 +1,19 @@
+# 배포 환경별 설정 (Pages 배포 시 워크플로가 생성)
+web/config.js
+
+# 비밀 정보
+.env
+.env.*
+!.env.example
+
+# Supabase CLI 로컬 상태
+supabase/.temp/
+supabase/.branches/
+
+# 기타
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+test-results/
+playwright-report/
