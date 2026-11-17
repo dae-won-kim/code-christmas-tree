@@ -82,8 +82,9 @@ reset role;
 insert into storage.objects (bucket_id, name) values ('tree-photos', :'p1');
 set role anon;
 select (finish_photo_upload(:'a_tok', :'p1', '처음 캡션'))->>'id' as ph \gset
-select t.ok((update_photo_caption(:'a_tok', :ph, '  고친 캡션  '))->>'caption' = '고친 캡션'
-            and (get_my_tree(:'a_tok'))->'photos'->0->>'caption' = '고친 캡션', 'T56 캡션 고치기 (앞뒤 공백 제거)');
+-- (쓰기 RPC와 stable 조회를 한 문장에서 부르면 조회가 쓰기 전 스냅샷을 보므로 문장을 나눔)
+select t.ok((update_photo_caption(:'a_tok', :ph, '  고친 캡션  '))->>'caption' = '고친 캡션', 'T56 캡션 고치기 (앞뒤 공백 제거)');
+select t.ok((get_my_tree(:'a_tok'))->'photos'->0->>'caption' = '고친 캡션', 'T56 고친 캡션이 트리에 반영');
 select t.ok((update_photo_caption(:'a_tok', :ph, ''))->>'caption' = '', 'T56 빈 캡션으로 지우기');
 select t.ok((update_photo_caption(:'a_tok', :ph, repeat('가', 30)))->>'caption' = repeat('가', 30), 'T56 30자까지');
 select t.expect_err(format('select update_photo_caption(%L, %s, %L)', :'a_tok', :ph, repeat('가', 31)), 'invalid_caption', 'T56 31자 거부');
