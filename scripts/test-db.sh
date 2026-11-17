@@ -47,6 +47,11 @@ for round in 1 2; do
 done
 
 echo "▶ RPC·보안 테스트"
-OUT=$(PGOPTIONS="-c client_min_messages=notice" "${PSQL[@]}" -f supabase/tests/10_rpc_test.sql 2>&1) || { echo "$OUT" | sed 's/^psql:[^ ]* //' | grep -E "PASS|FAIL|ERROR"; exit 1; }
-echo "$OUT" | grep -oE "(PASS|FAIL) .*" | sed 's/^/  /'
-echo "✅ 통과: $(echo "$OUT" | grep -c 'PASS')개"
+TOTAL=0
+for f in supabase/tests/[1-9]*_test.sql; do   # 00_mock_supabase.sql을 뺀 테스트 파일을 이름 순서대로
+  echo "  ── $(basename "$f")"
+  OUT=$(PGOPTIONS="-c client_min_messages=notice" "${PSQL[@]}" -f "$f" 2>&1) || { echo "$OUT" | sed 's/^psql:[^ ]* //' | grep -E "PASS|FAIL|ERROR"; exit 1; }
+  echo "$OUT" | grep -oE "(PASS|FAIL) .*" | sed 's/^/  /'
+  TOTAL=$((TOTAL + $(echo "$OUT" | grep -c 'PASS')))
+done
+echo "✅ 통과: ${TOTAL}개"
