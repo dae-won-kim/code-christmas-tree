@@ -1,4 +1,4 @@
-// 내 트리 여러 개(최대 3개) · 산타·루돌프 · 무늬 8종
+// 내 트리 여러 개(최대 3개) · 산타·사슴 · 무늬 8종
 import { test, expect, serverMode, seedDb, sampleUser, mockDb, shot, makeJpeg } from './helpers.js';
 
 const minsu = sampleUser({ id: '33333333-3333-4333-8333-333333333333', name: '김민수', email: 'minsu@example.com', pin: '1357',
@@ -118,14 +118,14 @@ test('내 트리 목록: 이름 바꾸기는 Esc로 취소, 빈 이름은 거부
   expect((await mockDb(page)).trees[0].title).toBe('민수네 트리');
 });
 
-test('산타·루돌프: 누르면 반응, 꾸미기에서 끄면 사라짐', async ({ page }) => {
+test('산타·사슴: 누르면 반응, 꾸미기에서 끄면 사라짐', async ({ page }) => {
   await page.addInitScript(() => { window.__TREE_DEBUG__ = true; });
   await serverMode(page, { seed: seedDb({ users: [minsu], sessions: session }), token: 'cafe' });
   await page.goto('/');
   await expect(page.locator('#btnEdit')).toBeVisible();
   await page.waitForTimeout(800);
   const info = () => page.evaluate(() => window.__tree.characterInfo());
-  expect((await info()).map(c => c.kind)).toEqual(['santa', 'rudolph']);
+  expect((await info()).map(c => c.kind)).toEqual(['santa', 'deer']);
   // 캐릭터가 버튼·글귀 같은 화면 요소 밑을 지나는 순간에는 그 요소가 눌리므로, 캔버스 위에 있을 때 누른다
   const clickable = kind => page.evaluate(k => {
     const c = window.__tree.characterInfo().find(x => x.kind === k);
@@ -149,13 +149,13 @@ test('산타·루돌프: 누르면 반응, 꾸미기에서 끄면 사라짐', as
     await page.mouse.click(at.x, at.y);
   };
 
-  for (const kind of ['santa', 'rudolph']) {
+  for (const kind of ['santa', 'deer']) {
     await clickCharacter(kind);
     expect((await info()).find(x => x.kind === kind).bubble).toBeTruthy();
   }
   await shot(page, '16-characters');
 
-  // 꾸미기 → 산타·루돌프 끄기 → 저장, 눌러도 반응 없음
+  // 꾸미기 → 산타·사슴 끄기 → 저장, 눌러도 반응 없음
   await page.locator('#btnEdit').click();
   await page.locator('#edCharacters').uncheck();
   await expect(page.locator('#saveState')).toHaveText('저장됨', { timeout: 5000 });

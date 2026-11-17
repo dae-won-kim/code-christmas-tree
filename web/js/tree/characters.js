@@ -1,8 +1,9 @@
 /**
- * 배경 캐릭터 — 썰매 탄 산타와 루돌프가 하늘을 천천히 날아다닌다 (트리 뒤에 그림)
+ * 배경 캐릭터 — 썰매 탄 산타와 사슴이 하늘을 천천히 날아다닌다 (트리 뒤에 그림)
  *  - 그림 파일 없이 캔버스 도형으로 직접 그린다
  *  - 화면 안의 임의 지점을 차례로 목표로 삼아 부드럽게 방향을 틀며 이동
- *  - 누르면(클릭·터치) 반응: 산타는 "호호호!" 하며 폴짝 + 선물 반짝이, 루돌프는 코가 번쩍 + 폴짝
+ *  - 누르면(클릭·터치) 반응: 산타는 "호호호!" 하며 폴짝 + 선물 반짝이, 사슴은 목의 방울이 반짝 + 폴짝
+ *  - 사슴은 특정 캐릭터(상표)를 흉내 내지 않도록 이름·빨간 코 같은 고유한 특징을 쓰지 않는다
  */
 import { TAU, rnd, clamp01 } from './patterns.js';
 
@@ -10,7 +11,7 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function createCharacters({ ctx, view, burst, isMobile }) {
   const base = () => Math.max(34, Math.min(60, Math.min(view.W, view.H) * 0.07));
-  const speedOf = kind => (isMobile ? 20 : 28) * (kind === 'rudolph' ? 1.25 : 1) * (REDUCED ? 0.4 : 1);
+  const speedOf = kind => (isMobile ? 20 : 28) * (kind === 'deer' ? 1.25 : 1) * (REDUCED ? 0.4 : 1);
 
   function make(kind) {
     const c = {
@@ -26,7 +27,7 @@ export function createCharacters({ ctx, view, burst, isMobile }) {
     c.tx = rnd(.06, .94) * view.W;
     c.ty = rnd(.14, .66) * view.H;
   }
-  const list = [make('santa'), make('rudolph')];
+  const list = [make('santa'), make('deer')];
   let enabled = true, last = null;
 
   /* ---------- 그리기: 좌표는 캐릭터 크기 50 기준, 오른쪽을 바라보는 모습 ---------- */
@@ -76,7 +77,7 @@ export function createCharacters({ ctx, view, burst, isMobile }) {
     ctx.restore();
   }
 
-  function drawRudolph(t, react) {
+  function drawDeer(t, react) {
     const gallop = t * (react ? 14 : 7);
     // 다리 (달리는 모양)
     ctx.strokeStyle = '#6e4630'; ctx.lineWidth = 3.4; ctx.lineCap = 'round';
@@ -88,9 +89,16 @@ export function createCharacters({ ctx, view, burst, isMobile }) {
     ctx.fillStyle = '#8a5a3c'; ctx.beginPath(); ctx.ellipse(0, 0, 21, 10, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = '#c99c72'; ctx.beginPath(); ctx.ellipse(2, 4, 13, 4.5, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(-21, -4, 4, 3, -.5, 0, TAU); ctx.fill();   // 꼬리
-    // 목도리 + 방울
-    ctx.fillStyle = '#d7263d'; ctx.beginPath(); ctx.ellipse(15, -5, 5, 7, .4, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#ffd678'; ctx.beginPath(); ctx.arc(17, 1, 2.6, 0, TAU); ctx.fill();
+    // 목도리 + 방울 (반응하면 방울이 빛나며 흔들림)
+    ctx.fillStyle = '#2e7d4f'; ctx.beginPath(); ctx.ellipse(15, -5, 5, 7, .4, 0, TAU); ctx.fill();
+    const ring = react ? 1 : .3 + .2 * Math.sin(t * 2.5);
+    const bg = ctx.createRadialGradient(17, 1, 0, 17, 1, react ? 20 : 8);
+    bg.addColorStop(0, `rgba(255,220,120,${.7 * ring})`); bg.addColorStop(1, 'rgba(255,210,100,0)');
+    ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(17, 1, react ? 20 : 8, 0, TAU); ctx.fill();
+    ctx.save(); ctx.translate(17, 1); ctx.rotate(react ? Math.sin(t * 24) * .5 : 0);
+    ctx.fillStyle = '#ffd678'; ctx.beginPath(); ctx.arc(0, 0, react ? 3.4 : 2.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#b8862e'; ctx.fillRect(-1.6, .4, 3.2, .9);
+    ctx.restore();
     // 머리
     ctx.save(); ctx.translate(21, -12); ctx.rotate(react ? Math.sin(t * 18) * .15 : Math.sin(t * 1.7) * .05);
     ctx.strokeStyle = '#e2c290'; ctx.lineWidth = 2.2;                                           // 뿔
@@ -102,13 +110,9 @@ export function createCharacters({ ctx, view, burst, isMobile }) {
     ctx.beginPath(); ctx.ellipse(-6, -5, 3.5, 2, -.6, 0, TAU); ctx.fill();                     // 귀
     ctx.fillStyle = '#c99c72'; ctx.beginPath(); ctx.ellipse(7, 2, 5.5, 4, 0, 0, TAU); ctx.fill();   // 주둥이
     ctx.fillStyle = '#2b1d1a'; ctx.beginPath(); ctx.arc(2.5, -2.5, 1.3, 0, TAU); ctx.fill();         // 눈
-    // 빨간 코 (반응하면 크게 번쩍)
-    const glow = react ? 1 : .35 + .25 * Math.sin(t * 3);
-    const gr = ctx.createRadialGradient(12, 1.5, 0, 12, 1.5, react ? 22 : 9);
-    gr.addColorStop(0, `rgba(255,90,90,${.75 * glow})`); gr.addColorStop(1, 'rgba(255,60,60,0)');
-    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(12, 1.5, react ? 22 : 9, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#ff3b3b'; ctx.beginPath(); ctx.arc(12, 1.5, react ? 4.2 : 3.2, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.beginPath(); ctx.arc(11, .3, 1, 0, TAU); ctx.fill();
+    // 코 (평범한 짙은 갈색)
+    ctx.fillStyle = '#3a2418'; ctx.beginPath(); ctx.ellipse(12, 1.2, 2.4, 2, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.45)'; ctx.beginPath(); ctx.arc(11.3, .5, .7, 0, TAU); ctx.fill();
     ctx.restore();
   }
 
@@ -161,7 +165,7 @@ export function createCharacters({ ctx, view, burst, isMobile }) {
       ctx.scale(Math.max(.05, Math.abs(c.flip)) * Math.sign(c.flip || 1) * k, k);
       ctx.rotate(Math.atan2(c.vy, Math.abs(c.vx) + 30) * .5);                    // 오르내릴 때 살짝 기울기
       ctx.globalAlpha = .95;
-      c.kind === 'santa' ? drawSanta(now + c.phase, react) : drawRudolph(now + c.phase, react);
+      c.kind === 'santa' ? drawSanta(now + c.phase, react) : drawDeer(now + c.phase, react);
       ctx.restore();
       if (c.bubble && now < c.bubbleUntil) {
         drawBubble(c, x, y - size * .55, c.bubble, clamp01((c.bubbleUntil - now) / .4));
@@ -182,7 +186,7 @@ export function createCharacters({ ctx, view, burst, isMobile }) {
 
   const LINES = {
     santa: ['호호호! 메리 크리스마스!', '착한 어린이에게 선물을! 🎁', '올해도 수고 많았어요!'],
-    rudolph: ['반짝! ✨', '코가 빛나요!', '루돌프가 인사해요 🦌']
+    deer: ['반짝! ✨', '방울 소리 딸랑~ 🔔', '사슴이 인사해요 🦌']
   };
   /** 반응: 폴짝 + 말풍선 + 반짝이 */
   function react(c, now) {

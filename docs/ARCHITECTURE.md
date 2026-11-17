@@ -5,7 +5,7 @@
 ```
 ┌────────────── GitHub Pages (정적 호스팅, 무료) ──────────────┐
 │  web/index.html + js/*.js                                     │
-│   ├─ 캔버스 트리 렌더러 (무늬 8종, 사진, 산타·루돌프, 눈)      │
+│   ├─ 캔버스 트리 렌더러 (무늬 8종, 사진, 산타·사슴, 눈)      │
 │   └─ TreeApi (js/api.js) ── 모든 DB 접근의 유일한 통로          │
 └───────────────┬───────────────────────────────────────────────┘
                 │ HTTPS (supabase-js, Publishable key)
@@ -173,7 +173,7 @@ index.html ─ config.js(window.TREE_CONFIG) ─ js/main.js
                                               ├─ tree/renderer.js  createTree(canvas, options) → 트리 API
                                               │    ├─ patterns.js (무늬 8종 목표점) · photos.js (사진 연출·히트 테스트)
                                               │    ├─ viewer.js (FLIP 확대 보기) · messages.js (타이핑)
-                                              │    └─ characters.js (산타·루돌프: 배경 비행 + 누르면 반응)
+                                              │    └─ characters.js (산타·사슴: 배경 비행 + 누르면 반응)
                                               ├─ ui/login.js(로그인 + PIN 복구) · ui/editor.js · ui/share.js  (화면별 mount → destroy)
                                               ├─ ui/library.js  사이드 목록: 내 트리(3개) · 담은 트리 · 최근 본 트리
                                               └─ api.js TreeApi ─ supabase-js (CDN, 서버 모드에서만 로드)
@@ -188,7 +188,7 @@ index.html ─ config.js(window.TREE_CONFIG) ─ js/main.js
 - **내 트리 여러 개:** 마지막으로 편집한 트리 id를 localStorage에 기억해 다시 열고, 지워진 트리면 맨 앞 트리로 돌아갑니다.
   사이드 목록에서 이름(=제목) 바꾸기·순서(▲▼)·새로 만들기·지우기(사진이 없는 트리만)를 합니다.
   좁은 화면(1100px 미만)에서는 사이드 목록과 꾸미기 패널이 겹치므로 하나를 열면 다른 하나가 닫힙니다.
-- **산타·루돌프(`tree/characters.js`):** 그림 파일 없이 캔버스 도형으로 그리고, 트리 뒤 하늘을 목표 지점을 바꿔 가며 천천히 납니다.
+- **산타·사슴(`tree/characters.js`):** 그림 파일 없이 캔버스 도형으로 그리고, 트리 뒤 하늘을 목표 지점을 바꿔 가며 천천히 납니다.
   누르면 말풍선·반짝이·폴짝 반응. 트리 설정 `characters`로 끌 수 있고, `prefers-reduced-motion`이면 더 느리게 움직입니다.
 - XSS 방어 3겹: ① 사용자 입력은 `textContent`로만 출력 ② CSP로 스크립트 출처를 `self` + jsdelivr로 제한 ③ supabase-js는 SRI로 파일 내용까지 고정.
 

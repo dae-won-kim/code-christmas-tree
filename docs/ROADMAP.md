@@ -10,7 +10,7 @@
 - ✅ **Phase 4** 실제 배포 — https://dae-won-kim.github.io/code-christmas-tree/ (Supabase GitHub 통합으로 마이그레이션 자동 적용)
   - 남은 확인: Supabase **Security Advisor** 경고 검토 (대시보드에서만 가능)
 - ✅ **Phase 6** 트리 목록(담기 · 최근 본 트리, 사이드 서랍)
-- ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·루돌프 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
+- ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·사슴 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
   - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
 - 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스·제3자 고지 완료, README 정리·GIF 남음
@@ -137,7 +137,7 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [x] 마이그레이션 `20261117110000_accounts_v2.sql` — v1 데이터는 버림(운영자 결정), 재실행 시엔 지우지 않음.
       업그레이드 테스트(`supabase/tests/upgrade/`)로 배포된 v1 DB에 적용하는 상황 검증
 - [x] 무늬 8종 (은하수 소용돌이 · 캔디 스트라이프 · 눈꽃 결정층 · 금빛 가랜드 추가), 자동 전환 12초 → 1분
-- [x] 산타·루돌프가 배경을 천천히 날아다니고 누르면 반응 (`tree/characters.js`, 끄기 설정)
+- [x] 산타·사슴가 배경을 천천히 날아다니고 누르면 반응 (`tree/characters.js`, 끄기 설정)
 - [x] 눈 양 증가 (데스크톱 160 → 300, 모바일 90 → 170, 가끔 큰 눈송이)
 - [x] 줄바꿈 LF 고정(`.gitattributes`) — Windows에서 CRLF가 섞여 `test-db.sh`가 리눅스에서 깨지는 문제 방지
 - [ ] push 후: Storage에 남은 v1 사진 파일을 대시보드에서 비우기

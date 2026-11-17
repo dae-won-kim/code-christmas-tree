@@ -180,6 +180,6 @@ export function makeSample(emoji, c1, c2, label, w, h) {
 export const SAMPLE_PHOTOS = () => [
   makeSample('⛄', '#1d3a6e', '#5a8fd6', '눈사람', 640, 480),
   makeSample('🎁', '#6e1d2a', '#d65a6a', '선물', 480, 600),
-  makeSample('🦌', '#2a4a2a', '#6aa86a', '루돌프', 640, 480),
+  makeSample('🦌', '#2a4a2a', '#6aa86a', '사슴', 640, 480),
   makeSample('🕯️', '#3a2a12', '#c8963c', '촛불', 520, 520)
 ];

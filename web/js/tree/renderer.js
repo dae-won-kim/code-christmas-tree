@@ -26,7 +26,7 @@ export function createTree(canvas, options = {}) {
     pattern: 0,
     autoRotate: true,        // 자동 회전
     patternCycle: true,      // 무늬 자동 전환
-    characters: true,        // 배경에 산타·루돌프
+    characters: true,        // 배경에 산타·사슴
     gifts: true,             // 트리 아래 선물 상자
     decorations: null,       // 장식 목록 (null이면 기본 장식)
     patternInterval: 60,     // 무늬 자동 전환 간격(초)
@@ -442,7 +442,7 @@ export function createTree(canvas, options = {}) {
     /** 트리를 그릴 아래쪽 한계(px). null이면 글귀 위까지 (편집 패널이 트리를 가릴 때) */
     setInsetBottom(px) { const v = px == null ? null : Math.round(px); if (v !== insetBottom) { insetBottom = v; layout(); } },
 
-    /** 테스트·디버그용: 산타·루돌프의 위치와 반응 상태 */
+    /** 테스트·디버그용: 산타·사슴의 위치와 반응 상태 */
     characterInfo: () => characters.info(),
 
     /** 레이아웃 다시 계산 (위·아래 UI 크기가 바뀌었을 때) */
