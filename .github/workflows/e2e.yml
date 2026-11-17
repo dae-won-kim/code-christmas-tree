@@ -1,0 +1,36 @@
+# 프론트엔드 E2E 테스트 (Playwright + window.supabase mock, 실제 Supabase 불필요)
+name: E2E tests
+
+on:
+  push:
+    paths: ['web/**', 'tests/e2e/**', 'playwright.config.js', 'package.json', 'package-lock.json', 'scripts/serve.py', '.github/workflows/e2e.yml']
+  pull_request:
+    paths: ['web/**', 'tests/e2e/**', 'playwright.config.js', 'package.json', 'package-lock.json', 'scripts/serve.py', '.github/workflows/e2e.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: 의존성 설치
+        run: npm ci
+      - name: Chromium 설치
+        run: npx playwright install --with-deps chromium
+      - name: 테스트 실행
+        run: npm run test:e2e
+      - name: 결과(스크린샷·trace) 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
