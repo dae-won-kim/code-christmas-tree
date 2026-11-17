@@ -12,7 +12,7 @@
 - ✅ **Phase 6** 트리 목록(담기 · 최근 본 트리, 사이드 서랍)
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·루돌프 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
-  - ⚠ 운영자 설정 필요: Supabase Auth 메일 템플릿(`{{ .Token }}`) + Custom SMTP (DEPLOY.md 2-1) — 이것 전까지 PIN 복구 메일만 실패
+  - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
 - 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스 표기·GIF 남음
 
 ---
@@ -136,8 +136,9 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [x] 눈 양 증가 (데스크톱 160 → 300, 모바일 90 → 170, 가끔 큰 눈송이)
 - [x] 줄바꿈 LF 고정(`.gitattributes`) — Windows에서 CRLF가 섞여 `test-db.sh`가 리눅스에서 깨지는 문제 방지
 - [ ] push 후: Storage에 남은 v1 사진 파일을 대시보드에서 비우기
-- [ ] push 후: Supabase Auth 설정 — Confirm signup·Magic Link 템플릿에 `{{ .Token }}`, Custom SMTP, OTP 만료 900초 (DEPLOY.md 2-1)
-- [ ] push 후: 실제 메일로 복구 흐름 확인, Authentication → Users에 임시 사용자가 남지 않는지
+- [x] Supabase Auth 설정 — Confirm signup·Magic Link 템플릿에 `{{ .Token }}`, Custom SMTP, OTP 만료 900초 (DEPLOY.md 2-1) — 2026-11-17 완료 (Gmail SMTP)
+- [x] 실제 메일로 복구 흐름 확인 (2026-11-17)
+- [ ] Authentication → Users에 임시 사용자가 남지 않는지
 
 ## 백로그 (아이디어)
 - 방문자 방명록: 공유 트리에 이름 없이 글귀 남기기 (승인제)
