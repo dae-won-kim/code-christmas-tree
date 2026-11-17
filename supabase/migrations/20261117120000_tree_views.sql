@@ -7,6 +7,7 @@
 --    담았다고 해서 남의 트리를 고칠 수 있게 되지는 않는다.
 --  - 트리 주인은 누가 자기 트리를 봤는지 알 수 없다 (그런 조회 RPC를 만들지 않음)
 --
+--  20261117110000_multi_trees.sql 다음에 실행된다: 본 트리는 trees(id)를 가리키고, 주인은 trees.owner_id.
 --  배포 후 추가된 마이그레이션이므로 20261117000000_init.sql은 수정하지 않았다.
 --  여러 번 실행해도 안전하다(idempotent).
 -- =====================================================================
@@ -14,12 +15,11 @@
 -- ── 테이블 ───────────────────────────────────────────────────────────
 create table if not exists public.tree_views (
   viewer_id  uuid        not null references public.tree_users(id) on delete cascade,  -- 보는 사람
-  tree_id    uuid        not null references public.tree_users(id) on delete cascade,  -- 본 트리(주인)
+  tree_id    uuid        not null references public.trees(id) on delete cascade,       -- 본 트리
   saved      boolean     not null default false,   -- [담기]를 눌렀는가
   saved_at   timestamptz,
   viewed_at  timestamptz,                          -- 마지막으로 본 시각 (null이면 기록에서 지운 것)
   constraint tree_views_pkey       primary key (viewer_id, tree_id),
-  constraint tree_views_not_self   check (viewer_id <> tree_id),
   constraint tree_views_has_reason check (saved or viewed_at is not null)   -- 담지도 않고 기록도 없으면 행이 없어야 함
 );
 comment on table public.tree_views is '본 트리 기록 + 담은 트리. 보는 사람(viewer_id)만 RPC로 읽고 쓴다';
@@ -32,13 +32,13 @@ revoke all on table public.tree_views from anon, authenticated;
 
 
 -- ── 내부 함수 ────────────────────────────────────────────────────────
--- share_id → 트리 주인 id (없으면 not_found)
+-- share_id → 트리 id (없으면 not_found)
 create or replace function private.tree_id_by_share(p_share_id text)
 returns uuid language plpgsql stable set search_path = ''
 as $$
 declare v uuid;
 begin
-  select u.id into v from public.tree_users u where u.share_id = p_share_id;
+  select t.id into v from public.trees t where t.share_id = p_share_id;
   if v is null then raise exception 'not_found'; end if;
   return v;
 end $$;
@@ -65,6 +65,13 @@ end $$;
 
 -- ── 공개 RPC ─────────────────────────────────────────────────────────
 
+-- 이 트리의 주인이 v인가 (내 트리는 기록·담기 대상이 아님)
+create or replace function private.is_own_tree(p_user uuid, p_tree uuid)
+returns boolean language sql stable set search_path = ''
+as $$
+  select exists (select 1 from public.trees t where t.id = p_tree and t.owner_id = p_user);
+$$;
+
 -- 공유 보기를 열 때 호출: 본 기록 남기기. 내 트리면 기록하지 않음
 --  반환: { own: 내 트리인가, saved: 담아 둔 트리인가 }
 create or replace function public.record_view(p_token text, p_share_id text)
@@ -75,7 +82,7 @@ declare
   t       uuid := private.tree_id_by_share(p_share_id);
   v_saved boolean;
 begin
-  if t = v then return json_build_object('own', true, 'saved', false); end if;
+  if private.is_own_tree(v, t) then return json_build_object('own', true, 'saved', false); end if;
   insert into public.tree_views as tv (viewer_id, tree_id, viewed_at)
     values (v, t, now())
     on conflict (viewer_id, tree_id) do update set viewed_at = now()
@@ -92,11 +99,12 @@ declare v uuid := private.require_user(p_token);
 begin
   return coalesce((
     select json_agg(json_build_object(
-             'share_id', u.share_id, 'name', u.name, 'title', u.title,
+             'share_id', t.share_id, 'name', u.name, 'title', t.title,
              'saved', tv.saved, 'saved_at', tv.saved_at, 'viewed_at', tv.viewed_at)
            order by coalesce(tv.viewed_at, tv.saved_at) desc)
       from public.tree_views tv
-      join public.tree_users u on u.id = tv.tree_id
+      join public.trees t      on t.id = tv.tree_id
+      join public.tree_users u on u.id = t.owner_id
      where tv.viewer_id = v
   ), '[]'::json);
 end $$;
@@ -109,7 +117,7 @@ declare
   v uuid := private.require_user(p_token);
   t uuid := private.tree_id_by_share(p_share_id);
 begin
-  if t = v then raise exception 'own_tree'; end if;
+  if private.is_own_tree(v, t) then raise exception 'own_tree'; end if;
   if coalesce(p_saved, false) then
     if not exists (select 1 from public.tree_views tv where tv.viewer_id = v and tv.tree_id = t and tv.saved)
        and (select count(*) from public.tree_views tv where tv.viewer_id = v and tv.saved) >= 100 then
@@ -138,7 +146,7 @@ declare
   n integer; m integer;
 begin
   if p_share_id is not null then
-    select u.id into t from public.tree_users u where u.share_id = p_share_id;
+    select x.id into t from public.trees x where x.share_id = p_share_id;
     if t is null then return 0; end if;
   end if;
   delete from public.tree_views tv
@@ -169,10 +177,10 @@ begin
      where jsonb_typeof(e) = 'object'
   )
   insert into public.tree_views as tv (viewer_id, tree_id, viewed_at)
-    select v, u.id, max(i.viewed_at)
-      from items i join public.tree_users u on u.share_id = i.share_id
-     where u.id <> v
-     group by u.id
+    select v, t.id, max(i.viewed_at)
+      from items i join public.trees t on t.share_id = i.share_id
+     where t.owner_id <> v
+     group by t.id
     on conflict (viewer_id, tree_id) do update
       set viewed_at = greatest(coalesce(tv.viewed_at, excluded.viewed_at), excluded.viewed_at);
   get diagnostics n = row_count;
@@ -183,7 +191,8 @@ end $$;
 
 -- ── 실행 권한 ────────────────────────────────────────────────────────
 -- 새 private 함수는 아무도 직접 실행할 수 없게
-revoke all on function private.tree_id_by_share(text), private.trim_views(uuid) from public, anon, authenticated;
+revoke all on function private.tree_id_by_share(text), private.trim_views(uuid), private.is_own_tree(uuid, uuid)
+  from public, anon, authenticated;
 
 do $$
 declare f text;

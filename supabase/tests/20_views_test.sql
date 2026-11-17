@@ -27,9 +27,9 @@ grant execute on all functions in schema t to anon;
 set role anon;
 
 -- 트리 주인 '하늘', 보는 사람 '바다', 또 다른 사람 '구름'
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('하늘','135790',true) x) s \gset o_
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('바다','246802',true) x) s \gset v_
-select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('구름','112233',true) x) s \gset w_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('하늘', '990101', 'pw-135790', true) x) s \gset o_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('바다', '990101', 'pw-246802', true) x) s \gset v_
+select x->>'token' as tok, x->>'share_id' as share from (select enter_tree('구름', '990101', 'pw-112233', true) x) s \gset w_
 
 -- ── T20 본 기록 ────────────────────────────────────────────────────
 select t.ok((record_view(:'v_tok', :'o_share'))->>'own' = 'false', 'T20 남의 트리를 보면 기록됨');
@@ -84,21 +84,25 @@ select t.expect_err(format('select merge_views(%L, %L)', :'w_tok', '{"a":1}'), '
 
 -- ── T25 기록 50개 제한 (담은 트리는 기록만 빠지고 남음) ─────────────────
 reset role;
-insert into tree_users (name, pin_hash)
-  select '기록' || chr(44032 + g), encode(extensions.digest('views-test-' || g, 'sha256'), 'hex')
+-- created_at을 과거로: "전체 1시간 60개" 가입 제한이 다음 테스트 파일에 영향을 주지 않도록
+insert into tree_users (name, birth_hash, pw_hash, created_at)
+  select '기록' || chr(44032 + g), encode(extensions.digest('views-birth-' || g, 'sha256'), 'hex'),
+         encode(extensions.digest('views-test-' || g, 'sha256'), 'hex'), now() - interval '2 hours'
     from generate_series(1, 55) g;
+insert into trees (owner_id) select id from tree_users where name like '기록%';
 insert into tree_views (viewer_id, tree_id, viewed_at, saved, saved_at)
-  select (select id from tree_users where share_id = :'w_share'), u.id,
+  select (select owner_id from trees where share_id = :'w_share'), x.id,
          now() - (g || ' hours')::interval, g = 55, case when g = 55 then now() end
-    from (select id, row_number() over (order by name) as g from tree_users where name like '기록%') u;
+    from (select t.id, row_number() over (order by u.name) as g
+            from trees t join tree_users u on u.id = t.owner_id where u.name like '기록%') x;
 set role anon;
 select record_view(:'w_tok', :'o_share');
 reset role;
 select t.ok((select count(*) from tree_views
-              where viewer_id = (select id from tree_users where share_id = :'w_share') and viewed_at is not null) = 50,
+              where viewer_id = (select owner_id from trees where share_id = :'w_share') and viewed_at is not null) = 50,
             'T25 본 기록은 최근 50개만 유지');
 select t.ok((select count(*) from tree_views
-              where viewer_id = (select id from tree_users where share_id = :'w_share') and saved and viewed_at is null) = 1,
+              where viewer_id = (select owner_id from trees where share_id = :'w_share') and saved and viewed_at is null) = 1,
             'T25 오래된 기록이라도 담은 트리는 목록에 남음');
 set role anon;
 select forget_views(:'w_tok') as forgot_all \gset
@@ -112,7 +116,7 @@ select t.expect_err($$select private.trim_views(gen_random_uuid())$$, 'permissio
 
 -- ── T27 트리가 삭제되면 목록에서도 사라짐 (cascade) ─────────────────────
 reset role;
-delete from tree_users where share_id = :'o_share';
+delete from trees where share_id = :'o_share';
 set role anon;
 select t.ok(json_array_length(list_trees(:'v_tok')) = 0, 'T27 삭제된 트리는 목록에서도 사라짐');
 

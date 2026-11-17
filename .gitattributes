@@ -1,0 +1,4 @@
+# 줄바꿈은 항상 LF (Windows에서 CRLF가 섞이면 scripts/*.sh가 리눅스·CI에서 깨짐)
+* text=auto eol=lf
+*.png binary
+*.jpg binary

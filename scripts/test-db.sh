@@ -41,17 +41,43 @@ PSQL=(psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -X)
 echo "▶ Supabase mock 준비"
 "${PSQL[@]}" -f supabase/tests/00_mock_supabase.sql
 
-echo "▶ 마이그레이션 적용 (2회: 재실행 안전성 확인)"
-for round in 1 2; do
-  for f in supabase/migrations/*.sql; do "${PSQL[@]}" -f "$f"; done
+# 각 파일을 연속 2번씩: 같은 마이그레이션을 다시 실행해도 안전한지(idempotent) 확인
+# (옛 파일을 새 파일 뒤에 다시 실행하는 일은 실제로 없으므로 파일 단위로 반복한다)
+echo "▶ 마이그레이션 적용 (파일마다 2회: 재실행 안전성 확인)"
+for f in supabase/migrations/*.sql; do
+  "${PSQL[@]}" -f "$f"; "${PSQL[@]}" -f "$f"
 done
+
+run_tests() {   # $1: DB 주소, 나머지: 테스트 파일
+  local url=$1; shift
+  for f in "$@"; do
+    echo "  ── $(basename "$f")"
+    OUT=$(PGOPTIONS="-c client_min_messages=notice" psql "$url" -v ON_ERROR_STOP=1 -q -X -f "$f" 2>&1) || { echo "$OUT" | sed 's/^psql:[^ ]* //' | grep -E "PASS|FAIL|ERROR"; exit 1; }
+    echo "$OUT" | grep -oE "(PASS|FAIL) .*" | sed 's/^/  /'
+    TOTAL=$((TOTAL + $(echo "$OUT" | grep -c 'PASS')))
+  done
+}
 
 echo "▶ RPC·보안 테스트"
 TOTAL=0
-for f in supabase/tests/[1-9]*_test.sql; do   # 00_mock_supabase.sql을 뺀 테스트 파일을 이름 순서대로
-  echo "  ── $(basename "$f")"
-  OUT=$(PGOPTIONS="-c client_min_messages=notice" "${PSQL[@]}" -f "$f" 2>&1) || { echo "$OUT" | sed 's/^psql:[^ ]* //' | grep -E "PASS|FAIL|ERROR"; exit 1; }
-  echo "$OUT" | grep -oE "(PASS|FAIL) .*" | sed 's/^/  /'
-  TOTAL=$((TOTAL + $(echo "$OUT" | grep -c 'PASS')))
-done
+run_tests "$DATABASE_URL" supabase/tests/[1-9]*_test.sql   # 00_mock_supabase.sql을 뺀 테스트 파일을 이름 순서대로
+
+# 업그레이드 테스트: 이미 배포된 DB(첫 마이그레이션만 적용 + 데이터 있음)에 나머지를 적용
+#  - 처음 적용: v1 데이터는 버려지고(운영자 결정) v2가 정상 동작하는지 (after.sql)
+#  - 다시 적용: v2 데이터가 지워지지 않는지 (rerun.sql)
+echo "▶ 업그레이드 테스트 (배포된 DB에 새 마이그레이션 적용)"
+UPG_DB=tree_upgrade_test
+"${PSQL[@]}" -c "drop database if exists $UPG_DB" -c "create database $UPG_DB"
+UPG_URL="${DATABASE_URL%/*}/$UPG_DB"
+UPG=(psql "$UPG_URL" -v ON_ERROR_STOP=1 -q -X)
+MIGS=(supabase/migrations/*.sql)
+"${UPG[@]}" -f supabase/tests/00_mock_supabase.sql
+"${UPG[@]}" -f "${MIGS[0]}"                                     # 배포된 상태
+run_tests "$UPG_URL" supabase/tests/upgrade/before.sql                 # 옛 RPC로 데이터 만들기
+for f in "${MIGS[@]:1}"; do "${UPG[@]}" -f "$f"; done
+run_tests "$UPG_URL" supabase/tests/upgrade/after.sql
+for f in "${MIGS[@]:1}"; do "${UPG[@]}" -f "$f"; done
+run_tests "$UPG_URL" supabase/tests/upgrade/rerun.sql
+"${PSQL[@]}" -c "drop database if exists $UPG_DB"
+
 echo "✅ 통과: ${TOTAL}개"
