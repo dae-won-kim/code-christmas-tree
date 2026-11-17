@@ -83,8 +83,10 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [x] E2E CI 워크플로
 
 사람이 할 일
-- [ ] Supabase 프로젝트 생성, 마이그레이션 적용 (docs/DEPLOY.md 1~3)
-- [ ] GitHub Variables 등록, Pages 소스를 GitHub Actions로 설정
+- [x] Supabase 프로젝트 생성 + GitHub 통합 연결 (Deploy to production: `main` push 때 `supabase/migrations` 자동 적용)
+- [ ] 마이그레이션 적용 확인 (docs/DEPLOY.md 2~3)
+- [x] GitHub 저장소 생성 (dae-won-kim/code-christmas-tree), Pages 소스를 GitHub Actions로 설정
+- [ ] GitHub Variables 등록 (`SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`)
 - [ ] DEPLOY.md 6번 체크리스트 전부 통과 (특히 Storage 정책 실동작)
 - [ ] 배포 후에는 `20261117000000_init.sql`을 수정하지 않고, 변경 사항은 새 마이그레이션 파일로 추가
 
