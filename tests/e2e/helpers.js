@@ -36,14 +36,36 @@ export async function serverMode(page, { mock = true, seed, token } = {}) {
   if (mock) await page.addInitScript({ path: MOCK });
 }
 
-/** 기본 mock DB 상태 하나 만들기 */
-export function seedDb({ users = [], messages = [], photos = [], objects = {}, sessions = {}, attempts = [], views = [] } = {}) {
-  return { seq: 100, users, sessions, attempts, tickets: [], messages, photos, objects, views, log: [] };
+/**
+ * 기본 mock DB 상태 만들기 (계정 v2)
+ *  users의 각 항목은 "사용자 + 첫 트리"를 함께 적는다 → 여기서 users와 trees로 나눔 (첫 트리 id = 사용자 id)
+ *  messages·photos는 tree_id(또는 예전처럼 user_id = 첫 트리)로 적는다
+ */
+export function seedDb({ users = [], trees = [], messages = [], photos = [], objects = {}, sessions = {}, attempts = [], views = [] } = {}) {
+  const firstTrees = users.map(u => ({
+    id: u.id, owner: u.id, share_id: u.share_id, title: u.title ?? 'Merry Christmas', pattern: u.pattern ?? 0,
+    settings: u.settings ?? {}, position: 0, created_at: u.created_at ?? Date.now()
+  }));
+  return {
+    seq: 100,
+    users: users.map(({ id, name, birth, pw, created_at }) => ({ id, name, birth, pw, created_at: created_at ?? Date.now() })),
+    trees: [...firstTrees, ...trees],
+    sessions, attempts, tickets: [], objects, views, log: [],
+    messages: messages.map(({ user_id, tree_id, ...m }) => ({ ...m, tree_id: tree_id ?? user_id })),
+    photos: photos.map(({ user_id, tree_id, ...p }) => ({ ...p, tree_id: tree_id ?? user_id }))
+  };
 }
 export const sampleUser = (over = {}) => ({
-  id: '11111111-1111-4111-8111-111111111111', name: '이영희', pin: '5678', share_id: 'shareABC_123',
+  id: '11111111-1111-4111-8111-111111111111', name: '이영희', birth: '950505', pw: 'Younghee#1', share_id: 'shareABC_123',
   title: '영희네 트리', pattern: 1, settings: {}, created_at: Date.now(), ...over
 });
+
+/** 로그인 칸 채우기 */
+export async function fillLogin(page, { name, birth, password }) {
+  await page.locator('#inName').fill(name);
+  await page.locator('#inBirth').fill(birth);
+  await page.locator('#inPassword').fill(password);
+}
 
 export const mockDb = page => page.evaluate(() => window.__mock.db());
 

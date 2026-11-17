@@ -76,17 +76,23 @@ test('편집 중 세션 만료(unauthorized) → 로그인 화면으로', async 
 test('느린 네트워크: 불러오는 동안에는 도구 막대 버튼을 숨김', async ({ page }) => {
   const u = sampleUser();
   await serverMode(page, { seed: seedDb({ users: [u], sessions: { cafe: { user: u.id, exp: Date.now() + 1e9 } } }), token: 'cafe' });
-  await page.addInitScript(() => { window.__mock.delays = { get_my_tree: 1500, get_tree: 1500 }; });
+  await page.addInitScript(() => { window.__mock.delays = { get_my_tree: 3000, get_tree: 3000 }; });
+  // "로딩 중"과 "도구 막대 숨김"을 같은 순간에 확인 (따로 보면 그사이 로딩이 끝날 수 있음)
+  const snapshot = () => page.evaluate(() => ({
+    loading: !document.getElementById('screen').hidden,
+    toolbar: getComputedStyle(document.getElementById('toolbar')).visibility
+  }));
   await page.goto('/');
   await expect(page.locator('#screenText')).toHaveText('트리를 불러오는 중…');
-  await expect(page.locator('#toolbar')).toBeHidden();          // 아직 동작하지 않는 버튼을 누를 수 없음
-  await expect(page.locator('#btnEdit')).toBeVisible({ timeout: 5000 });
+  expect(await snapshot()).toEqual({ loading: true, toolbar: 'hidden' });   // 아직 동작하지 않는 버튼을 누를 수 없음
+  await expect(page.locator('#btnEdit')).toBeVisible({ timeout: 8000 });
   await page.locator('#btnEdit').click();
   await expect(page.locator('#editPanel')).toBeVisible();        // 보이자마자 눌러도 동작
 
   await page.goto('/?t=shareABC_123');
-  await expect(page.locator('#toolbar')).toBeHidden();
-  await expect(page.locator('#btnMake')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('#screenText')).toHaveText('트리를 불러오는 중…');
+  expect(await snapshot()).toEqual({ loading: true, toolbar: 'hidden' });
+  await expect(page.locator('#btnMake')).toBeVisible({ timeout: 8000 });
 });
 
 test('불러오기 실패(네트워크) → 오류 화면에서 다시 시도', async ({ page }) => {
@@ -141,7 +147,7 @@ test('한글 IME: 조합 중에는 검증 메시지가 깜빡이지 않음', asy
   // 한 글자는 입력 중에는 알리지 않고, 칸을 벗어날 때 알림
   await page.locator('#inName').fill('김');
   await expect(msg).toBeEmpty();
-  await page.locator('#inPin').focus();
+  await page.locator('#inBirth').focus();
   await expect(msg).toHaveText('이름은 2자 이상이에요.');
 
   // 조합 중 Enter(확정)로는 제출하지 않음
@@ -150,18 +156,20 @@ test('한글 IME: 조합 중에는 검증 메시지가 깜빡이지 않음', asy
     i.value = '김민';
     i.dispatchEvent(new CompositionEvent('compositionstart', { data: '' }));
   });
-  await page.locator('#inPin').fill('1234');
+  await page.locator('#inBirth').fill('990101');
+  await page.locator('#inPassword').fill('Tree#2026');
   await page.evaluate(() => document.getElementById('loginCard').requestSubmit());
   await page.waitForTimeout(300);
   expect((await mockDb(page)).log).toEqual([]);
 });
 
 test('속도 제한: 서버 오류 메시지를 그대로 표시', async ({ page }) => {
-  const attempts = Array.from({ length: 10 }, () => ({ name: '김민수', at: Date.now() }));
+  const attempts = Array.from({ length: 10 }, () => ({ key: '김민수:990101', at: Date.now() }));
   await serverMode(page, { seed: seedDb({ attempts }) });
   await page.goto('/');
   await page.locator('#inName').fill('김민수');
-  await page.locator('#inPin').fill('123456');
+  await page.locator('#inBirth').fill('990101');
+  await page.locator('#inPassword').fill('Tree#2026');
   await page.locator('#btnEnter').click();
   await expect(page.locator('#loginError')).toHaveText('시도가 너무 많아요. 15분 뒤에 다시 시도해 주세요.');
   await shot(page, '12-login-rate-limited');

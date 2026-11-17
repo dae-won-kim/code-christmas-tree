@@ -1,40 +1,60 @@
-// 전체 흐름: 로그인 → 새 트리 → 꾸미기(제목·무늬·설정) → 글귀 → 사진 업로드·삭제 → 공유 링크 → PIN 변경 → 로그아웃 → 다시 로그인 → 공유 보기
+// 전체 흐름: 로그인 → 새 트리 → 꾸미기(제목·무늬·설정) → 글귀 → 사진 업로드·삭제 → 공유 링크 → 비밀번호 변경 → 로그아웃 → 다시 로그인 → 공유 보기
 import { test, expect, serverMode, mockDb, makeJpeg, shot, TOKEN_KEY } from './helpers.js';
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
 test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser }) => {
+  test.setTimeout(240_000);   // 단계가 많은 긴 시나리오 (병렬 실행 시 렌더링 부하로 느려질 수 있음)
   await serverMode(page);
   await page.goto('/');
 
-  const name = page.locator('#inName'), pin = page.locator('#inPin');
+  const name = page.locator('#inName'), birth = page.locator('#inBirth'), pw = page.locator('#inPassword');
 
   await test.step('로그인 화면', async () => {
     await expect(page.locator('#loginCard')).toBeVisible();
     await expect(page.locator('#btnEdit')).toBeHidden();
     await expect(page.locator('#btnText')).toBeHidden();        // 데모 전용 버튼은 숨김
-    await expect(pin).toHaveAttribute('type', 'password');
-    await expect(pin).toHaveAttribute('inputmode', 'numeric');
-    await expect(pin).toHaveAttribute('maxlength', '6');
+    await expect(pw).toHaveAttribute('type', 'password');
+    await expect(pw).toHaveAttribute('autocomplete', 'current-password');
+    await expect(birth).toHaveAttribute('inputmode', 'numeric');
+    await expect(birth).toHaveAttribute('maxlength', '6');
+    await expect(page.locator('#pwWarn')).toContainText('모두 같으면 같은 트리');   // 동명이인·비밀번호 겹침 안내
     await page.waitForTimeout(3500);                              // 트리가 모이고 제목이 나타날 때까지
     await shot(page, '01-login');
   });
 
-  await test.step('이름·PIN 검증 메시지', async () => {
+  await test.step('이름·생년월일·비밀번호 검증 메시지', async () => {
     await name.fill('kim');
     await expect(page.locator('#nameMsg')).toContainText('한글만');
     await name.fill('김민수');
     await expect(page.locator('#nameMsg')).toBeEmpty();
-    await pin.fill('12');
+    await birth.fill('991301');
+    await expect(page.locator('#birthMsg')).toContainText('없는 날짜');
+    await birth.fill('9901');
+    await pw.fill('abc');
     await page.locator('#btnEnter').click();
-    await expect(page.locator('#pinMsg')).toContainText('4자리 이상');
+    await expect(page.locator('#birthMsg')).toContainText('6자리');
+    await birth.fill('990101');
+    await page.locator('#btnEnter').click();
+    await expect(page.locator('#pwMsg')).toContainText('6자 이상');
+    // 비밀번호 보기/숨기기
+    await page.locator('#btnShowPw').click();
+    await expect(pw).toHaveAttribute('type', 'text');
+    await page.locator('#btnShowPw').click();
+    await expect(pw).toHaveAttribute('type', 'password');
   });
 
   await test.step('없는 트리 → 새로 만들기 확인 → 생성', async () => {
-    await pin.fill('1234');
+    await pw.fill('1234567');                                       // 숫자만 → 겹치기 쉽다는 안내
     await page.locator('#btnEnter').click();
     await expect(page.locator('#createConfirm')).toBeVisible();
-    await expect(page.locator('#createText')).toContainText('‘김민수’');
+    await expect(page.locator('#createText')).toContainText('‘김민수’(990101)');
+    await expect(page.locator('#createText')).toContainText('동명이인과 겹치기 쉬워요');
+    await page.locator('#btnCreateCancel').click();
+    await pw.fill('Tree#2026');
+    await page.locator('#btnEnter').click();
+    await expect(page.locator('#createConfirm')).toBeVisible();
+    await expect(page.locator('#createText')).not.toContainText('겹치기 쉬워요');
     await shot(page, '02-login-confirm');
     await page.locator('#btnCreate').click();
     await expect(page.locator('#btnEdit')).toBeVisible();
@@ -61,7 +81,7 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await expect(page.locator('#title')).toHaveText('민수네 트리');
     await expect(page.locator('#saveState')).toHaveText('저장됨', { timeout: 5000 });
     const db = await mockDb(page);
-    expect(db.users[0].title).toBe('민수네 트리');
+    expect(db.trees[0].title).toBe('민수네 트리');
     expect(db.log.filter(f => f === 'update_tree')).toHaveLength(1);
   });
 
@@ -70,9 +90,9 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await expect(page.getByRole('button', { name: '빛의 고리' })).toHaveAttribute('aria-pressed', 'true');
     await page.locator('#edAutoRotate').uncheck();
     await expect(page.locator('#saveState')).toHaveText('저장됨', { timeout: 5000 });
-    const u = (await mockDb(page)).users[0];
+    const u = (await mockDb(page)).trees[0];
     expect(u.pattern).toBe(2);
-    expect(u.settings).toEqual({ autoRotate: false, patternCycle: true });
+    expect(u.settings).toEqual({ autoRotate: false, patternCycle: true, characters: true });
     await shot(page, '04-edit-basic');
   });
 
@@ -132,7 +152,7 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await page.getByRole('tab', { name: '공유·계정' }).click();
     const db = await mockDb(page);
     shareUrl = await page.locator('#shareUrl').inputValue();
-    expect(shareUrl).toBe(new URL(`/?t=${db.users[0].share_id}`, page.url()).toString());
+    expect(shareUrl).toBe(new URL(`/?t=${db.trees[0].share_id}`, page.url()).toString());
     await page.locator('#btnCopy').click();
     await expect(page.locator('#copyState')).toHaveText('링크를 복사했어요.');
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(shareUrl);
@@ -140,20 +160,20 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await shot(page, '07-edit-account');
   });
 
-  await test.step('PIN 변경', async () => {
-    await page.locator('#pinOld').fill('1234');
-    await page.locator('#pinNew').fill('246810');
-    await page.locator('#pinNew2').fill('246811');
-    await page.locator('#btnPin').click();
-    await expect(page.locator('#pinState')).toHaveText('새 PIN 확인이 일치하지 않아요.');
-    await page.locator('#pinOld').fill('9999');
-    await page.locator('#pinNew2').fill('246810');
-    await page.locator('#btnPin').click();
-    await expect(page.locator('#pinState')).toHaveText('현재 PIN이 맞지 않아요.');
-    await page.locator('#pinOld').fill('1234');
-    await page.locator('#btnPin').click();
-    await expect(page.locator('#pinState')).toContainText('PIN을 바꿨어요');
-    expect((await mockDb(page)).users[0].pin).toBe('246810');
+  await test.step('비밀번호 변경', async () => {
+    await page.locator('#pwOld').fill('Tree#2026');
+    await page.locator('#pwNew').fill('NewTree#2026');
+    await page.locator('#pwNew2').fill('NewTree#2027');
+    await page.locator('#btnPw').click();
+    await expect(page.locator('#pwState')).toHaveText('새 비밀번호 확인이 일치하지 않아요.');
+    await page.locator('#pwOld').fill('Wrong#0000');
+    await page.locator('#pwNew2').fill('NewTree#2026');
+    await page.locator('#btnPw').click();
+    await expect(page.locator('#pwState')).toHaveText('현재 비밀번호가 맞지 않아요.');
+    await page.locator('#pwOld').fill('Tree#2026');
+    await page.locator('#btnPw').click();
+    await expect(page.locator('#pwState')).toContainText('비밀번호를 바꿨어요');
+    expect((await mockDb(page)).users[0].pw).toBe('NewTree#2026');
   });
 
   await test.step('Esc로 패널 닫기 → 포커스 복귀, 도구 막대 공유 버튼', async () => {
@@ -178,7 +198,7 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     await page.locator('#btnEditClose').click();
   });
 
-  await test.step('로그아웃 → 새 PIN으로 다시 로그인', async () => {
+  await test.step('로그아웃 → 새 비밀번호로 다시 로그인', async () => {
     await page.locator('#btnEdit').click();
     await page.getByRole('tab', { name: '공유·계정' }).click();
     await page.locator('#btnLogout').click();
@@ -188,12 +208,13 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
     expect(Object.keys((await mockDb(page)).sessions)).toHaveLength(0);
 
     await name.fill('김민수');
-    await pin.fill('1234');                                   // 옛 PIN → 없는 트리로 취급
+    await birth.fill('990101');
+    await pw.fill('Tree#2026');                               // 옛 비밀번호 → 없는 트리로 취급
     await page.locator('#btnEnter').click();
     await expect(page.locator('#createConfirm')).toBeVisible();
     await page.locator('#btnCreateCancel').click();
-    await pin.fill('246810');
-    await pin.press('Enter');
+    await pw.fill('NewTree#2026');
+    await pw.press('Enter');
     await expect(page.locator('#btnEdit')).toBeVisible();
     await expect(page.locator('#title')).toHaveText('민수네 트리');
     expect((await mockDb(page)).users).toHaveLength(1);

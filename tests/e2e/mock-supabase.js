@@ -1,24 +1,26 @@
 /**
  * E2E 테스트용 window.supabase mock (브라우저에 addInitScript로 주입)
  *
- *  - supabase/migrations/20261117000000_init.sql의 RPC 동작을 메모리에서 흉내 낸다.
- *    (오류 코드, {ok:false} 반환, 티켓 방식 업로드·삭제, 30장/50개 제한, 속도 제한)
+ *  - supabase/migrations/의 RPC 동작을 메모리에서 흉내 낸다.
+ *    (계정 v2: 이름+생년월일+비밀번호, 사용자당 트리 3개, 오류 코드, {ok:false} 반환,
+ *     티켓 방식 업로드·삭제, 30장/50개 제한, 속도 제한, 본 기록·담기)
  *  - 상태는 localStorage('__mockdb')에 저장 → 새로고침해도 유지
  *  - 실제 보안은 DB 테스트(supabase/tests)가 검증한다. 여기서는 화면 흐름만 검증한다.
  *
  * 테스트에서 쓰는 훅
- *   window.__mock.db()            현재 상태(JSON)
+ *   window.__mock.db()                  현재 상태(JSON)
  *   window.__mock.fail = { fn, error }   다음 fn 호출을 실패시킴 (error: 'network' 또는 오류 코드)
  *   window.__mock.expireSessions()      모든 세션 만료
  *   window.__mock.delays = { fn: ms }   해당 RPC 응답을 늦춤 (느린 네트워크)
  */
 (() => {
   const KEY = '__mockdb';
-  const blank = () => ({ seq: 1, users: [], sessions: {}, attempts: [], tickets: [], messages: [], photos: [], objects: {}, views: [], log: [] });
+  const blank = () => ({ seq: 1, users: [], trees: [], sessions: {}, attempts: [], tickets: [], messages: [], photos: [], objects: {}, views: [], log: [] });
   const load = () => {
     let db;
     try { db = JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { db = blank(); }
-    db.views ||= [];
+    for (const k of ['users', 'trees', 'attempts', 'tickets', 'messages', 'photos', 'views', 'log']) db[k] ||= [];
+    db.sessions ||= {}; db.objects ||= {};
     return db;
   };
   const save = db => localStorage.setItem(KEY, JSON.stringify(db));
@@ -27,124 +29,89 @@
   const shareId = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(9)))).replace(/\+/g, '-').replace(/\//g, '_');
   const now = () => Date.now();
   const norm = s => String(s ?? '').trim().normalize('NFC');
+  const len = s => [...s].length;
 
   class Raise extends Error {}
   const raise = code => { throw new Raise(code); };
 
+  /* ---------- 내부 함수 (SQL의 private.*와 같은 규칙) ---------- */
   function requireUser(db, token) {
     const s = db.sessions[token];
     if (!s || s.exp < now()) raise('unauthorized');
     return s.user;
   }
-  function treeJson(db, uid) {
-    const u = db.users.find(x => x.id === uid);
+  const validBirth = b => {
+    if (!/^[0-9]{6}$/.test(b ?? '')) return false;
+    const m = +b.slice(2, 4), d = +b.slice(4, 6);
+    return m >= 1 && m <= 12 && d >= 1 && d <= new Date(2000, m, 0).getDate();
+  };
+  const validPassword = p => typeof p === 'string' && len(p) >= 6 && len(p) <= 64 && !/[\u0000-\u001f\u007f]/.test(p);
+  const assertRate = (db, key) => {
+    if (db.attempts.filter(a => a.key === key && a.at > now() - 15 * 60e3).length >= 10) raise('rate_limited');
+  };
+  const myTrees = (db, uid) => db.trees.filter(t => t.owner === uid).sort((a, b) => a.position - b.position || a.created_at - b.created_at);
+  function ownedTree(db, uid, treeId) {
+    const t = treeId == null ? myTrees(db, uid)[0] : db.trees.find(x => x.id === treeId && x.owner === uid);
+    if (!t) raise('not_found');
+    return t;
+  }
+  function treeJson(db, t) {
+    const u = db.users.find(x => x.id === t.owner);
     return {
-      name: u.name, title: u.title, pattern: u.pattern, settings: u.settings, share_id: u.share_id,
-      messages: db.messages.filter(m => m.user_id === uid).map(m => ({ id: m.id, body: m.body })),
-      photos: db.photos.filter(p => p.user_id === uid).map(p => ({ id: p.id, path: p.path, caption: p.caption }))
+      id: t.id, name: u.name, title: t.title, pattern: t.pattern, settings: t.settings, share_id: t.share_id, position: t.position,
+      messages: db.messages.filter(m => m.tree_id === t.id).map(m => ({ id: m.id, body: m.body })),
+      photos: db.photos.filter(p => p.tree_id === t.id).map(p => ({ id: p.id, path: p.path, caption: p.caption }))
     };
   }
-  const assertRate = (db, name) => {
-    if (db.attempts.filter(a => a.name === name && a.at > now() - 15 * 60e3).length >= 10) raise('rate_limited');
-  };
-  const len = s => [...s].length;
+  const newTree = (owner, title = 'Merry Christmas', position = 0) =>
+    ({ id: uuid(), owner, share_id: shareId(), title, pattern: 0, settings: {}, position, created_at: now() });
   const hasTicket = (db, path, kind, user) =>
     db.tickets.some(t => t.path === path && t.kind === kind && (!user || t.user === user) && t.exp > now());
+  function treeByShare(db, shareIdValue) {
+    const t = db.trees.find(x => x.share_id === shareIdValue);
+    if (!t) raise('not_found');
+    return t;
+  }
+  const findView = (db, v, t) => db.views.find(r => r.viewer === v && r.tree === t);
+  function trimViews(db, v) {   // 본 기록은 최근 50개. 오래된 것 중 담은 트리는 기록만 지움
+    const old = db.views.filter(r => r.viewer === v && r.viewed_at != null).sort((a, b) => b.viewed_at - a.viewed_at).slice(50);
+    for (const r of old) r.saved ? (r.viewed_at = null) : (db.views = db.views.filter(x => x !== r));
+  }
+  const repack = (db, uid) => myTrees(db, uid).forEach((t, i) => { t.position = i; });
 
   const RPC = {
-    enter_tree(db, { p_name, p_pin, p_create = false }) {
+    /* ── 로그인 · 계정 ── */
+    enter_tree(db, { p_name, p_birth, p_password, p_create = false }) {
       const name = norm(p_name);
       if (!/^[가-힣]{2,10}$/.test(name)) raise('invalid_name');
-      if (!/^[0-9]{4,6}$/.test(p_pin ?? '')) raise('invalid_pin');
-      assertRate(db, name);
-      db.attempts.push({ name, at: now() });
-      let u = db.users.find(x => x.name === name && x.pin === p_pin);
+      if (!validBirth(p_birth)) raise('invalid_birth');
+      if (!validPassword(p_password)) raise('invalid_password');
+      const key = `${name}:${p_birth}`;
+      assertRate(db, key);
+      db.attempts.push({ key, at: now() });
+      let u = db.users.find(x => x.name === name && x.birth === p_birth && x.pw === p_password);
       let created = false;
       if (!u) {
         if (!p_create) return { ok: false, error: 'not_found' };
-        u = { id: uuid(), name, pin: p_pin, share_id: shareId(), title: 'Merry Christmas', pattern: 0, settings: {}, created_at: now() };
-        db.users.push(u); created = true;
+        u = { id: uuid(), name, birth: p_birth, pw: p_password, created_at: now() };
+        db.users.push(u);
+        db.trees.push(newTree(u.id));
+        created = true;
       }
       const token = hex(32);
       db.sessions[token] = { user: u.id, exp: now() + 30 * 864e5 };
-      return { ok: true, token, name, share_id: u.share_id, created };
+      return { ok: true, token, name, share_id: myTrees(db, u.id)[0].share_id, created };
     },
-    get_my_tree(db, { p_token }) { return treeJson(db, requireUser(db, p_token)); },
-    get_tree(db, { p_share_id }) {
-      const u = db.users.find(x => x.share_id === p_share_id);
-      if (!u) raise('not_found');
-      return treeJson(db, u.id);
-    },
-    update_tree(db, { p_token, p_title = null, p_pattern = null, p_settings = null }) {
-      const uid = requireUser(db, p_token);
-      if (p_title != null && (len(p_title.trim()) < 1 || len(p_title.trim()) > 30)) raise('invalid_title');
-      if (p_pattern != null && !(p_pattern >= 0 && p_pattern <= 3)) raise('invalid_pattern');
-      if (p_settings != null && (typeof p_settings !== 'object' || Array.isArray(p_settings) || JSON.stringify(p_settings).length > 2048)) raise('invalid_settings');
-      const u = db.users.find(x => x.id === uid);
-      if (p_title != null) u.title = p_title.trim();
-      if (p_pattern != null) u.pattern = p_pattern;
-      if (p_settings != null) u.settings = p_settings;
-      return treeJson(db, uid);
-    },
-    add_message(db, { p_token, p_body }) {
-      const uid = requireUser(db, p_token);
-      const body = String(p_body ?? '').trim();
-      if (len(body) < 1 || len(body) > 100) raise('invalid_message');
-      if (db.messages.filter(m => m.user_id === uid).length >= 50) raise('limit_reached');
-      const m = { id: db.seq++, user_id: uid, body };
-      db.messages.push(m);
-      return { id: m.id, body };
-    },
-    delete_message(db, { p_token, p_id }) {
-      const uid = requireUser(db, p_token);
-      const i = db.messages.findIndex(m => m.id === p_id && m.user_id === uid);
-      if (i < 0) return false;
-      db.messages.splice(i, 1); return true;
-    },
-    begin_photo_upload(db, { p_token }) {
-      const uid = requireUser(db, p_token);
-      const pending = db.tickets.filter(t => t.user === uid && t.kind === 'upload' && t.exp > now()).length;
-      if (db.photos.filter(p => p.user_id === uid).length + pending >= 30) raise('limit_reached');
-      const path = `${uid}/${uuid()}.jpg`;
-      db.tickets.push({ path, kind: 'upload', user: uid, exp: now() + 10 * 60e3 });
-      return path;
-    },
-    finish_photo_upload(db, { p_token, p_path, p_caption = '' }) {
-      const uid = requireUser(db, p_token);
-      if (!db.tickets.some(t => t.path === p_path && t.kind === 'upload' && t.user === uid)) raise('invalid_ticket');
-      if (!(p_path in db.objects)) raise('file_missing');
-      const p = { id: db.seq++, user_id: uid, path: p_path, caption: [...String(p_caption ?? '').trim()].slice(0, 30).join('') };
-      db.photos.push(p);
-      db.tickets = db.tickets.filter(t => !(t.path === p_path && t.kind === 'upload'));
-      return { id: p.id, path: p.path, caption: p.caption };
-    },
-    begin_photo_delete(db, { p_token, p_photo_id }) {
-      const uid = requireUser(db, p_token);
-      const p = db.photos.find(x => x.id === p_photo_id && x.user_id === uid);
-      if (!p) raise('not_found');
-      db.tickets = db.tickets.filter(t => !(t.path === p.path && t.kind === 'delete'));
-      db.tickets.push({ path: p.path, kind: 'delete', user: uid, exp: now() + 10 * 60e3 });
-      return p.path;
-    },
-    finish_photo_delete(db, { p_token, p_photo_id }) {
-      const uid = requireUser(db, p_token);
-      const p = db.photos.find(x => x.id === p_photo_id && x.user_id === uid);
-      if (!p) return false;
-      if (p.path in db.objects) raise('file_still_exists');
-      db.photos = db.photos.filter(x => x !== p);
-      db.tickets = db.tickets.filter(t => t.path !== p.path);
-      return true;
-    },
-    change_pin(db, { p_token, p_old_pin, p_new_pin }) {
-      const uid = requireUser(db, p_token);
-      if (!/^[0-9]{4,6}$/.test(p_new_pin ?? '')) raise('invalid_pin');
-      const u = db.users.find(x => x.id === uid);
-      assertRate(db, u.name);
-      db.attempts.push({ name: u.name, at: now() });
-      if (u.pin !== p_old_pin) return { ok: false, error: 'wrong_pin' };
-      if (db.users.some(x => x.name === u.name && x.pin === p_new_pin)) return { ok: false, error: 'pin_unavailable' };
-      u.pin = p_new_pin;
-      for (const [t, s] of Object.entries(db.sessions)) if (s.user === uid && t !== p_token) delete db.sessions[t];
+    change_password(db, { p_token, p_old_password, p_new_password }) {
+      const v = requireUser(db, p_token);
+      if (!validPassword(p_new_password)) raise('invalid_password');
+      const u = db.users.find(x => x.id === v), key = `${u.name}:${u.birth}`;
+      assertRate(db, key);
+      db.attempts.push({ key, at: now() });
+      if (u.pw !== p_old_password) return { ok: false, error: 'wrong_password' };
+      if (db.users.some(x => x.name === u.name && x.birth === u.birth && x.pw === p_new_password)) return { ok: false, error: 'password_unavailable' };
+      u.pw = p_new_password;
+      for (const [t, s] of Object.entries(db.sessions)) if (s.user === v && t !== p_token) delete db.sessions[t];
       return { ok: true };
     },
     logout(db, { p_token }) {
@@ -153,12 +120,116 @@
       return had;
     },
 
-    /* ── 본 기록 · 담은 트리 (20261117120000_tree_views.sql) ── */
+    /* ── 트리 ── */
+    get_my_tree(db, { p_token, p_tree_id = null }) { return treeJson(db, ownedTree(db, requireUser(db, p_token), p_tree_id)); },
+    get_tree(db, { p_share_id }) { return treeJson(db, treeByShare(db, p_share_id)); },
+    update_tree(db, { p_token, p_title = null, p_pattern = null, p_settings = null, p_tree_id = null }) {
+      const t = ownedTree(db, requireUser(db, p_token), p_tree_id);
+      if (p_title != null && (len(p_title.trim()) < 1 || len(p_title.trim()) > 30)) raise('invalid_title');
+      if (p_pattern != null && !(p_pattern >= 0 && p_pattern <= 7)) raise('invalid_pattern');
+      if (p_settings != null && (typeof p_settings !== 'object' || Array.isArray(p_settings) || JSON.stringify(p_settings).length > 2048)) raise('invalid_settings');
+      if (p_title != null) t.title = p_title.trim();
+      if (p_pattern != null) t.pattern = p_pattern;
+      if (p_settings != null) t.settings = p_settings;
+      return treeJson(db, t);
+    },
+    list_my_trees(db, { p_token }) {
+      const v = requireUser(db, p_token);
+      return myTrees(db, v).map(t => ({
+        id: t.id, share_id: t.share_id, title: t.title, pattern: t.pattern, position: t.position,
+        messages: db.messages.filter(m => m.tree_id === t.id).length, photos: db.photos.filter(p => p.tree_id === t.id).length
+      }));
+    },
+    create_tree(db, { p_token, p_title = null }) {
+      const v = requireUser(db, p_token);
+      const title = (p_title ?? '').trim() || 'Merry Christmas';
+      if (len(title) > 30) raise('invalid_title');
+      const mine = myTrees(db, v);
+      if (mine.length >= 3) raise('tree_limit');
+      const t = newTree(v, title, mine.length ? Math.max(...mine.map(x => x.position)) + 1 : 0);
+      db.trees.push(t);
+      return treeJson(db, t);
+    },
+    delete_tree(db, { p_token, p_tree_id }) {
+      const v = requireUser(db, p_token);
+      if (p_tree_id == null) raise('not_found');
+      const t = ownedTree(db, v, p_tree_id);
+      if (myTrees(db, v).length <= 1) raise('last_tree');
+      if (db.photos.some(p => p.tree_id === t.id) || db.tickets.some(k => k.tree === t.id && k.kind === 'upload' && k.exp > now())) raise('tree_has_photos');
+      db.trees = db.trees.filter(x => x !== t);
+      db.messages = db.messages.filter(m => m.tree_id !== t.id);
+      db.views = db.views.filter(r => r.tree !== t.id);
+      repack(db, v);
+      return true;
+    },
+    reorder_trees(db, { p_token, p_tree_ids }) {
+      const v = requireUser(db, p_token), mine = myTrees(db, v);
+      if (!Array.isArray(p_tree_ids) || p_tree_ids.length !== mine.length || new Set(p_tree_ids).size !== p_tree_ids.length
+          || p_tree_ids.some(id => !mine.some(t => t.id === id))) raise('invalid_order');
+      p_tree_ids.forEach((id, i) => { db.trees.find(t => t.id === id).position = i; });
+      return true;
+    },
+
+    /* ── 글귀 ── */
+    add_message(db, { p_token, p_body, p_tree_id = null }) {
+      const t = ownedTree(db, requireUser(db, p_token), p_tree_id);
+      const body = String(p_body ?? '').trim();
+      if (len(body) < 1 || len(body) > 100) raise('invalid_message');
+      if (db.messages.filter(m => m.tree_id === t.id).length >= 50) raise('limit_reached');
+      const m = { id: db.seq++, tree_id: t.id, body };
+      db.messages.push(m);
+      return { id: m.id, body };
+    },
+    delete_message(db, { p_token, p_id }) {
+      const v = requireUser(db, p_token);
+      const i = db.messages.findIndex(m => m.id === p_id && db.trees.some(t => t.id === m.tree_id && t.owner === v));
+      if (i < 0) return false;
+      db.messages.splice(i, 1); return true;
+    },
+
+    /* ── 사진 ── */
+    begin_photo_upload(db, { p_token, p_tree_id = null }) {
+      const v = requireUser(db, p_token), t = ownedTree(db, v, p_tree_id);
+      const pending = db.tickets.filter(k => k.tree === t.id && k.kind === 'upload' && k.exp > now()).length;
+      if (db.photos.filter(p => p.tree_id === t.id).length + pending >= 30) raise('limit_reached');
+      const path = `${t.id}/${uuid()}.jpg`;
+      db.tickets.push({ path, kind: 'upload', user: v, tree: t.id, exp: now() + 10 * 60e3 });
+      return path;
+    },
+    finish_photo_upload(db, { p_token, p_path, p_caption = '' }) {
+      const v = requireUser(db, p_token);
+      const k = db.tickets.find(x => x.path === p_path && x.kind === 'upload' && x.user === v);
+      if (!k) raise('invalid_ticket');
+      if (!(p_path in db.objects)) raise('file_missing');
+      const p = { id: db.seq++, tree_id: k.tree, path: p_path, caption: [...String(p_caption ?? '').trim()].slice(0, 30).join('') };
+      db.photos.push(p);
+      db.tickets = db.tickets.filter(x => !(x.path === p_path && x.kind === 'upload'));
+      return { id: p.id, path: p.path, caption: p.caption };
+    },
+    begin_photo_delete(db, { p_token, p_photo_id }) {
+      const v = requireUser(db, p_token);
+      const p = db.photos.find(x => x.id === p_photo_id && db.trees.some(t => t.id === x.tree_id && t.owner === v));
+      if (!p) raise('not_found');
+      db.tickets = db.tickets.filter(k => !(k.path === p.path && k.kind === 'delete'));
+      db.tickets.push({ path: p.path, kind: 'delete', user: v, tree: p.tree_id, exp: now() + 10 * 60e3 });
+      return p.path;
+    },
+    finish_photo_delete(db, { p_token, p_photo_id }) {
+      const v = requireUser(db, p_token);
+      const p = db.photos.find(x => x.id === p_photo_id && db.trees.some(t => t.id === x.tree_id && t.owner === v));
+      if (!p) return false;
+      if (p.path in db.objects) raise('file_still_exists');
+      db.photos = db.photos.filter(x => x !== p);
+      db.tickets = db.tickets.filter(k => k.path !== p.path);
+      return true;
+    },
+
+    /* ── 본 기록 · 담은 트리 ── */
     record_view(db, { p_token, p_share_id }) {
       const v = requireUser(db, p_token), t = treeByShare(db, p_share_id);
-      if (t === v) return { own: true, saved: false };
-      let r = findView(db, v, t);
-      if (!r) { r = { viewer: v, tree: t, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
+      if (t.owner === v) return { own: true, saved: false };
+      let r = findView(db, v, t.id);
+      if (!r) { r = { viewer: v, tree: t.id, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
       r.viewed_at = now();
       trimViews(db, v);
       return { own: false, saved: r.saved };
@@ -168,16 +239,18 @@
       const iso = ms => (ms == null ? null : new Date(ms).toISOString());
       return db.views.filter(r => r.viewer === v)
         .sort((a, b) => (b.viewed_at ?? b.saved_at) - (a.viewed_at ?? a.saved_at))
-        .map(r => { const u = db.users.find(x => x.id === r.tree);
-          return { share_id: u.share_id, name: u.name, title: u.title, saved: r.saved, saved_at: iso(r.saved_at), viewed_at: iso(r.viewed_at) }; });
+        .map(r => {
+          const t = db.trees.find(x => x.id === r.tree), u = db.users.find(x => x.id === t.owner);
+          return { share_id: t.share_id, name: u.name, title: t.title, saved: r.saved, saved_at: iso(r.saved_at), viewed_at: iso(r.viewed_at) };
+        });
     },
     set_saved(db, { p_token, p_share_id, p_saved }) {
       const v = requireUser(db, p_token), t = treeByShare(db, p_share_id);
-      if (t === v) raise('own_tree');
-      let r = findView(db, v, t);
+      if (t.owner === v) raise('own_tree');
+      let r = findView(db, v, t.id);
       if (p_saved) {
         if (!(r && r.saved) && db.views.filter(x => x.viewer === v && x.saved).length >= 100) raise('save_limit');
-        if (!r) { r = { viewer: v, tree: t, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
+        if (!r) { r = { viewer: v, tree: t.id, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
         if (!r.saved) { r.saved = true; r.saved_at = now(); }
         return true;
       }
@@ -187,11 +260,11 @@
     },
     forget_views(db, { p_token, p_share_id = null }) {
       const v = requireUser(db, p_token);
-      let t = null;
-      if (p_share_id != null) { const u = db.users.find(x => x.share_id === p_share_id); if (!u) return 0; t = u.id; }
+      let tid = null;
+      if (p_share_id != null) { const t = db.trees.find(x => x.share_id === p_share_id); if (!t) return 0; tid = t.id; }
       let n = 0;
       db.views = db.views.filter(r => {
-        if (r.viewer !== v || (t && r.tree !== t)) return true;
+        if (r.viewer !== v || (tid && r.tree !== tid)) return true;
         if (!r.saved) { n++; return false; }
         if (r.viewed_at != null) { r.viewed_at = null; n++; }
         return true;
@@ -204,30 +277,20 @@
       const best = new Map();
       for (const e of p_items.slice(0, 50)) {
         if (!e || typeof e !== 'object') continue;
-        const u = db.users.find(x => x.share_id === e.share_id);
-        if (!u || u.id === v) continue;
+        const t = db.trees.find(x => x.share_id === e.share_id);
+        if (!t || t.owner === v) continue;
         const at = Math.min(Number.isFinite(Date.parse(e.viewed_at)) ? Date.parse(e.viewed_at) : now(), now());
-        best.set(u.id, Math.max(best.get(u.id) ?? 0, at));
+        best.set(t.id, Math.max(best.get(t.id) ?? 0, at));
       }
-      for (const [t, at] of best) {
-        let r = findView(db, v, t);
-        if (!r) { r = { viewer: v, tree: t, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
+      for (const [tid, at] of best) {
+        let r = findView(db, v, tid);
+        if (!r) { r = { viewer: v, tree: tid, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
         r.viewed_at = Math.max(r.viewed_at ?? at, at);
       }
       trimViews(db, v);
       return best.size;
     }
   };
-  function treeByShare(db, shareId) {
-    const u = db.users.find(x => x.share_id === shareId);
-    if (!u) raise('not_found');
-    return u.id;
-  }
-  const findView = (db, v, t) => db.views.find(r => r.viewer === v && r.tree === t);
-  function trimViews(db, v) {   // 본 기록은 최근 50개. 오래된 것 중 담은 트리는 기록만 지움
-    const old = db.views.filter(r => r.viewer === v && r.viewed_at != null).sort((a, b) => b.viewed_at - a.viewed_at).slice(50);
-    for (const r of old) r.saved ? (r.viewed_at = null) : (db.views = db.views.filter(x => x !== r));
-  }
 
   const wait = (ms = 40) => new Promise(r => setTimeout(r, ms));
   const mock = window.__mock = {
@@ -250,7 +313,7 @@
   const blobToDataUrl = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
   const TRANSPARENT = 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
 
-  function createClient(url, key, opts) {
+  function createClient(url, key) {
     if (!url || !key) throw new Error('supabaseUrl and supabaseKey are required');
     return {
       async rpc(fn, args = {}) {

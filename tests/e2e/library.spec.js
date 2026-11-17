@@ -3,8 +3,8 @@ import { test, expect, serverMode, seedDb, sampleUser, mockDb, shot, TOKEN_KEY }
 
 const HISTORY_KEY = 'code-christmas-tree.history';
 const younghee = sampleUser();   // 이영희, share_id shareABC_123
-const cheolsu = sampleUser({ id: '22222222-2222-4222-8222-222222222222', name: '박철수', pin: '2468', share_id: 'shareXYZ_789', title: '철수의 겨울', pattern: 3 });
-const minsu = sampleUser({ id: '33333333-3333-4333-8333-333333333333', name: '김민수', pin: '1357', share_id: 'shareMIN_000', title: '민수네 트리', pattern: 0 });
+const cheolsu = sampleUser({ id: '22222222-2222-4222-8222-222222222222', name: '박철수', birth: '880808', pw: 'Cheolsu#1', share_id: 'shareXYZ_789', title: '철수의 겨울', pattern: 3 });
+const minsu = sampleUser({ id: '33333333-3333-4333-8333-333333333333', name: '김민수', birth: '990101', pw: 'Minsu#1357', share_id: 'shareMIN_000', title: '민수네 트리', pattern: 0 });
 const messages = [
   { id: 1, user_id: younghee.id, body: '영희의 첫 글귀' },
   { id: 2, user_id: cheolsu.id, body: '철수의 첫 글귀' }
@@ -43,7 +43,8 @@ test('게스트: 본 기록은 브라우저에 → [담기] → 로그인하면 
   expect(new URL(page.url()).search).toBe('');
   await expect(page.locator('#loginNote')).toHaveText('로그인하면 ‘박철수님의 트리’를 내 목록에 담아 둘게요.');
   await page.locator('#inName').fill('김민수');
-  await page.locator('#inPin').fill('1357');
+  await page.locator('#inBirth').fill('990101');
+  await page.locator('#inPassword').fill('Minsu#1357');
   await page.locator('#btnEnter').click();
   await page.locator('#btnCreate').click();
   await expect(page.locator('#btnEdit')).toBeVisible();
@@ -123,16 +124,19 @@ test('로그인 사용자: 열면 DB에 기록, 담기 토글, 목록에서 이�
   expect(await page.evaluate(() => document.getElementById('library').inert)).toBe(true);
 });
 
-test('내 트리의 공유 링크: 담기 버튼 없음, 기록하지 않음, [내 트리로 가기]', async ({ page }) => {
-  await serverMode(page, { seed: seedDb({ users: [younghee], messages, sessions: session(younghee) }), token: 'cafe' });
-  await page.goto('/?t=shareABC_123');
+test('내 트리의 공유 링크: 담기 버튼 없음, 기록하지 않음, [이 트리 꾸미기]로 그 트리 편집', async ({ page }) => {
+  const second = { id: '55555555-5555-4555-8555-555555555555', owner: younghee.id, share_id: 'shareYH_two', title: '영희 두 번째',
+                   pattern: 4, settings: {}, position: 1, created_at: Date.now() };
+  await serverMode(page, { seed: seedDb({ users: [younghee], trees: [second], messages, sessions: session(younghee) }), token: 'cafe' });
+  await page.goto('/?t=shareYH_two');
   await expect(page.locator('#owner')).toHaveText('이영희님의 트리');
-  await expect(page.locator('#btnMake')).toHaveText('🎄 내 트리로 가기');
   await expect.poll(async () => (await mockDb(page)).log.includes('record_view')).toBe(true);
+  await expect(page.locator('#btnMake')).toHaveText('✎ 이 트리 꾸미기');
   await expect(page.locator('#btnSave')).toBeHidden();
   expect((await mockDb(page)).views).toHaveLength(0);
   await page.locator('#btnMake').click();
   await expect(page.locator('#btnEdit')).toBeVisible();
+  await expect(page.locator('#title')).toHaveText('영희 두 번째');          // 맨 앞 트리가 아니라 그 트리
   expect(new URL(page.url()).search).toBe('');
   expect(await page.evaluate(k => localStorage.getItem(k), TOKEN_KEY)).toBe('cafe');
 });
