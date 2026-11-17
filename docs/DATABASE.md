@@ -10,6 +10,103 @@
 테스트: `supabase/tests/10_rpc_test.sql`(기본·보안), `20_views_test.sql`(목록), `30_multi_trees_test.sql`(트리 여러 개), `40_pin_reset_test.sql`(PIN 복구), `50_decorations_test.sql`(장식·캡션),
 `upgrade/`(배포된 v1 DB에 적용하는 상황) — `./scripts/test-db.sh`가 모두 실행합니다.
 
+> 그림은 GitHub에서 바로 보이는 [Mermaid](https://mermaid.js.org/) 다이어그램입니다.
+
+## 한눈에 보기 — 테이블 관계
+
+```mermaid
+erDiagram
+  tree_users ||--o{ trees : "만든다 (최대 3개)"
+  trees ||--o{ messages : "글귀 (50개)"
+  trees ||--o{ photos : "사진 (30장)"
+  tree_users ||--o{ tree_views : "보는 사람"
+  trees ||--o{ tree_views : "본 트리 · 담은 트리"
+  tree_users ||--o{ sessions : "로그인 세션"
+  tree_users ||--o{ upload_tickets : "티켓 주인"
+  trees ||--o{ upload_tickets : "사진 경로"
+
+  tree_users {
+    text name PK "한글 2~10자 (복합키 1)"
+    text email_hash PK "HMAC 64자 (복합키 2)"
+    text pin_hash "HMAC 64자 · 키 아님"
+    uuid id UK "대리키 · 다른 테이블이 참조"
+    timestamptz created_at
+  }
+  trees {
+    uuid id PK
+    uuid owner_id FK "tree_users.id"
+    text share_id UK "공유 링크 12자"
+    text title "1~30자"
+    smallint pattern "무늬 0~7"
+    jsonb settings "2KB 이하"
+    jsonb decorations "장식 60개 · null = 기본"
+    smallint position "목록 순서"
+  }
+  messages {
+    bigint id PK
+    uuid tree_id FK
+    text body "1~100자"
+  }
+  photos {
+    bigint id PK
+    uuid tree_id FK
+    text path UK "tree_id/uuid.jpg"
+    text caption "30자 · 고칠 수 있음"
+  }
+  tree_views {
+    uuid viewer_id PK "FK tree_users.id"
+    uuid tree_id PK "FK trees.id"
+    boolean saved "담기 (100개)"
+    timestamptz viewed_at "본 기록 (최근 50개)"
+  }
+  sessions {
+    text token_hash PK "sha256 · private"
+    uuid user_id FK
+    timestamptz expires_at "30일"
+  }
+  upload_tickets {
+    text path PK "private"
+    text kind PK "upload / delete"
+    uuid user_id FK
+    uuid tree_id FK
+    timestamptz expires_at "10분"
+  }
+  auth_attempts {
+    bigint id PK "private"
+    text key "이름:email_hash"
+    timestamptz created_at "15분 10회 · 하루 30회"
+  }
+  secrets {
+    text key PK "private · pin_pepper"
+    text value "DB 안에서 랜덤 생성"
+  }
+```
+
+- 모든 외래키는 `on delete cascade`입니다. 사용자를 지우면 트리 → 글귀·사진 기록·본 기록·티켓까지 함께 지워집니다.
+- `sessions` · `upload_tickets` · `auth_attempts` · `secrets`는 **private 스키마**라서 API로는 아예 보이지 않습니다.
+
+## 한눈에 보기 — 누가 무엇에 접근하나
+
+```mermaid
+flowchart LR
+  BR(["🌐 브라우저<br/>anon · Publishable key"])
+  subgraph PUBLIC["public 스키마"]
+    RPC["⚙️ RPC 24개<br/>security definer<br/>search_path 비움"]
+    TB[("🗄️ 테이블 5개<br/>RLS ON · 정책 없음 · 권한 회수")]
+  end
+  subgraph PRIVATE["private 스키마 · API 비노출"]
+    PF["내부 함수<br/>require_user · owned_tree<br/>hash_secret · clean_decorations …"]
+    PT[("🔒 secrets · sessions<br/>auth_attempts · upload_tickets")]
+  end
+  BR -->|"✅ execute"| RPC
+  BR -.->|"❌ 42501"| TB
+  BR -.->|"❌ PGRST106"| PT
+  RPC -->|"① 토큰 → 사용자"| PF
+  PF -->|"② 내 트리인지 확인"| TB
+  RPC -->|"③ 읽기 · 쓰기"| TB
+  PF --> PT
+```
+
 ## 사용자 식별 — (이름, 이메일) + PIN
 
 ```
@@ -74,6 +171,16 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 모든 public 테이블은 **RLS ON + 정책 없음 + anon/authenticated 권한 회수** 상태입니다. 접근은 아래 RPC로만 합니다.
 
 ## RPC 함수 (브라우저가 호출) — 24개
+
+```mermaid
+flowchart LR
+  ACC["<b>👤 계정 4</b><br/>enter_tree<br/>change_pin<br/>reset_pin<br/>logout"]
+  TRE["<b>🎄 트리 8</b><br/>get_my_tree · get_tree<br/>update_tree · set_decorations<br/>list_my_trees · create_tree<br/>delete_tree · reorder_trees"]
+  MSG["<b>💬 글귀 2</b><br/>add_message<br/>delete_message"]
+  PHO["<b>🖼️ 사진 5</b><br/>begin_photo_upload<br/>finish_photo_upload<br/>update_photo_caption<br/>begin_photo_delete<br/>finish_photo_delete"]
+  VIEW["<b>⭐ 목록 5</b><br/>record_view · list_trees<br/>set_saved · forget_views<br/>merge_views"]
+  ACC ~~~ TRE ~~~ MSG ~~~ PHO ~~~ VIEW
+```
 
 모두 `security definer`, `set search_path = ''`이고, anon/authenticated에게만 실행 권한이 있습니다.
 `p_tree_id`가 있는 함수는 생략하면 **순서상 맨 앞 트리**를 씁니다.

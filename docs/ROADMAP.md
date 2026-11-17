@@ -13,9 +13,9 @@
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·사슴 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
   - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
-- 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스·제3자 고지 완료, README 정리·GIF 남음
+- 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스·제3자 고지·README 재구성 완료, GIF 남음
 - ✅ **Phase 8** 풍성한 트리 — 장식 8종(달기·끌어 옮기기·떼기), 트리 아래 선물 상자, 밤하늘(별·달·눈 언덕), 사진 캡션 고치기, 사진 여러 장 삭제
-  — 브랜치 `feat/decor`, DB 테스트 193개(PostgreSQL 17.12, CI) · E2E 83개 통과. 배포 전 README 정리 예정
+  — 브랜치 `feat/decor`, DB 테스트 193개(PostgreSQL 17.12, CI) · E2E 83개 통과. README · 설계 문서 그림 정리 완료, `main` 병합·배포 대기
 - 🔒 **보안 업데이트** (2026-11-17 KISA PostgreSQL 보안 업데이트 권고, CVE 25건)
   - [x] 로컬·CI 테스트 DB 이미지를 `postgres:17.12`로 고정(운영 DB와 같은 버전), 패치 전 서버면 `test-db.sh`가 경고
   - [x] 운영 Supabase DB 버전 확인 — 17.12로 이미 해결 버전 (2026-11-17, 업그레이드 불필요)
@@ -157,7 +157,8 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [x] 밤하늘 별·달, 트리 뒤 불빛, 눈 언덕. 처음 트리가 모이는 동안 장식·선물도 서서히 나타남
 - [x] 사진: 사진마다 캡션 칸(입력을 멈추거나 칸을 벗어나면 저장), [모두 선택] · [선택한 사진 삭제]
 - [x] 검증: DB 테스트(CI), E2E `decor.spec.js` 4개 × 3개 화면, 데스크톱·모바일·가로 스크린샷 확인
-- [ ] 배포 전: README 정리 (사용자 진행)
+- [x] README 재구성: 첫 화면에 핵심 요약 · 기술 스택 · 구현 방법 · 라이선스 · 빠른 시작, 아래에 자세한 설명
+- [x] ARCHITECTURE.md · DATABASE.md · README의 텍스트 그림을 Mermaid 다이어그램으로 (구성도 · ER · 흐름도 · 시퀀스, 16개 렌더링 확인)
 
 ## 백로그 (아이디어)
 - 방문자 방명록: 공유 트리에 이름 없이 글귀 남기기 (승인제)
