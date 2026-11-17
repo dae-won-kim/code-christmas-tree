@@ -47,21 +47,7 @@ PIN을 잊은 사용자에게 **복구 PIN(숫자 6자리)** 을 메일로 보�
 - Email OTP Expiration: `900`초(15분) 권장 — DB도 "15분 안에 확인한 메일"만 인정합니다
 - Phone·Anonymous 로그인은 켜지 않아도 됩니다(켜져 있어도 DB가 거부함)
 
-### ② 메일 템플릿에 복구 PIN 넣기 (필수)
-기본 템플릿은 "링크"만 있고 숫자가 없습니다. **Authentication → Emails → Templates**에서 아래 두 개를 모두 바꿉니다.
-처음 보는 주소에는 **Confirm signup**, 이미 있는 주소에는 **Magic Link** 템플릿이 쓰이기 때문입니다.
-
-- Subject: `[Code Christmas Tree] 복구 PIN {{ .Token }}`
-- Body:
-```html
-<h2>🎄 PIN 복구</h2>
-<p>아래 <b>복구 PIN</b>을 트리 화면에 입력하고 새 PIN을 정해 주세요. (15분 안에, 한 번만 쓸 수 있어요)</p>
-<p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p>
-<p>직접 요청하지 않았다면 이 메일은 무시해도 돼요. 트리와 PIN은 바뀌지 않아요.</p>
-```
-- 템플릿에 `{{ .ConfirmationURL }}`(링크)은 넣지 마세요. 앱은 숫자 입력 방식만 처리합니다.
-
-### ③ 메일 서버(SMTP) 연결 (실제 사용자에게 보내려면 필수)
+### ② 메일 서버(SMTP) 연결 (필수 — 먼저 해야 템플릿을 고칠 수 있음)
 Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내고 한도도 시간당 몇 통 수준이라 시험용입니다.
 **Authentication → Emails → SMTP Settings → Enable Custom SMTP**에 내 메일 계정을 연결합니다. 예: Gmail
 | 항목 | 값 |
@@ -74,6 +60,21 @@ Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내�
 - 이 비밀번호는 **대시보드에만** 넣습니다. 저장소·`config.js`·이슈에 절대 적지 마세요.
 - 연결 후 **Authentication → Rate Limits**에서 메일 발송 한도를 정합니다(Gmail 무료 계정은 하루 약 500통).
 - 자기 도메인이 있으면 Resend·Brevo 같은 메일 서비스의 SMTP를 써도 됩니다.
+
+### ③ 메일 템플릿에 복구 PIN 넣기 (필수)
+기본 템플릿은 "링크"만 있고 숫자가 없습니다. **Authentication → Emails → Templates**에서 아래 두 개를 모두 바꿉니다.
+(Custom SMTP가 없으면 "Set up custom SMTP to edit templates"라고 나오며 잠겨 있습니다 → ②를 먼저 하세요. 본문은 **Source** 탭에서 기존 내용을 지우고 붙여 넣습니다)
+처음 보는 주소에는 **Confirm signup**, 이미 있는 주소에는 **Magic Link** 템플릿이 쓰이기 때문입니다.
+
+- Subject: `[Code Christmas Tree] 복구 PIN {{ .Token }}`
+- Body:
+```html
+<h2>🎄 PIN 복구</h2>
+<p>아래 <b>복구 PIN</b>을 트리 화면에 입력하고 새 PIN을 정해 주세요. (15분 안에, 한 번만 쓸 수 있어요)</p>
+<p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p>
+<p>직접 요청하지 않았다면 이 메일은 무시해도 돼요. 트리와 PIN은 바뀌지 않아요.</p>
+```
+- 템플릿에 `{{ .ConfirmationURL }}`(링크)은 넣지 마세요. 앱은 숫자 입력 방식만 처리합니다.
 
 ### ④ 확인
 배포된 사이트 → [PIN을 잊었어요] → 팀원(내) 주소로 복구 PIN 받기 → 새 PIN으로 트리가 열리면 정상입니다.
@@ -150,8 +151,8 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 | 업로드 단계에서 403 / row-level security 오류 | Storage 정책 3개가 만들어졌는지 (Storage → Policies), 마이그레이션을 다시 Run |
 | 사진 삭제 후 "사진 파일을 지우지 못했어요"(`file_still_exists`) | `select with delete ticket` 정책이 있는지 (삭제 API는 select 권한도 필요) |
 | 오래 안 쓰다가 갑자기 전부 실패 | 7일 미사용 일시정지 → 대시보드에서 Restore |
-| 복구: "복구 메일을 보내지 못했어요" | Custom SMTP 설정(2-1 ③), 기본 메일 서버라면 팀원 주소인지, Auth Logs의 오류 |
-| 복구: 메일은 오는데 숫자가 없음(링크만 있음) | Confirm signup · Magic Link 템플릿 둘 다에 `{{ .Token }}` (2-1 ②) |
+| 복구: "복구 메일을 보내지 못했어요" | Custom SMTP 설정(2-1 ②), 기본 메일 서버라면 팀원 주소인지, Auth Logs의 오류 |
+| 복구: 메일은 오는데 숫자가 없음(링크만 있음) | Confirm signup · Magic Link 템플릿 둘 다에 `{{ .Token }}` (2-1 ③) |
 | 복구: "메일은 잠시 뒤에 다시 보낼 수 있어요" | 같은 주소는 60초에 한 번, Rate Limits의 시간당 한도 |
 | 복구: 코드를 넣어도 "메일 확인 시간이 지났어요" | Email OTP Expiration이 너무 길지 않은지, 기기 시계 |
 | 복구 후 Authentication → Users에 사용자가 남음 | SQL Editor에서 `select has_table_privilege('postgres', 'auth.users', 'DELETE');` 가 `true`인지 (남아도 기능엔 문제없음, 수동 삭제 가능) |
