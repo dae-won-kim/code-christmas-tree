@@ -28,8 +28,9 @@ test('내 트리 여러 개: 만들기(3개까지) · 이름 · 순서 · 전환
   await openLib(page);
   await expect(page.locator('#libMineCount')).toHaveText('2/3');
   await page.locator('#libNewTree').click();
-  await openLib(page);
+  // 만들기가 끝나야(좁은 화면은 그때 서랍이 접힘) 서랍 상태를 볼 수 있음
   await expect(page.locator('#libMineCount')).toHaveText('3/3');
+  await openLib(page);
   await expect(page.locator('#libNewTree')).toBeDisabled();
   await expect(page.locator('#libMineNote')).toContainText('3개까지');
   expect((await mockDb(page)).trees).toHaveLength(3);
@@ -128,7 +129,18 @@ test('산타·루돌프: 누르면 반응, 꾸미기에서 끄면 사라짐', as
     const el = document.elementFromPoint(c.x, c.y);
     return el && el.id === 'c' ? { x: c.x, y: c.y } : null;
   }, kind);
+  // 느린 환경에선 위치를 읽은 뒤 누르기 전에 캐릭터가 움직여 빗나갈 수 있으므로, 반응할 때까지 다시 누른다
   const clickCharacter = async kind => {
+    await expect.poll(async () => {
+      const at = await clickable(kind);
+      if (!at) return false;
+      await page.mouse.click(at.x, at.y);
+      return (await info()).find(x => x.kind === kind).reacting;
+    }, { timeout: 30000 }).toBe(true);
+  };
+
+  // 반응하지 않아야 하는 경우: 캔버스 위에 있을 때 한 번만 누름
+  const clickOnce = async kind => {
     let at = null;
     await expect.poll(async () => (at = await clickable(kind)), { timeout: 20000 }).not.toBeNull();
     await page.mouse.click(at.x, at.y);
@@ -136,7 +148,6 @@ test('산타·루돌프: 누르면 반응, 꾸미기에서 끄면 사라짐', as
 
   for (const kind of ['santa', 'rudolph']) {
     await clickCharacter(kind);
-    await expect.poll(async () => (await info()).find(x => x.kind === kind).reacting).toBe(true);
     expect((await info()).find(x => x.kind === kind).bubble).toBeTruthy();
   }
   await shot(page, '16-characters');
@@ -148,7 +159,7 @@ test('산타·루돌프: 누르면 반응, 꾸미기에서 끄면 사라짐', as
   expect((await mockDb(page)).trees[0].settings.characters).toBe(false);
   await page.locator('#btnEditClose').click();
   await page.waitForTimeout(1800);                                  // 앞선 반응이 끝나길 기다림
-  await clickCharacter('santa');
+  await clickOnce('santa');
   await page.waitForTimeout(200);
   expect((await info()).find(x => x.kind === 'santa').reacting).toBe(false);
 });

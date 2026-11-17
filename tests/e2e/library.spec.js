@@ -101,7 +101,9 @@ test('로그인 사용자: 열면 DB에 기록, 담기 토글, 목록에서 이�
   await expect(page.locator('#owner')).toHaveText('박철수님의 트리');
 
   // 서랍에서 담기 취소 → 지금 보는 트리 버튼과 상관없이 목록만 바뀜
-  if (!(await page.locator('#library').isVisible())) await page.locator('#btnLibrary').click();
+  // 좁은 화면은 목록에서 고르면 서랍이 접힘. 접히는 애니메이션 중엔 아직 보이므로 aria-expanded로 판단
+  if ((await page.locator('#btnLibrary').getAttribute('aria-expanded')) !== 'true') await page.locator('#btnLibrary').click();
+  await expect(page.locator('#library')).toBeVisible();
   await page.getByRole('button', { name: '담기 취소: 이영희님의 트리' }).click();
   await expect(page.locator('#libSaved li')).toHaveCount(0);
   expect((await mockDb(page)).views.find(v => v.tree === younghee.id).saved).toBe(false);
