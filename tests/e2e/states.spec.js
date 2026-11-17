@@ -7,6 +7,7 @@ test('데모 모드: config가 비어 있으면 프로토타입 그대로', asyn
   await expect(page.locator('#btnPhoto')).toBeVisible();
   await expect(page.locator('#btnEdit')).toBeHidden();
   await expect(page.locator('#loginCard')).toBeHidden();
+  await expect(page.locator('#btnLibrary')).toBeHidden();      // 목록은 서버 모드 전용
   await expect(page.locator('#srMessages li')).toHaveCount(3);
   await page.locator('#btnPattern').click();
   await expect(page.locator('#patternName')).toHaveText(/— .+ —/);
@@ -22,8 +23,11 @@ test('공유 링크: 없는 트리', async ({ page }) => {
   await serverMode(page);
   await page.goto('/?t=nope-nope-12');
   await expect(page.locator('#screenText')).toHaveText('트리를 찾을 수 없어요. 링크가 정확한지 확인해 주세요.');
-  await expect(page.locator('#screenActions a')).toHaveText('✨ 나도 트리 만들기');
+  await expect(page.locator('#screenActions button')).toHaveText('✨ 나도 트리 만들기');
   await shot(page, '10-shared-not-found');
+  await page.locator('#screenActions button').click();
+  await expect(page.locator('#loginCard')).toBeVisible();
+  expect(new URL(page.url()).search).toBe('');
 });
 
 test('공유 링크: 네트워크 오류 → 다시 시도', async ({ page }) => {

@@ -30,6 +30,9 @@ export const ERROR_MESSAGES = {
   file_still_exists: '사진 파일을 지우지 못했어요. 다시 시도해 주세요.',
   wrong_pin:         '현재 PIN이 맞지 않아요.',
   pin_unavailable:   '그 PIN은 사용할 수 없어요. 다른 PIN을 골라 주세요.',
+  own_tree:          '내 트리는 목록에 담을 수 없어요.',
+  save_limit:        '담은 트리는 100개까지예요. 안 보는 트리를 빼 주세요.',
+  invalid_items:     '기록 형식이 올바르지 않아요.',
   image_decode_failed: '사진을 읽지 못했어요. 다른 사진으로 시도해 주세요.',
   image_too_large:   '사진 용량이 너무 커요.',
   network:           '네트워크 연결을 확인해 주세요.',
@@ -134,6 +137,25 @@ export class TreeApi {
 
   addMessage(body) { return this.#auth('add_message', { p_body: body }); }
   deleteMessage(id) { return this.#auth('delete_message', { p_id: id }); }
+
+  /* ── 본 기록 · 담은 트리 (읽기 전용 목록) ─────────────── */
+
+  /** 공유 보기를 열 때: 본 기록 남기기 → { own: 내 트리인가, saved: 담아 둔 트리인가 } */
+  recordView(shareId) { return this.#auth('record_view', { p_share_id: shareId }); }
+
+  /** @returns {Promise<{share_id, name, title, saved, saved_at, viewed_at}[]>} 최근 순 */
+  listTrees() { return this.#auth('list_trees'); }
+
+  /** [담기] / [담기 취소] */
+  setSaved(shareId, saved) { return this.#auth('set_saved', { p_share_id: shareId, p_saved: !!saved }); }
+
+  /** 본 기록 지우기. shareId가 없으면 전부 (담은 트리는 남음) */
+  forgetViews(shareId = null) { return this.#auth('forget_views', { p_share_id: shareId }); }
+
+  /** 로그인 전에 이 브라우저에서 본 기록을 내 목록에 합치기 */
+  mergeViews(items) {
+    return this.#auth('merge_views', { p_items: items.map(i => ({ share_id: i.share_id, viewed_at: i.viewed_at })) });
+  }
 
   /* ── 사진 ──────────────────────────────────────────── */
 

@@ -5,6 +5,7 @@
  *   ?t=<share_id>              → shared (공유 보기, 읽기 전용)
  *   저장된 세션 토큰 있음       → mine   (내 트리 편집)
  *   그 밖                      → login
+ *   (서버 모드에서는 왼쪽 위 [☰ 목록]에 담은 트리 · 최근 본 트리가 있다)
  *
  * DB 접근은 js/api.js의 TreeApi만 사용한다.
  */
@@ -13,8 +14,9 @@ import { createTree } from './tree/renderer.js';
 import { SAMPLE_PHOTOS } from './tree/photos.js';
 import { $, screen, toast } from './ui/dom.js';
 import { mountLogin } from './ui/login.js';
-import { mountEditor, DEFAULT_SETTINGS } from './ui/editor.js';
+import { mountEditor, DEFAULT_SETTINGS, shareUrlFor } from './ui/editor.js';
 import { mountShare, homeUrl } from './ui/share.js';
+import { createLibrary, localHistory, pendingSave } from './ui/library.js';
 
 /* supabase-js (UMD) — 버전 고정 + SRI. 버전을 올릴 때는 integrity도 함께 바꿀 것
    openssl dgst -sha384 -binary supabase.js | openssl base64 -A */
@@ -125,7 +127,7 @@ function startDemo() {
 /* =========================================================
  *  서버 모드 — login / mine / shared
  * ========================================================= */
-let api, tree, current = null, modeAc = null;
+let api, tree, library, current = null, modeAc = null;
 
 /** 화면 전환: 이전 화면 정리 + 트리 내용 비우기 */
 function switchTo(mode) {
@@ -154,31 +156,79 @@ function applyTree(data) {
   for (const p of data.photos) tree.addPhoto(api.photoUrl(p.path), p.caption, { id: p.id }).catch(() => {});
 }
 
+/* ---------- 주소 이동 (새로고침 없이) ---------- */
+let navSeq = 0;   // 빠르게 다른 트리로 옮겨 갈 때, 늦게 도착한 이전 응답을 버리기 위한 번호
+
+/** 주소에 맞는 화면으로 */
+function route() {
+  const shareId = new URLSearchParams(location.search).get('t');
+  if (shareId) return showShared(shareId);
+  if (api.loggedIn) return showMine();
+  return showLogin();
+}
+/** 목록에서 고른 트리 열기 → ?t=share_id */
+function openShared(shareId) {
+  const url = shareUrlFor(shareId);
+  if (location.href !== url) history.pushState(null, '', url);
+  showShared(shareId);
+}
+/** ?t=를 빼고 처음 화면(로그인 또는 내 트리)으로 */
+function goHome() {
+  const url = homeUrl();
+  if (location.href !== url) history.pushState(null, '', url);
+  route();
+}
+
+/** 로그인 직후: 브라우저에 쌓인 본 기록을 DB로 합치고, 로그인 전에 누른 [담기]를 처리 */
+async function afterLogin() {
+  const local = localHistory.list();
+  if (local.length) {
+    try { await api.mergeViews(local); localHistory.clear(); } catch { /* 다음 로그인 때 다시 시도 */ }
+  }
+  const pending = pendingSave.take();
+  if (pending) {
+    try {
+      await api.setSaved(pending.share_id, true);
+      toast(`${pending.name}님의 트리를 담았어요 ⭐ 왼쪽 위 ☰ 목록에서 볼 수 있어요.`, { ms: 4200 });
+    } catch (e) {
+      if (e.code !== 'own_tree') toast(e.message, { error: true });
+    }
+  }
+  library.refresh();
+}
+
 function showLogin() {
+  navSeq++;
   const signal = switchTo('login');
+  library.setCurrent(null);
   tree.setTitle('Merry Christmas');
   tree.setSettings(DEFAULT_SETTINGS);
   tree.setMessages(LOGIN_MESSAGES);
   $('btnPattern').addEventListener('click', () => tree.nextPattern(), { signal });
-  current = mountLogin({ api, onEnter: () => showMine() });
+  current = mountLogin({ api, onEnter: () => { afterLogin(); showMine(); } });
+  library.refresh();
   tree.layout();
 }
 
 /* 불러오는 동안은 'boot'(도구 막대 숨김)로 두고, 화면이 연결된 뒤에 모드를 바꾼다.
    그래야 로딩 중에 아직 동작하지 않는 버튼을 누르는 일이 없다. */
 async function showMine() {
+  const nav = ++navSeq;
   switchTo('boot');
+  library.setCurrent(null);
   tree.setMessages([]);
   screen('loading', '트리를 불러오는 중…');
   let data;
   try { data = await api.getMyTree(); }
   catch (e) {
+    if (nav !== navSeq) return;
     if (e.code === 'unauthorized') { toast(e.message, { error: true }); return showLogin(); }
     return screen('error', `내 트리를 불러오지 못했어요. ${e.message}`, [
       { label: '다시 시도', primary: true, onClick: () => showMine() },
       { label: '로그아웃', onClick: async () => { await api.logout().catch(() => {}); showLogin(); } }
     ]);
   }
+  if (nav !== navSeq) return;
   screen(null);
   applyTree(data);
   setMode('mine');
@@ -195,25 +245,29 @@ async function showMine() {
 }
 
 async function showShared(shareId) {
+  const nav = ++navSeq;
   switchTo('boot');
+  library.setCurrent(shareId);
   tree.setMessages([]);
   screen('loading', '트리를 불러오는 중…');
   let data;
   try { data = await api.getTree(shareId); }
   catch (e) {
+    if (nav !== navSeq) return;
     if (e.code === 'not_found') {
       return screen('error', '트리를 찾을 수 없어요. 링크가 정확한지 확인해 주세요.', [
-        { label: '✨ 나도 트리 만들기', href: homeUrl() }
+        { label: '✨ 나도 트리 만들기', primary: true, onClick: () => goHome() }
       ]);
     }
     return screen('error', `트리를 불러오지 못했어요. ${e.message}`, [
       { label: '다시 시도', primary: true, onClick: () => showShared(shareId) }
     ]);
   }
+  if (nav !== navSeq) return;
   screen(null);
   applyTree(data);
   setMode('shared');
-  current = mountShare({ api, tree, data });
+  current = mountShare({ api, tree, data, shareId, library, onHome: goHome });
   if (!data.messages.length && !data.photos.length) setNotice('아직 꾸미는 중인 트리예요. 조금 뒤에 다시 와 주세요 🎄');
 }
 
@@ -231,10 +285,11 @@ async function startServer(cfg) {
       { label: '다시 시도', primary: true, onClick: () => location.reload() }
     ]);
   }
-  const shareId = new URLSearchParams(location.search).get('t');
-  if (shareId) return showShared(shareId);
-  if (api.loggedIn) return showMine();
-  return showLogin();
+  library = createLibrary({ api, onOpen: openShared, isViewing: () => tree.viewing });
+  library.show();
+  if (api.loggedIn && localHistory.list().length) afterLogin();   // 예전에 로그인 전 본 기록이 남아 있으면 합치기
+  addEventListener('popstate', () => route());                     // 뒤로·앞으로 가기
+  route();
 }
 
 const cfg = readConfig();

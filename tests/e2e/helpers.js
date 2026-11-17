@@ -37,8 +37,8 @@ export async function serverMode(page, { mock = true, seed, token } = {}) {
 }
 
 /** 기본 mock DB 상태 하나 만들기 */
-export function seedDb({ users = [], messages = [], photos = [], objects = {}, sessions = {}, attempts = [] } = {}) {
-  return { seq: 100, users, sessions, attempts, tickets: [], messages, photos, objects, log: [] };
+export function seedDb({ users = [], messages = [], photos = [], objects = {}, sessions = {}, attempts = [], views = [] } = {}) {
+  return { seq: 100, users, sessions, attempts, tickets: [], messages, photos, objects, views, log: [] };
 }
 export const sampleUser = (over = {}) => ({
   id: '11111111-1111-4111-8111-111111111111', name: '이영희', pin: '5678', share_id: 'shareABC_123',

@@ -14,8 +14,13 @@
  */
 (() => {
   const KEY = '__mockdb';
-  const blank = () => ({ seq: 1, users: [], sessions: {}, attempts: [], tickets: [], messages: [], photos: [], objects: {}, log: [] });
-  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { return blank(); } };
+  const blank = () => ({ seq: 1, users: [], sessions: {}, attempts: [], tickets: [], messages: [], photos: [], objects: {}, views: [], log: [] });
+  const load = () => {
+    let db;
+    try { db = JSON.parse(localStorage.getItem(KEY)) || blank(); } catch { db = blank(); }
+    db.views ||= [];
+    return db;
+  };
   const save = db => localStorage.setItem(KEY, JSON.stringify(db));
   const uuid = () => crypto.randomUUID();
   const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -146,8 +151,83 @@
       const had = p_token in db.sessions;
       delete db.sessions[p_token];
       return had;
+    },
+
+    /* ── 본 기록 · 담은 트리 (20261117120000_tree_views.sql) ── */
+    record_view(db, { p_token, p_share_id }) {
+      const v = requireUser(db, p_token), t = treeByShare(db, p_share_id);
+      if (t === v) return { own: true, saved: false };
+      let r = findView(db, v, t);
+      if (!r) { r = { viewer: v, tree: t, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
+      r.viewed_at = now();
+      trimViews(db, v);
+      return { own: false, saved: r.saved };
+    },
+    list_trees(db, { p_token }) {
+      const v = requireUser(db, p_token);
+      const iso = ms => (ms == null ? null : new Date(ms).toISOString());
+      return db.views.filter(r => r.viewer === v)
+        .sort((a, b) => (b.viewed_at ?? b.saved_at) - (a.viewed_at ?? a.saved_at))
+        .map(r => { const u = db.users.find(x => x.id === r.tree);
+          return { share_id: u.share_id, name: u.name, title: u.title, saved: r.saved, saved_at: iso(r.saved_at), viewed_at: iso(r.viewed_at) }; });
+    },
+    set_saved(db, { p_token, p_share_id, p_saved }) {
+      const v = requireUser(db, p_token), t = treeByShare(db, p_share_id);
+      if (t === v) raise('own_tree');
+      let r = findView(db, v, t);
+      if (p_saved) {
+        if (!(r && r.saved) && db.views.filter(x => x.viewer === v && x.saved).length >= 100) raise('save_limit');
+        if (!r) { r = { viewer: v, tree: t, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
+        if (!r.saved) { r.saved = true; r.saved_at = now(); }
+        return true;
+      }
+      if (r && r.viewed_at == null) db.views = db.views.filter(x => x !== r);
+      else if (r) { r.saved = false; r.saved_at = null; }
+      return false;
+    },
+    forget_views(db, { p_token, p_share_id = null }) {
+      const v = requireUser(db, p_token);
+      let t = null;
+      if (p_share_id != null) { const u = db.users.find(x => x.share_id === p_share_id); if (!u) return 0; t = u.id; }
+      let n = 0;
+      db.views = db.views.filter(r => {
+        if (r.viewer !== v || (t && r.tree !== t)) return true;
+        if (!r.saved) { n++; return false; }
+        if (r.viewed_at != null) { r.viewed_at = null; n++; }
+        return true;
+      });
+      return n;
+    },
+    merge_views(db, { p_token, p_items }) {
+      const v = requireUser(db, p_token);
+      if (!Array.isArray(p_items)) raise('invalid_items');
+      const best = new Map();
+      for (const e of p_items.slice(0, 50)) {
+        if (!e || typeof e !== 'object') continue;
+        const u = db.users.find(x => x.share_id === e.share_id);
+        if (!u || u.id === v) continue;
+        const at = Math.min(Number.isFinite(Date.parse(e.viewed_at)) ? Date.parse(e.viewed_at) : now(), now());
+        best.set(u.id, Math.max(best.get(u.id) ?? 0, at));
+      }
+      for (const [t, at] of best) {
+        let r = findView(db, v, t);
+        if (!r) { r = { viewer: v, tree: t, saved: false, saved_at: null, viewed_at: null }; db.views.push(r); }
+        r.viewed_at = Math.max(r.viewed_at ?? at, at);
+      }
+      trimViews(db, v);
+      return best.size;
     }
   };
+  function treeByShare(db, shareId) {
+    const u = db.users.find(x => x.share_id === shareId);
+    if (!u) raise('not_found');
+    return u.id;
+  }
+  const findView = (db, v, t) => db.views.find(r => r.viewer === v && r.tree === t);
+  function trimViews(db, v) {   // 본 기록은 최근 50개. 오래된 것 중 담은 트리는 기록만 지움
+    const old = db.views.filter(r => r.viewer === v && r.viewed_at != null).sort((a, b) => b.viewed_at - a.viewed_at).slice(50);
+    for (const r of old) r.saved ? (r.viewed_at = null) : (db.views = db.views.filter(x => x !== r));
+  }
 
   const wait = (ms = 40) => new Promise(r => setTimeout(r, ms));
   const mock = window.__mock = {

@@ -7,6 +7,7 @@
  */
 import { ERROR_MESSAGES, TreeError, normalizeName, isValidName, isValidPin } from '../api.js';
 import { $, trackComposition, toast } from './dom.js';
+import { pendingSave } from './library.js';
 
 /** 이름 검사 결과: null(문제 없음/아직 판단 안 함) 또는 오류 문구 */
 function nameProblem(raw, { final }) {
@@ -116,6 +117,11 @@ export function mountLogin({ api, onEnter }) {
   on(btnCreate, 'click', () => enter(true));
   on(btnCancel, 'click', () => { resetConfirm(); pin.focus(); });
   on(form, 'keydown', e => { if (e.key === 'Escape' && pending) { resetConfirm(); pin.focus(); } });
+
+  // 공유 보기에서 로그인 없이 [담기]를 누르고 온 경우 안내
+  const note = $('loginNote'), pendingItem = pendingSave.peek();
+  note.textContent = pendingItem ? `로그인하면 ‘${pendingItem.name}님의 트리’를 내 목록에 담아 둘게요.` : '';
+  note.hidden = !pendingItem;
 
   // 초기화 후 표시
   pin.value = ''; errorEl.textContent = '';
