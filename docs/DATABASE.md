@@ -3,22 +3,23 @@
 | 마이그레이션 | 내용 |
 |---|---|
 | `20261117000000_init.sql` | 첫 배포 (v1: 이름+PIN, 사용자 1명 = 트리 1개). **이미 배포됨 — 수정 금지** |
-| `20261117110000_accounts_v2.sql` | 계정 v2: (이름, 생년월일, 비밀번호) 복합 기본키, 트리 분리(사용자당 3개), 무늬 8종. v1 데이터는 버림 |
+| `20261117110000_accounts_v2.sql` | 계정 v2: (이름, 이메일) 복합 기본키 + PIN, 이메일 PIN 복구, 트리 분리(사용자당 3개), 무늬 8종. v1 데이터는 버림 |
 | `20261117120000_tree_views.sql` | 본 트리 기록 · 담은 트리 |
 
-테스트: `supabase/tests/10_rpc_test.sql`(기본·보안), `20_views_test.sql`(목록), `30_multi_trees_test.sql`(트리 여러 개),
+테스트: `supabase/tests/10_rpc_test.sql`(기본·보안), `20_views_test.sql`(목록), `30_multi_trees_test.sql`(트리 여러 개), `40_pin_reset_test.sql`(PIN 복구),
 `upgrade/`(배포된 v1 DB에 적용하는 상황) — `./scripts/test-db.sh`가 모두 실행합니다.
 
-## 사용자 식별 — (이름, 생년월일, 비밀번호)
+## 사용자 식별 — (이름, 이메일) + PIN
 
 ```
-birth_hash = HMAC-SHA256(pepper, 'birth:' || 이름 || ':' || 생년월일)
-pw_hash    = HMAC-SHA256(pepper, 이름 || ':' || birth_hash || ':' || 비밀번호)
-기본키     = (name, birth_hash, pw_hash)
+email_hash = HMAC-SHA256(pepper, 'email:' || 소문자 이메일)
+pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
+기본키     = (name, email_hash)        ← PIN은 기본키가 아님 (틀리면 wrong_pin, 새 사용자를 만들지 않음)
 ```
-- 동명이인이 같은 비밀번호를 골라도 **생년월일이 다르면 다른 사람**입니다. 세 가지가 모두 같으면 같은 사람으로 열리므로, 로그인 화면에서 항상 안내합니다.
-- 생년월일도 평문으로 저장하지 않습니다(해시만). pepper는 `private.secrets`에 있고 DB 밖으로 나가지 않습니다.
-- 이름: 완성형 한글 2~10자, NFC 정규화 · 생년월일: YYMMDD, 실제로 있는 날짜(2월 29일 허용) · 비밀번호: 6~64자, 제어 문자 제외(영문·숫자·기호·한글·공백 가능)
+- 동명이인은 이메일로 구분합니다. 가족이 메일 하나를 같이 써도 이름이 다르면 다른 사용자입니다.
+- 이메일·PIN 모두 평문으로 저장하지 않습니다. pepper는 `private.secrets`에 있고 DB 밖으로 나가지 않습니다.
+- 이름: 완성형 한글 2~10자, NFC 정규화 · 이메일: 공백 제거+소문자, `아무개@도메인.최상위`, 254자 이하 · PIN: 숫자 4~10자리
+- PIN 복구는 Supabase Auth 이메일 OTP로 메일 주인을 확인한 JWT가 있어야 합니다(`reset_pin`, `private.verified_email`).
 
 ## 테이블
 
@@ -26,8 +27,8 @@ pw_hash    = HMAC-SHA256(pepper, 이름 || ':' || birth_hash || ':' || 비밀번
 | 컬럼 | 타입 | 제약 |
 |---|---|---|
 | **name** | text | **PK①**, `^[가-힣]{2,10}$` |
-| **birth_hash** | text | **PK②**, HMAC hex 64자 |
-| **pw_hash** | text | **PK③**, HMAC hex 64자 |
+| **email_hash** | text | **PK②**, HMAC hex 64자 |
+| pin_hash | text | HMAC hex 64자 (사용자 id를 섞어 같은 PIN도 사람마다 다름) |
 | id | uuid | unique, 다른 테이블이 참조하는 대리키 |
 | created_at | timestamptz | |
 
@@ -65,20 +66,21 @@ pw_hash    = HMAC-SHA256(pepper, 이름 || ':' || birth_hash || ':' || 비밀번
 |---|---|
 | secrets | `pin_pepper` (init에서 랜덤 생성, 이름은 v1 그대로지만 v2 해시에도 쓰임) |
 | sessions | `token_hash`(sha256) → user_id, 30일 만료 |
-| auth_attempts | `key` = 이름:birth_hash 단위 로그인·생성·비밀번호 변경 시도 기록 (하루 지나면 정리) |
+| auth_attempts | `key` = 이름:email_hash 단위 로그인·생성·PIN 변경 시도 기록 (맞히면 지움, 하루 지나면 정리) |
 | upload_tickets | (path, kind=upload/delete) → user_id, tree_id, 10분 만료 |
 
 모든 public 테이블은 **RLS ON + 정책 없음 + anon/authenticated 권한 회수** 상태입니다. 접근은 아래 RPC로만 합니다.
 
-## RPC 함수 (브라우저가 호출) — 21개
+## RPC 함수 (브라우저가 호출) — 22개
 
 모두 `security definer`, `set search_path = ''`이고, anon/authenticated에게만 실행 권한이 있습니다.
 `p_tree_id`가 있는 함수는 생략하면 **순서상 맨 앞 트리**를 씁니다.
 
 | 함수 | 인자 | 반환 | 오류 코드 |
 |---|---|---|---|
-| `enter_tree` | p_name, p_birth, p_password, p_create=false | `{ok, token, name, share_id(맨 앞 트리), created}` 또는 `{ok:false, error}` | invalid_name, invalid_birth, invalid_password, rate_limited, (반환) not_found / rate_limited |
-| `change_password` | p_token, p_old_password, p_new_password | `{ok}` 또는 `{ok:false, error}` | invalid_password, rate_limited, (반환) wrong_password / password_unavailable |
+| `enter_tree` | p_name, p_email, p_pin, p_create=false | `{ok, token, name, share_id(맨 앞 트리), created}` 또는 `{ok:false, error}` | invalid_name, invalid_email, invalid_pin, rate_limited, (반환) not_found / wrong_pin / rate_limited |
+| `change_pin` | p_token, p_old_pin, p_new_pin | `{ok}` 또는 `{ok:false, error}` (다른 기기 로그아웃) | unauthorized, invalid_pin, rate_limited, (반환) wrong_pin |
+| `reset_pin` | p_name, p_new_pin — **이메일 OTP로 로그인한 Supabase Auth JWT 필요** | `{ok, token, name, share_id, created:false}` (모든 기기 로그아웃, 시도 제한 초기화) | invalid_name, invalid_pin, email_unverified, not_found |
 | `logout` | p_token | boolean | — |
 | `get_my_tree` | p_token, p_tree_id? | Tree | unauthorized, not_found |
 | `get_tree` | p_share_id | Tree | not_found |
@@ -114,9 +116,10 @@ pw_hash    = HMAC-SHA256(pepper, 이름 || ':' || birth_hash || ':' || 비밀번
 | 항목 | 값 | 위치 |
 |---|---|---|
 | 이름 | 한글 2~10자 | enter_tree, tree_users 제약, api.js `isValidName` |
-| 생년월일 | YYMMDD, 실제 날짜 | private.valid_birth, api.js `isValidBirth` |
-| 비밀번호 | 6~64자, 제어 문자 제외 | private.valid_password, api.js `isValidPassword` |
-| 로그인 시도 | (이름, 생년월일)당 15분 10회 | private.assert_rate |
+| 이메일 | 254자 이하, `아무개@도메인.최상위` | private.valid_email, api.js `isValidEmail` |
+| PIN | 숫자 4~10자리 | private.valid_pin, api.js `isValidPin` |
+| 로그인 시도 | (이름, 이메일)당 15분 10회 + 하루 30회 | private.assert_rate |
+| PIN 복구 | 메일 확인 후 15분 안에 | private.verified_email (amr timestamp) |
 | 신규 사용자 | 전체 1시간 60명 | enter_tree |
 | 세션 | 30일 | enter_tree |
 | 트리 | 사용자당 3개 | create_tree |
@@ -136,5 +139,5 @@ pw_hash    = HMAC-SHA256(pepper, 이름 || ':' || birth_hash || ':' || 비밀번
 6. 마이그레이션 끝의 grant 목록에 시그니처 추가 (새 private 함수는 revoke)
 7. `supabase/tests/`에 정상 경로와 권한 침해 경로 테스트를 추가하고 `./scripts/test-db.sh` 통과 확인
    - 같은 SQL 문장 안에서 쓰기 RPC와 `stable` 조회 함수를 함께 부르면 조회가 쓰기 전 스냅샷을 봅니다. 문장을 나누세요.
-8. `tests/e2e/mock-supabase.js`(E2E용 mock)도 같은 규칙으로 맞추기
+8. `tests/e2e/mock-supabase.js`(E2E용 mock)도 같은 규칙으로 맞추기 (Supabase Auth를 쓰면 mock의 `auth`도)
 9. 이 문서의 표 갱신

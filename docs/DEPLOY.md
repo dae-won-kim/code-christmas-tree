@@ -3,6 +3,7 @@
 | 구성 | 서비스 | 비용 |
 |---|---|---|
 | DB·사진 저장 | Supabase Free | 0원 (결제수단 등록 불필요) |
+| PIN 복구 메일 | Supabase Auth 이메일 OTP + 내 메일 계정의 SMTP(예: Gmail) | 0원 |
 | 웹 호스팅 | GitHub Pages (GitHub Actions 배포) | 0원 (Public 저장소) |
 
 > 대시보드 메뉴 이름은 Supabase·GitHub 개편에 따라 조금 다를 수 있습니다.
@@ -19,10 +20,12 @@
 
 ### 방법 A — SQL Editor (가장 간단)
 1. 왼쪽 메뉴 **SQL Editor** → New query
-2. `supabase/migrations/20261117000000_init.sql` 내용을 전부 붙여 넣고 **Run**
+2. `supabase/migrations/`의 파일을 **이름 순서대로** 하나씩 붙여 넣고 **Run** (init → accounts_v2 → tree_views)
 3. 확인
-   - Table Editor: `tree_users`, `messages`, `photos`
+   - Table Editor: `tree_users`, `trees`, `messages`, `photos`, `tree_views`
    - Storage: `tree-photos` 버킷
+
+> 이 저장소는 **Supabase GitHub 통합**으로 연결돼 있어서, `main`에 push하면 새 마이그레이션 파일이 운영 DB에 자동 적용됩니다.
 
 ### 방법 B — Supabase CLI (마이그레이션 이력 관리)
 ```bash
@@ -32,6 +35,49 @@ npx supabase db push                              # supabase/migrations/*.sql �
 ```
 
 > ⚠ `supabase/tests/`의 파일은 **로컬 테스트 전용**입니다. Supabase에서 실행하지 마세요.
+
+## 2-1. PIN 복구 메일 설정 (Supabase Auth)
+
+PIN을 잊은 사용자에게 **복구 PIN(숫자 6자리)** 을 메일로 보내는 데 Supabase Auth의 이메일 OTP를 씁니다.
+앱 코드에는 메일 관련 비밀값이 전혀 없고, 아래 설정은 모두 **대시보드에서 운영자가 직접** 합니다.
+
+### ① 이메일 로그인 켜기 (기본값 확인)
+- **Authentication → Sign In / Providers → Email**: Enable Email provider **켜짐**
+- **Allow new users to sign up**: **켜짐** (복구할 때 Auth에 임시 사용자가 생겼다가, 재설정이 끝나면 DB가 지웁니다)
+- Email OTP Expiration: `900`초(15분) 권장 — DB도 "15분 안에 확인한 메일"만 인정합니다
+- Phone·Anonymous 로그인은 켜지 않아도 됩니다(켜져 있어도 DB가 거부함)
+
+### ② 메일 템플릿에 복구 PIN 넣기 (필수)
+기본 템플릿은 "링크"만 있고 숫자가 없습니다. **Authentication → Emails → Templates**에서 아래 두 개를 모두 바꿉니다.
+처음 보는 주소에는 **Confirm signup**, 이미 있는 주소에는 **Magic Link** 템플릿이 쓰이기 때문입니다.
+
+- Subject: `[Code Christmas Tree] 복구 PIN {{ .Token }}`
+- Body:
+```html
+<h2>🎄 PIN 복구</h2>
+<p>아래 <b>복구 PIN</b>을 트리 화면에 입력하고 새 PIN을 정해 주세요. (15분 안에, 한 번만 쓸 수 있어요)</p>
+<p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p>
+<p>직접 요청하지 않았다면 이 메일은 무시해도 돼요. 트리와 PIN은 바뀌지 않아요.</p>
+```
+- 템플릿에 `{{ .ConfirmationURL }}`(링크)은 넣지 마세요. 앱은 숫자 입력 방식만 처리합니다.
+
+### ③ 메일 서버(SMTP) 연결 (실제 사용자에게 보내려면 필수)
+Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내고 한도도 시간당 몇 통 수준이라 시험용입니다.
+**Authentication → Emails → SMTP Settings → Enable Custom SMTP**에 내 메일 계정을 연결합니다. 예: Gmail
+| 항목 | 값 |
+|---|---|
+| Host / Port | `smtp.gmail.com` / `465` |
+| Username | 보내는 Gmail 주소 |
+| Password | Google 계정 → 보안 → 2단계 인증 → **앱 비밀번호**(16자리) — Gmail 비밀번호 자체가 아님 |
+| Sender email / name | 같은 Gmail 주소 / `Code Christmas Tree` |
+
+- 이 비밀번호는 **대시보드에만** 넣습니다. 저장소·`config.js`·이슈에 절대 적지 마세요.
+- 연결 후 **Authentication → Rate Limits**에서 메일 발송 한도를 정합니다(Gmail 무료 계정은 하루 약 500통).
+- 자기 도메인이 있으면 Resend·Brevo 같은 메일 서비스의 SMTP를 써도 됩니다.
+
+### ④ 확인
+배포된 사이트 → [PIN을 잊었어요] → 팀원(내) 주소로 복구 PIN 받기 → 새 PIN으로 트리가 열리면 정상입니다.
+메일 설정이 없어도 **가입·로그인·PIN 변경은 정상 동작**하고, 복구만 "메일을 보내지 못했어요"로 실패합니다.
 
 ## 3. 공개 키 확인
 
@@ -78,8 +124,11 @@ npm run test:e2e            # 화면 흐름 E2E (window.supabase mock)
 
 mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서 꼭 확인해야 합니다.
 
-- [ ] 새 트리 만들기 → 로그아웃 → 같은 이름+생년월일+비밀번호로 다시 열기
-- [ ] 같은 이름·비밀번호, 다른 생년월일 → "트리가 없어요" 안내 후 새 트리 생성 가능 (동명이인 구분)
+- [ ] 새 트리 만들기 → 로그아웃 → 같은 이름+이메일+PIN으로 다시 열기
+- [ ] PIN을 틀리면 "PIN이 맞지 않아요" (새 트리를 만들자고 하지 않음)
+- [ ] 같은 이름·PIN, 다른 이메일 → "트리가 없어요" 안내 후 새 트리 생성 가능 (동명이인 구분)
+- [ ] 꾸미기 → 공유·계정 → PIN 바꾸기 → 다른 기기 로그아웃 확인
+- [ ] [PIN을 잊었어요] → 복구 PIN 메일 수신 → 새 PIN으로 열림 → Authentication → Users에 임시 사용자가 남지 않음 (2-1)
 - [ ] 사이드 목록에서 트리 2·3번째 만들기, 이름·순서 바꾸기, 빈 트리 지우기
 - [ ] 사진 업로드 → 새로고침 후에도 보임 (Storage 업로드 정책이 실제로 동작하는지)
 - [ ] 사진 삭제 → Storage 버킷에서도 파일이 사라짐 (select/delete 정책)
@@ -101,12 +150,18 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 | 업로드 단계에서 403 / row-level security 오류 | Storage 정책 3개가 만들어졌는지 (Storage → Policies), 마이그레이션을 다시 Run |
 | 사진 삭제 후 "사진 파일을 지우지 못했어요"(`file_still_exists`) | `select with delete ticket` 정책이 있는지 (삭제 API는 select 권한도 필요) |
 | 오래 안 쓰다가 갑자기 전부 실패 | 7일 미사용 일시정지 → 대시보드에서 Restore |
+| 복구: "복구 메일을 보내지 못했어요" | Custom SMTP 설정(2-1 ③), 기본 메일 서버라면 팀원 주소인지, Auth Logs의 오류 |
+| 복구: 메일은 오는데 숫자가 없음(링크만 있음) | Confirm signup · Magic Link 템플릿 둘 다에 `{{ .Token }}` (2-1 ②) |
+| 복구: "메일은 잠시 뒤에 다시 보낼 수 있어요" | 같은 주소는 60초에 한 번, Rate Limits의 시간당 한도 |
+| 복구: 코드를 넣어도 "메일 확인 시간이 지났어요" | Email OTP Expiration이 너무 길지 않은지, 기기 시계 |
+| 복구 후 Authentication → Users에 사용자가 남음 | SQL Editor에서 `select has_table_privilege('postgres', 'auth.users', 'DELETE');` 가 `true`인지 (남아도 기능엔 문제없음, 수동 삭제 가능) |
 
 ## 7. 운영
 
 ```sql
--- 특정 트리 찾기
-select name, title, share_id, created_at from tree_users where name = '김민수';
+-- 특정 사람의 트리 찾기 (이메일은 해시라 이름으로 찾음)
+select u.name, t.title, t.share_id, t.created_at
+  from tree_users u join trees t on t.owner_id = u.id where u.name = '김민수';
 -- 문제 있는 글귀 삭제
 delete from messages where id = 123;
 -- 사용자 수 / 사진 수

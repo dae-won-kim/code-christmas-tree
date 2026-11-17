@@ -3,9 +3,9 @@
 이 파일은 Claude Code가 이 저장소에서 작업할 때 따르는 지침입니다.
 
 ## 프로젝트 한 줄 요약
-**한글 이름 + 생년월일 + 비밀번호**로 자기만의 **파티클 3D 크리스마스 트리**(사용자당 3개)를 만들고,
+**한글 이름 + 이메일 + PIN**으로 자기만의 **파티클 3D 크리스마스 트리**(사용자당 3개)를 만들고,
 글귀·사진을 걸어 공유 링크로 보여주는 웹앱입니다.
-정적 프론트엔드(GitHub Pages)와 Supabase(DB+Storage, 무료 플랜)로 구성되고, 서버 코드는 없습니다.
+정적 프론트엔드(GitHub Pages)와 Supabase(DB+Storage+Auth 이메일 OTP, 무료 플랜)로 구성되고, 서버 코드는 없습니다.
 
 ## 먼저 읽을 문서
 1. `docs/ROADMAP.md` — **현재 상태와 다음 할 일** (작업 시작 전에 반드시 확인)
@@ -22,7 +22,7 @@ web/                 정적 사이트 (GitHub Pages로 배포되는 폴더)
   js/api.js          TreeApi — DB 접근의 유일한 통로
   js/image.js        업로드 전 사진 리사이즈
   js/tree/           트리 렌더러 createTree(canvas, options) — renderer/patterns/photos/viewer/messages
-  js/ui/             화면 — dom(공통)/login/editor/share/library(사이드 목록: 담은 트리·본 기록)
+  js/ui/             화면 — dom(공통)/login(로그인·PIN 복구)/editor/share/library(사이드 목록: 내 트리·담은 트리·본 기록)
   config.example.js  → config.js로 복사해서 사용 (config.js는 커밋 금지)
 supabase/
   migrations/        DB 스키마 (Supabase에 적용하는 파일)
@@ -59,7 +59,11 @@ npm run test:e2e
 - 새 RPC는 `docs/DATABASE.md`의 "새 RPC 체크리스트" 8단계를 모두 따릅니다.
   - `security definer` + `set search_path = ''` + 스키마까지 붙인 이름
   - grant 목록 추가, 테스트 추가
-- 실패 기록을 남겨야 하는 경로(로그인·비밀번호 확인)는 raise 대신 `{ok:false, error}`를 return합니다. raise하면 트랜잭션 롤백으로 기록이 사라집니다.
+- 실패 기록을 남겨야 하는 경로(로그인·PIN 확인)는 raise 대신 `{ok:false, error}`를 return합니다. raise하면 트랜잭션 롤백으로 기록이 사라집니다.
+- Supabase Auth는 **PIN 복구의 메일 주인 확인에만** 씁니다. 로그인 세션은 우리 토큰(`p_token`)입니다.
+  Auth 세션은 저장하지 않고(`persistSession: false`) 복구가 끝나면 바로 `signOut`합니다.
+  메일 확인이 필요한 RPC는 `private.verified_email()`로 JWT를 검사합니다(직접 claims를 읽지 않기).
+- SMTP 비밀번호·메일 API 키는 대시보드에만 둡니다. 저장소·문서·`config.js`에 넣지 않습니다.
 - 사용자 입력(이름·제목·글귀·캡션)은 DOM에 **`textContent`로만** 넣습니다. `innerHTML` 금지(토큰이 localStorage에 있으므로 XSS 치명적).
 - `web/config.js`, `.env`, secret key, service_role key, DB 비밀번호를 커밋하지 않습니다.
 - pepper(`private.secrets`)는 DB 안에서 생성됩니다. 코드나 문서에 값을 쓰지 않습니다.
@@ -89,8 +93,9 @@ npm run test:e2e
 
 ## 알려진 제약 / 주의점
 - mock 테스트는 `storage.objects`의 일부 컬럼만 흉내 냅니다. Storage 정책의 **실제 동작은 Phase 4에서 실제 Supabase로 확인**해야 합니다(DEPLOY.md 6번).
-- 사용자 = (이름, 생년월일, 비밀번호). 세 값이 모두 같으면 같은 사람으로 열리므로 로그인 화면의 안내 문구(`#pwWarn`)를 없애지 않습니다.
-- 해시는 조회를 위해 빠른 HMAC입니다. DB와 pepper가 함께 유출되면 짧은 비밀번호는 풀릴 수 있으니, 보안을 과장하는 문구를 쓰지 않습니다.
-- 생년월일·비밀번호는 평문으로 저장하지 않습니다(해시만). 새 기능에서도 평문 컬럼을 만들지 않습니다.
+- 사용자 = (이름, 이메일), PIN은 확인용 값(기본키 아님). 이메일은 복구 주소라서 로그인 화면의 안내 문구(`#emailWarn`)와 새로 만들 때의 주소 확인을 없애지 않습니다.
+- PIN은 숫자 4~10자리라 근본적으로 약하고, 해시는 조회를 위해 빠른 HMAC입니다. 보안을 과장하는 문구를 쓰지 않습니다.
+- 이메일·PIN은 평문으로 저장하지 않습니다(해시만). 새 기능에서도 평문 컬럼을 만들지 않습니다.
+- 복구 메일이 실제로 가려면 Supabase 대시보드 설정(메일 템플릿 `{{ .Token }}`, SMTP)이 필요합니다(`docs/DEPLOY.md` 2-1). mock E2E로는 검증되지 않습니다.
 - 무늬 번호는 DB에 저장됩니다. `PATTERNS`에 새 무늬는 **맨 뒤에만** 추가하고, 늘리면 `trees_pattern` 제약도 새 마이그레이션으로 바꿉니다.
 - Supabase 무료 프로젝트는 7일 동안 요청이 없으면 일시정지됩니다.
