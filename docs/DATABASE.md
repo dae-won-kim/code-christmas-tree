@@ -1,6 +1,6 @@
 # DB 명세
 
-원본: `supabase/migrations/20261117000000_init.sql` · 테스트: `supabase/tests/10_rpc_test.sql`
+원본: `supabase/migrations/20261117000000_init.sql`, `20261117120000_tree_views.sql` · 테스트: `supabase/tests/10_rpc_test.sql`, `20_views_test.sql`
 
 ## 테이블
 
@@ -21,6 +21,18 @@
 
 ### public.photos — 사진 메타데이터 (트리당 30장)
 `id` bigint PK · `user_id` → tree_users.id (cascade) · `path` unique `<user_id>/<uuid>.jpg` · `caption` ≤30자 · `created_at`
+
+### public.tree_views — 본 트리 기록 · 담은 트리 (`20261117120000_tree_views.sql`)
+| 컬럼 | 타입 | 제약 |
+|---|---|---|
+| **viewer_id** | uuid | **PK①**, → tree_users.id (cascade) — 보는 사람 |
+| **tree_id** | uuid | **PK②**, → tree_users.id (cascade) — 본 트리, `viewer_id <> tree_id` |
+| saved / saved_at | boolean / timestamptz | [담기] 여부와 시각 (보는 사람당 100개) |
+| viewed_at | timestamptz | 마지막으로 본 시각, null이면 기록에서 지운 것 (보는 사람당 최근 50개) |
+
+- `saved` 이거나 `viewed_at`이 있어야 행이 존재합니다(체크 제약). 둘 다 없어지면 행을 지웁니다.
+- 읽기 전용 목록입니다. 트리 내용은 기존 `get_tree(share_id)`로만 보며, 담았다고 쓰기 권한이 생기지 않습니다.
+- 트리 주인 쪽에서 "누가 봤는지" 조회하는 RPC는 만들지 않았습니다.
 
 ### private.* (API 비노출)
 | 테이블 | 용도 |
@@ -50,6 +62,11 @@
 | `finish_photo_delete` | p_token, p_photo_id | boolean | unauthorized, file_still_exists |
 | `change_pin` | p_token, p_old_pin, p_new_pin | `{ok}` 또는 `{ok:false, error}` | invalid_pin, rate_limited, (반환) wrong_pin / pin_unavailable |
 | `logout` | p_token | boolean | — |
+| `record_view` | p_token, p_share_id | `{own, saved}` (내 트리면 기록 안 함) | unauthorized, not_found |
+| `list_trees` | p_token | `[{share_id, name, title, saved, saved_at, viewed_at}]` 최근 순 | unauthorized |
+| `set_saved` | p_token, p_share_id, p_saved | boolean (담긴 상태) | unauthorized, not_found, own_tree, save_limit |
+| `forget_views` | p_token, p_share_id=null(전부) | integer (지운 기록 수, 담은 트리는 남음) | unauthorized |
+| `merge_views` | p_token, p_items `[{share_id, viewed_at}]` | integer (합친 수, 앞 50개만, 없는 링크·내 트리 제외) | unauthorized, invalid_items |
 
 **Tree 형식**
 ```json
@@ -72,6 +89,8 @@
 | 글귀 | 100자, 50개 | add_message |
 | 사진 | 30장, 2MB, JPEG | begin_photo_upload, 버킷 설정 |
 | 업로드/삭제 티켓 | 10분 | begin_photo_* |
+| 본 기록 | 보는 사람당 최근 50개 | private.trim_views, merge_views(입력 50개) |
+| 담은 트리 | 보는 사람당 100개 | set_saved |
 
 ## 새 RPC를 추가할 때 체크리스트
 1. `create or replace function public.xxx(...) ... security definer set search_path = ''`

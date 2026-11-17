@@ -22,11 +22,11 @@ web/                 정적 사이트 (GitHub Pages로 배포되는 폴더)
   js/api.js          TreeApi — DB 접근의 유일한 통로
   js/image.js        업로드 전 사진 리사이즈
   js/tree/           트리 렌더러 createTree(canvas, options) — renderer/patterns/photos/viewer/messages
-  js/ui/             화면 — dom(공통)/login/editor/share
+  js/ui/             화면 — dom(공통)/login/editor/share/library(사이드 목록: 담은 트리·본 기록)
   config.example.js  → config.js로 복사해서 사용 (config.js는 커밋 금지)
 supabase/
   migrations/        DB 스키마 (Supabase에 적용하는 파일)
-  tests/             로컬 전용 mock + RPC·보안 테스트 (Supabase에서 실행 금지)
+  tests/             로컬 전용 mock + RPC·보안 테스트 (Supabase에서 실행 금지) — test-db.sh가 [1-9]*_test.sql을 모두 실행
 tests/e2e/           Playwright E2E (window.supabase mock: mock-supabase.js)
 scripts/test-db.sh   DB 테스트 실행기
 scripts/serve.py     로컬 개발 서버 (MIME 고정, config.js 없으면 데모 모드)

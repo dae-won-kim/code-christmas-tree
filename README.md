@@ -57,7 +57,23 @@
 - **읽기 전용**이라 글귀·사진을 바꿀 수 없습니다. 무늬 바꾸기는 그 사람 화면에서만 바뀌고 저장되지 않아요.
 - **[✨ 나도 트리 만들기]** 로 자기 트리를 만들 수 있습니다.
 
-## 4. 사용자마다 화면이 다른가요?
+## 4. 다른 사람의 트리 담기 · 다시 보기
+
+<p>
+  <img src="docs/images/library-desktop.png" alt="트리 목록을 펼친 화면 (데스크톱)" width="62%">
+  <img src="docs/images/library-mobile.png" alt="트리 목록을 펼친 화면 (모바일)" width="23%">
+</p>
+
+- 공유 링크로 연 트리에서 **[☆ 담기]** 를 누르면 내 목록에 저장됩니다. 담은 트리도 **읽기 전용**이라 볼 수만 있어요.
+- 왼쪽 위 **[☰ 목록]** 을 누르면 옆에서 목록이 펼쳐집니다. 평소에는 접혀 있어서 트리를 가리지 않아요.
+  - **⭐ 담은 트리** — 내가 담아 둔 트리 (☆를 누르면 빼기)
+  - **🕘 최근 본 트리** — 공유 링크로 본 트리가 *"OOO님의 트리"* 로 자동 기록돼요 (최근 50개, ✕로 지우기)
+- 목록에서 고르면 그 트리로 바로 넘어가고, 브라우저의 **뒤로 가기**로 돌아올 수 있어요.
+- 로그인하지 않고 본 기록은 그 브라우저에만 남았다가, **로그인하면 내 목록으로 합쳐져** 다른 기기에서도 보입니다.
+  로그인 전에 [☆ 담기]를 누르면 로그인 화면으로 안내하고, 로그인하자마자 담아 둬요.
+- 트리 주인은 **누가 자기 트리를 봤는지 알 수 없습니다.**
+
+## 5. 사용자마다 화면이 다른가요?
 
 **사이트 주소는 모두 같지만, 이름+PIN을 입력한 뒤 보이는 트리는 사람마다 다릅니다.**
 
@@ -66,18 +82,20 @@
 | 처음 접속 (로그인 전) | 모두 같은 **로그인 화면** |
 | 이름+PIN 입력 후 | **내 트리** — 내가 정한 제목 · 무늬 · 설정 · 글귀 · 사진. 다른 사람의 트리와 완전히 분리돼 있어요 |
 | 공유 링크(`?t=…`)로 접속 | 그 링크 주인의 트리 (읽기 전용) |
+| 왼쪽 위 [☰ 목록] | **내가** 담은 트리와 최근 본 트리 — 사람마다 다른 목록 |
 
 - 트리는 **이름 + PIN 조합**으로 구분합니다. 그래서 **같은 이름이라도 PIN이 다르면 다른 사람, 다른 트리**예요. 예를 들어 "김민수 + 1234"와 "김민수 + 5678"은 서로의 트리를 볼 수 없습니다.
 - 한 번 들어가면 **그 브라우저에서는 30일 동안 로그인이 유지**됩니다. 다른 기기나 다른 브라우저에서는 이름+PIN을 한 번 더 입력하면 같은 트리가 열려요.
 - 휴대폰에서는 빛 입자 수를 줄여서 가볍게 보여 줍니다. 입자 배치는 열 때마다 조금씩 다르지만 저장된 내용은 같아요.
 
-## 5. 한도와 주의할 점
+## 6. 한도와 주의할 점
 
 | 항목 | 한도 |
 |---|---|
 | 제목 | 30자 |
 | 글귀 | 한 줄 100자, 트리당 50개 |
 | 사진 | 트리당 30장, 캡션 30자 (올릴 때 긴 변 1280px JPEG로 자동으로 줄여요) |
+| 담은 트리 · 최근 본 트리 | 100개 · 최근 50개 |
 | 로그인 시도 | 같은 이름으로 15분에 10번까지 |
 
 - **공유 링크를 받은 사람은 이름 · 제목 · 글귀 · 사진을 볼 수 있습니다.** 보여 주고 싶지 않은 사진은 올리지 마세요.
@@ -93,13 +111,13 @@
 
 | | |
 |---|---|
-| **무엇을** | 이름+PIN 기반 개인 트리 생성 · 편집 · 공유 웹앱 (파티클 3D 렌더링) |
+| **무엇을** | 이름+PIN 기반 개인 트리 생성 · 편집 · 공유 웹앱 (파티클 3D 렌더링) + 남의 트리 담기 · 본 기록 목록 |
 | **프론트엔드** | **바닐라 JavaScript (ES 모듈), 빌드 도구 없음** · Canvas 2D에 3D 원근 투영을 직접 구현 |
-| **백엔드** | **서버 코드 없음.** Supabase(PostgreSQL + PostgREST + Storage) — 로직과 보안 검사는 전부 **PostgreSQL 함수(RPC 12개)** 안에 있음 |
+| **백엔드** | **서버 코드 없음.** Supabase(PostgreSQL + PostgREST + Storage) — 로직과 보안 검사는 전부 **PostgreSQL 함수(RPC 17개)** 안에 있음 |
 | **DB 핵심** | `(이름, HMAC-SHA256(PIN))` **복합 기본키** + 대리키 `id` · RLS ON + 정책 없음 → 테이블 직접 접근 불가, RPC로만 읽기/쓰기 |
 | **배포** | GitHub Pages(GitHub Actions) + Supabase GitHub 통합(`main` push 시 마이그레이션 자동 적용) |
 | **비용** | **0원** — GitHub Pages(Public) + Supabase Free |
-| **테스트** | DB 보안·기능 테스트 **55개** (PostgreSQL 16 컨테이너) · 화면 E2E **15개 시나리오 × 3개 화면 크기** (Playwright) · 모두 CI에서 자동 실행 |
+| **테스트** | DB 보안·기능 테스트 **83개** (PostgreSQL 16 컨테이너) · 화면 E2E **19개 시나리오 × 3개 화면 크기** (Playwright) · 모두 CI에서 자동 실행 |
 | **보안** | PIN 해시 저장, 세션 토큰 해시 저장, 이름별 속도 제한, 티켓 방식 업로드, CSP + SRI, `textContent` 출력 |
 
 ## 기술 스택
@@ -135,8 +153,9 @@
 └───────────────┬──────────────────────────────────────┘
                 │ HTTPS · Publishable key (공개돼도 되는 키)
 ┌───────────────▼───────── Supabase (Free) ────────────┐
-│ PostgREST → public 스키마 RPC 12개 (security definer) │
-│               └ tree_users · messages · photos        │
+│ PostgREST → public 스키마 RPC 17개 (security definer) │
+│               └ tree_users · messages · photos ·      │
+│                 tree_views(담기·본 기록)               │
 │                 RLS ON + 정책 없음 + 테이블 권한 회수  │
 │             → private 스키마 (API 비노출)              │
 │               secrets(pepper) · sessions ·             │
@@ -157,6 +176,7 @@
 | `tree_users` | public | **PK `(name, pin_hash)`** · `id uuid unique`(대리키) · `share_id`(공유용 랜덤 12자) · `title` 1~30자 · `pattern` 0~3 · `settings jsonb` ≤2KB · 이름 `^[가-힣]{2,10}$` |
 | `messages` | public | `user_id → tree_users.id` (cascade) · `body` 1~100자 · 트리당 50개 |
 | `photos` | public | `user_id → tree_users.id` (cascade) · `path` = `<user_id>/<uuid>.jpg` · `caption` ≤30자 · 트리당 30장 |
+| `tree_views` | public | **PK `(viewer_id, tree_id)`** 둘 다 `tree_users.id` 참조 · `saved`(담기, 100개) · `viewed_at`(본 기록, 최근 50개) · 자기 트리 제외 |
 | `secrets` | private | `pin_pepper` — 마이그레이션 때 DB 안에서 랜덤 32바이트 생성 (저장소에 없음) |
 | `sessions` | private | `sha256(token)` → user_id, 30일 만료 |
 | `auth_attempts` | private | 이름별 로그인 · 생성 · PIN 변경 시도 기록 (속도 제한용) |
@@ -174,12 +194,15 @@
    PostgreSQL은 예외가 나면 트랜잭션 전체를 롤백합니다. 로그인 실패 때 `raise`하면 방금 저장한 "실패 시도 기록"까지 사라져 무차별 대입 방지가 무력화되기 때문에, 로그인과 PIN 확인은 값을 반환합니다.
 5. **사진 업로드 · 삭제는 "티켓" 방식**
    Storage 정책은 우리 세션 토큰을 볼 수 없습니다. 그래서 RPC가 "이 경로에 10분간 업로드해도 됨"이라는 티켓을 발급하고, Storage 정책은 티켓이 있는지만 확인합니다. 확정 단계에서 파일이 실제로 있는지(업로드) · 사라졌는지(삭제)를 DB가 다시 검사해서, 파일과 기록이 어긋나지 않게 합니다.
-6. **한글 이름 NFC 정규화**
+6. **담기 · 본 기록은 "권한"이 아니라 "목록"**
+   `tree_views`는 share_id를 가리키는 목록일 뿐이라, 담아도 쓰기 권한이 생기지 않습니다(테스트 T23). 기록은 보는 사람 쪽에만 있고 트리 주인이 조회하는 RPC는 없습니다. 로그인 전 기록은 브라우저에 두었다가 로그인 시 `merge_views`로 합치는데, 입력은 50개로 자르고 없는 링크 · 자기 트리 · 미래 시각을 걸러 냅니다.
+7. **한글 이름 NFC 정규화**
    macOS 등에서 한글이 자모 분리형(NFD)으로 들어오면 눈에는 같은 "김민수"여도 다른 사람으로 저장됩니다. 클라이언트와 DB 양쪽에서 정규화합니다.
 
-### RPC 12개
+### RPC 17개
 
 `enter_tree` · `get_my_tree` · `get_tree` · `update_tree` · `add_message` · `delete_message` · `begin_photo_upload` · `finish_photo_upload` · `begin_photo_delete` · `finish_photo_delete` · `change_pin` · `logout`
+· (목록) `record_view` · `list_trees` · `set_saved` · `forget_views` · `merge_views`
 — 인자 · 반환 · 오류 코드 명세는 [`docs/DATABASE.md`](docs/DATABASE.md)
 
 ## 보안
@@ -192,6 +215,7 @@
 | 남의 글귀 · 사진 삭제 | 모든 RPC가 토큰의 user_id로 범위 제한 | T11, T13 |
 | 남의 경로에 업로드 · 삭제 | 티켓이 있는 경로만 허용 | T12, T13 |
 | DB 유출 시 PIN · 토큰 노출 | HMAC · SHA-256 해시만 저장 | T19 |
+| 남의 목록(담은 트리 · 본 기록) 엿보기, 담기로 남의 트리 수정 | `tree_views`도 RPC로만 접근, 토큰 주인의 목록만 조회 · 쓰기 권한 없음 | T21, T23, T26 |
 | XSS로 토큰 탈취 (토큰이 localStorage에 있음) | ① 사용자 입력은 `textContent`로만 출력 ② **CSP**로 스크립트 출처를 `self` + jsDelivr로 제한 ③ supabase-js **SRI** | E2E(XSS 문자열이 글자 그대로 출력), CSP 위반 0 |
 | 관리자 키가 웹에 들어감 | 배포 워크플로와 앱 양쪽에서 `sb_secret_` 키를 감지하면 중단 | — |
 
@@ -206,11 +230,12 @@ web/js/
 ├── image.js         업로드 전 리사이즈 (품질을 단계적으로 낮춰 2MB 이하 보장)
 ├── tree/            renderer(루프·투영·별·눈) · patterns(무늬 4종) · photos(연출·히트 테스트)
 │                    · viewer(FLIP 확대) · messages(타이핑)
-└── ui/              dom(공통) · login · editor · share
+└── ui/              dom(공통) · login · editor · share · library(사이드 목록)
 ```
 
 - **트리 API:** `createTree(canvas, options)` → `{ setPattern, nextPattern, setMessages, setTitle, setSettings, addPhoto, removePhoto, clearPhotos, layout, destroy }`
 - **저장:** 제목 · 무늬 · 설정은 800ms debounce 후 `update_tree` 한 번으로 묶어서 보내고, 패널을 닫거나 로그아웃할 때 남은 변경을 바로 보냅니다.
+- **사이드 목록:** 기본 접힘 · 펼침 상태 기억 · 접히면 `inert`(Tab으로 못 들어감). 목록에서 고른 트리는 `history.pushState`로 새로고침 없이 열고 뒤로 가기를 지원하며, 빠르게 옮겨 다닐 때 늦게 도착한 이전 응답은 버립니다.
 - **한글 IME:** `compositionstart~end` 동안에는 검증 메시지를 바꾸지 않고, 조합을 확정하는 Enter로는 제출하지 않습니다("김ㅁ" 같은 조합 중간 상태 때문에 메시지가 깜빡이는 문제 방지).
 - **접근성:** 버튼 `aria-label`, WAI-ARIA 탭 패턴(방향키 · Home · End), 패널을 열면 첫 입력칸으로 포커스 이동, Esc로 닫기, 타이핑 글귀는 화면 낭독기용 목록으로 따로 제공.
 - **반응형:** 데스크톱(1280×800) · 모바일(390×844) · 가로 모바일(844×390), safe-area, iOS 확대를 막기 위해 입력창 16px 이상.
@@ -219,8 +244,8 @@ web/js/
 
 | 종류 | 도구 | 내용 |
 |---|---|---|
-| DB 보안 · 기능 | PostgreSQL 16 + SQL (`supabase/tests/`) | **55개** — 이름 · PIN 형식, 복합키, NFD 정규화, 테이블 직접 접근 차단, 티켓 위조 · 재사용, 속도 제한 롤백 방지, PIN 변경 시 다른 세션 해제, 해시 저장 등. 마이그레이션을 **2번 연속 적용**해도 성공하는지(재실행 안전성)도 검사 |
-| 화면 E2E | Playwright + `window.supabase` mock | **15개 시나리오 × 데스크톱 · 모바일 · 가로** — 전체 흐름(로그인 → 생성 → 꾸미기 → 글귀 → 사진 업로드 · 삭제 → 공유 → PIN 변경 → 로그아웃 → 재로그인 → 시크릿 창 공유 보기), XSS, 세션 만료, 네트워크 오류, 느린 네트워크, IME, 클립보드 실패, 키보드 탐색. 모든 테스트에서 **Console 오류 0**을 자동 확인 |
+| DB 보안 · 기능 | PostgreSQL 16 + SQL (`supabase/tests/`) | **83개** — 담기 · 본 기록(목록 분리, 50개 유지, 합치기 검증, 읽기 전용), 이름 · PIN 형식, 복합키, NFD 정규화, 테이블 직접 접근 차단, 티켓 위조 · 재사용, 속도 제한 롤백 방지, PIN 변경 시 다른 세션 해제, 해시 저장 등. 마이그레이션을 **2번 연속 적용**해도 성공하는지(재실행 안전성)도 검사 |
+| 화면 E2E | Playwright + `window.supabase` mock | **19개 시나리오 × 데스크톱 · 모바일 · 가로** — 사이드 목록(게스트 기록 → 로그인 합치기, 담기 토글, 목록 이동 · 뒤로 가기), 전체 흐름(로그인 → 생성 → 꾸미기 → 글귀 → 사진 업로드 · 삭제 → 공유 → PIN 변경 → 로그아웃 → 재로그인 → 시크릿 창 공유 보기), XSS, 세션 만료, 네트워크 오류, 느린 네트워크, IME, 클립보드 실패, 키보드 탐색. 모든 테스트에서 **Console 오류 0**을 자동 확인 |
 | 리팩터링 회귀 | 픽셀 비교 | 단일 파일 프로토타입을 모듈로 나누기 전후를 `Math.random` 시드 고정 + 가짜 시계로 같은 시점에 찍어 **12장 모두 픽셀 차이 0%** 확인 |
 | 실제 환경 | Playwright → 배포 사이트 + 실제 Supabase | 배포 체크리스트(업로드 · 삭제 정책 실동작, 직접 조회 차단, 공유 읽기 전용) 통과 |
 
@@ -230,7 +255,7 @@ mock은 SQL과 같은 오류 코드 · 제한 · 티켓 규칙을 흉내 내도�
 
 ```
 git push main ─┬─▶ GitHub Actions: pages.yml   → Variables로 config.js 생성 → web/ 배포 (GitHub Pages)
-               ├─▶ GitHub Actions: db-test.yml → PostgreSQL 16에서 마이그레이션 2회 적용 + 55개 테스트
+               ├─▶ GitHub Actions: db-test.yml → PostgreSQL 16에서 마이그레이션 2회 적용 + 83개 테스트
                ├─▶ GitHub Actions: e2e.yml     → Playwright E2E
                └─▶ Supabase GitHub 통합        → supabase/migrations 새 파일을 운영 DB에 적용
 ```
@@ -246,11 +271,13 @@ git push main ─┬─▶ GitHub Actions: pages.yml   → Variables로 config.j
 | Windows에서 로컬 서버로 열면 화면이 빔 | Python `http.server`가 레지스트리 설정 때문에 `.js`를 `text/plain`으로 보내 ES 모듈 로드가 거부됨 | MIME을 고정한 개발 서버 `scripts/serve.py` 작성. `config.js`가 없으면 빈 설정을 돌려줘 데모 모드로 열림 |
 | E2E를 병렬로 돌리면 간헐적으로 연결 거부 | Python 서버의 기본 연결 대기열(5개)이 모듈 동시 요청보다 작음 | 대기열을 128로 늘리고 `127.0.0.1`로 고정 |
 | 실제 배포에서만 [꾸미기] 버튼이 가끔 반응 없음 | 로딩 중에도 버튼이 보였지만 편집 화면은 데이터를 받은 뒤에 연결됨. mock은 응답이 즉시 와서 드러나지 않았음 | 데이터를 받은 뒤 도구 막대를 표시하도록 수정하고, mock에 응답 지연 옵션을 넣어 회귀 테스트 추가 |
+| 새 DB 테스트가 "기록을 지웠는데 남아 있다"며 실패 | 쓰기 RPC와 `stable` 함수(`list_trees`)를 한 SQL 문장에서 부르면, stable 함수는 문장 시작 시점 스냅샷을 봐서 방금 쓴 내용이 보이지 않음 (함수 자체는 정상) | 쓰기와 확인을 두 문장으로 나누고 테스트 파일에 이유를 주석으로 남김 |
 | 로그인 실패 기록이 사라질 수 있음 | PostgreSQL 예외는 트랜잭션 전체를 롤백 | 실패 경로는 `raise` 대신 `{ok:false, error}` 반환. 테스트 T15로 고정 |
 
 ## 다음 단계
 
 - 트리(계정) 삭제: 사진 일괄 삭제 티켓 → 파일 삭제 → 사용자 삭제(cascade)
+- 담은 트리가 바뀌면 알림(새 글귀 · 사진 표시)
 - 방문자 방명록(승인제), 공유 링크 OG 미리보기 이미지, 무늬 추가, 다국어
 
 ---

@@ -10,7 +10,7 @@
 └───────────────┬───────────────────────────────────────────────┘
                 │ HTTPS (supabase-js, Publishable key)
 ┌───────────────▼────────── Supabase (무료 플랜) ───────────────┐
-│  PostgREST ─▶ public 스키마 RPC 함수 12개 (security definer)   │
+│  PostgREST ─▶ public 스키마 RPC 함수 17개 (security definer)   │
 │               └─ public.tree_users / messages / photos         │
 │                  (RLS ON + 정책 없음 + 권한 회수 → 직접 접근 불가)│
 │               └─ private 스키마 (API 비노출)                    │
@@ -105,6 +105,8 @@ Storage 정책이 그 티켓이 있는지만 확인합니다.
 | 남의 경로에 파일 업로드·삭제 | 티켓이 있는 경로만 허용 | T12, T13 |
 | 탈취된 다른 기기 세션 | PIN 변경 시 현재 세션 외 모두 해제 | T14 |
 | DB 유출 시 PIN 노출 | HMAC 저장 (평문 없음) | T19 |
+| 남의 목록(담은 트리·본 기록) 엿보기 | `tree_views`도 RLS + 권한 회수, 모든 목록 RPC가 토큰의 user_id로만 조회 | T21, T26 |
+| 담기로 남의 트리 수정 | 목록은 share_id만 가리킴. 쓰기 RPC는 여전히 토큰 주인의 트리만 바꿈 | T23 |
 
 **한계 (README와 UI에도 알릴 것)**
 - PIN은 4~6자리라 경우의 수가 1만~100만 개뿐입니다.
@@ -131,6 +133,9 @@ index.html ─ config.js(window.TREE_CONFIG) ─ js/main.js
 - 트리 렌더러는 DB를 모릅니다. 화면 모듈이 `TreeApi`로 받은 데이터를 `tree.setTitle / setPattern / setMessages / addPhoto(id) / removePhoto(id)`로 넘깁니다.
 - 화면 전환(로그인 ↔ 내 트리)은 새로고침 없이 이전 화면을 `destroy()`하고 다음 화면을 mount합니다. 트리 캔버스는 하나를 계속 씁니다.
 - 제목·무늬·설정은 800ms debounce 후 `update_tree` 한 번으로 저장하고, 패널을 닫거나 로그아웃할 때 남은 변경을 바로 보냅니다.
+- **트리 목록(사이드 서랍, `ui/library.js`):** 담은 트리 + 최근 본 트리. 로그인했으면 DB(`list_trees`), 아니면 localStorage에 기록하고
+  로그인하면 `merge_views`로 합칩니다. 로그인 없이 [담기]를 누르면 sessionStorage에 기억했다가 로그인 직후 담습니다.
+  목록에서 고른 트리는 `history.pushState`로 새로고침 없이 열고, 뒤로 가기(`popstate`)도 지원합니다.
 - XSS 방어 3겹: ① 사용자 입력은 `textContent`로만 출력 ② CSP로 스크립트 출처를 `self` + jsdelivr로 제한 ③ supabase-js는 SRI로 파일 내용까지 고정.
 
 ## 7. 무료 플랜 제약
