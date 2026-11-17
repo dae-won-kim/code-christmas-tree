@@ -4,7 +4,7 @@
 #
 #  사용법
 #    ./scripts/test-db.sh
-#        → Docker가 있으면 postgres:16.16 컨테이너를 잠깐 띄워서 테스트 후 삭제
+#        → Docker가 있으면 postgres:17.12 컨테이너를 잠깐 띄워서 테스트 후 삭제
 #    DATABASE_URL=postgresql://user:pass@localhost:5432/testdb ./scripts/test-db.sh
 #        → 이미 있는 "빈 테스트용" PostgreSQL 사용
 #
@@ -13,7 +13,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PG_IMAGE="postgres:16.16"
+PG_IMAGE="postgres:17.12"
 CONTAINER=""
 cleanup() { [ -n "$CONTAINER" ] && docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
@@ -23,7 +23,7 @@ if [ -z "${DATABASE_URL:-}" ]; then
     echo "DATABASE_URL이 없고 Docker도 없습니다. 둘 중 하나가 필요합니다." >&2; exit 1
   fi
   CONTAINER="tree-test-db-$$"
-  # 마이너 버전까지 고정: 2026-11-17 KISA 공지(PostgreSQL 보안 업데이트, CVE 25건)의 해결 버전 16.16
+  # 마이너 버전까지 고정: 2026-11-17 KISA 공지(PostgreSQL 보안 업데이트, CVE 25건)의 해결 버전 17.12 (운영 Supabase DB와 같은 버전)
   docker run -d --rm --name "$CONTAINER" -e POSTGRES_PASSWORD=postgres -p 54329:5432 "$PG_IMAGE" >/dev/null
   DATABASE_URL="postgresql://postgres:postgres@localhost:54329/postgres"
   echo "▶ 테스트용 PostgreSQL 컨테이너 시작 중..."

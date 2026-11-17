@@ -48,7 +48,7 @@ python scripts/serve.py            # http://127.0.0.1:8000  (macOS/Linux는 pyth
 npm ci && npx playwright install chromium
 npm run test:e2e
 ```
-- Docker는 있지만 호스트에 `psql`이 없으면: postgres:16.16 컨테이너 안에서 저장소를 마운트하고
+- Docker는 있지만 호스트에 `psql`이 없으면: postgres:17.12 컨테이너 안에서 저장소를 마운트하고
   `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres bash scripts/test-db.sh`를 실행합니다.
 
 ## 반드시 지킬 규칙

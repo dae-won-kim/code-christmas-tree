@@ -180,7 +180,7 @@ select count(*) from tree_users; select count(*) from photos;
 |---|---|
 | 2026-11-17 KISA "PostgreSQL 제품 보안 업데이트 권고" (CVE 25건) | 18.7 · 17.12 · 16.16 · 15.20 · 14.25 이상 |
 
-- 로컬·CI 테스트 DB는 `scripts/test-db.sh`와 `.github/workflows/db-test.yml`에 이미지 버전(`postgres:16.16`)을 고정해 두었습니다. 새 공지가 나오면 두 곳을 함께 올립니다.
+- 로컬·CI 테스트 DB는 `scripts/test-db.sh`와 `.github/workflows/db-test.yml`에 이미지 버전(`postgres:17.12`)을 고정해 두었습니다. 새 공지가 나오면 두 곳을 함께 올립니다.
 - 이 앱은 브라우저에 SQL 실행 권한을 주지 않고, 미리 만든 RPC만 열어 둡니다. 그래서 공격면은 작은 편이지만 업데이트는 해야 합니다.
   직접 DB 접속(5432·6543 포트)은 DB 비밀번호만으로 열리므로, **Database → Network Restrictions**로 접속할 수 있는 IP를 제한하면 더 안전합니다.
 

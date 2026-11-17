@@ -13,9 +13,9 @@
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·루돌프 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
   - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
-- 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스 표기·GIF 남음
+- 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스·제3자 고지 완료, README 정리·GIF 남음
 - 🔒 **보안 업데이트** (2026-11-17 KISA PostgreSQL 보안 업데이트 권고, CVE 25건)
-  - [x] 로컬·CI 테스트 DB 이미지를 `postgres:16` → `postgres:16.16`으로 고정, 패치 전 서버면 `test-db.sh`가 경고
+  - [x] 로컬·CI 테스트 DB 이미지를 `postgres:17.12`로 고정(운영 DB와 같은 버전), 패치 전 서버면 `test-db.sh`가 경고
   - [x] 운영 Supabase DB 버전 확인 — 17.12로 이미 해결 버전 (2026-11-17, 업그레이드 불필요)
 
 ---
@@ -109,8 +109,8 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 ## Phase 5 — 오픈소스 마무리 🔄
 - [x] README에 스크린샷, 데모 링크 — 사용 가이드 / 포트폴리오 두 부분으로 구성 (GIF는 아직)
 - [x] CONTRIBUTING.md, SECURITY.md(비공개 취약점 신고), 이슈 템플릿(버그·기능, 보안 신고 링크)·PR 템플릿
-- [ ] GitHub 설정: Settings → Code security → **Private vulnerability reporting** 켜기 (SECURITY.md가 이 경로를 안내함)
-- [ ] 라이선스 저작권자 표기 확인 (현재 `Code Christmas Tree contributors`)
+- [x] GitHub 설정: Settings → Code security → **Private vulnerability reporting** 켜기 (SECURITY.md가 이 경로를 안내함) — 2026-11-17 켬
+- [x] 라이선스 저작권자 `dae-won-kim`으로 표기, 외부 라이브러리·글꼴·서비스는 `THIRD_PARTY_NOTICES.md`에 저작권자·라이선스 명시
 - [ ] README GIF
 
 ## Phase 6 — 트리 목록 (담기 · 본 기록) ✅
@@ -141,7 +141,7 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [ ] push 후: Storage에 남은 v1 사진 파일을 대시보드에서 비우기
 - [x] Supabase Auth 설정 — Confirm signup·Magic Link 템플릿에 `{{ .Token }}`, Custom SMTP, OTP 만료 900초 (DEPLOY.md 2-1) — 2026-11-17 완료 (Gmail SMTP)
 - [x] 실제 메일로 복구 흐름 확인 (2026-11-17)
-- [ ] Authentication → Users에 임시 사용자가 남지 않는지
+- [x] Authentication → Users에 임시 사용자가 남지 않음 확인 (2026-11-17)
 
 ## 백로그 (아이디어)
 - 방문자 방명록: 공유 트리에 이름 없이 글귀 남기기 (승인제)

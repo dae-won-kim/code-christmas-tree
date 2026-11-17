@@ -1,4 +1,4 @@
-# DB 마이그레이션 + RPC 보안 테스트 (PostgreSQL 16.16 서비스 컨테이너)
+# DB 마이그레이션 + RPC 보안 테스트 (PostgreSQL 17.12 서비스 컨테이너 — 운영 Supabase DB와 같은 버전)
 name: DB tests
 
 on:
@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        # 마이너 버전 고정: 2026-11-17 KISA PostgreSQL 보안 업데이트 권고의 해결 버전 (scripts/test-db.sh와 같게)
-        image: postgres:16.16
+        # 마이너 버전 고정: 2026-11-17 KISA PostgreSQL 보안 업데이트 권고의 해결 버전 (scripts/test-db.sh와 같게, 운영 DB와 같은 17)
+        image: postgres:17.12
         env:
           POSTGRES_PASSWORD: postgres
         ports: ['5432:5432']
