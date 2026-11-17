@@ -40,7 +40,7 @@ docs/ROADMAP.md의 Phase 3를 진행해 줘. 순서는 로그인 → 내 트리(
 ```
 docs/DEPLOY.md를 따라 배포하려고 해. 나는 Supabase 프로젝트를 만들었고
 URL과 publishable key를 가지고 있어. 내가 해야 할 일을 단계별로 안내해 주고,
-web/config.js를 만들어서 로컬(python3 -m http.server 8000 -d web)에서
+web/config.js를 만들어서 로컬(python scripts/serve.py)에서
 DEPLOY.md 6번 체크리스트를 같이 점검해 줘. secret key는 절대 요구하지 마.
 ```
 

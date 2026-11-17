@@ -48,7 +48,18 @@ npx supabase db push                              # supabase/migrations/*.sql �
 
 ```bash
 cp web/config.example.js web/config.js   # 값 채우기 (config.js는 .gitignore에 있음)
-python3 -m http.server 8000 -d web       # http://localhost:8000
+python scripts/serve.py                  # http://127.0.0.1:8000  (macOS/Linux는 python3)
+```
+
+- `config.js`에는 **Project URL과 Publishable key만** 넣습니다. `sb_secret_`로 시작하는 키를 넣으면 화면이 오류를 띄우고 멈춥니다.
+- `python -m http.server`도 되지만, **Windows에서는 `.js`를 text/plain으로 내보내 화면이 비는 경우**가 있어 `scripts/serve.py`를 권장합니다.
+- 브라우저 주소창의 `?t=...`를 지우면 로그인 화면, 붙이면 공유 보기입니다.
+
+### 배포 전 로컬 점검 (실제 Supabase 없이)
+```bash
+./scripts/test-db.sh        # DB 마이그레이션·RPC·보안 테스트 (Docker 필요)
+npm ci && npx playwright install chromium
+npm run test:e2e            # 화면 흐름 E2E (window.supabase mock)
 ```
 
 ## 5. GitHub Pages 배포
@@ -78,6 +89,17 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
       `security definer` 함수가 public에 있다는 경고는 의도한 설계입니다(함수가 직접 권한 검사).
       그 밖의 경고는 원인을 확인하세요.
 - [ ] Project Settings → Data API의 **Exposed schemas**에 `private`이 없어야 함 (기본값은 public, graphql_public)
+- [ ] 개발자도구 **Console에 CSP 위반(`Refused to ...`) 오류가 없는지**
+      Supabase를 커스텀 도메인으로 연결했다면 `web/index.html`의 CSP `connect-src`·`img-src`에 그 도메인을 추가해야 합니다.
+
+### 문제가 생기면
+| 증상 | 확인할 것 |
+|---|---|
+| 화면이 데모 모드로만 뜸 | 배포된 `config.js` 내용 (Actions 로그의 "config.js 생성" 단계 경고), Variables 이름 오타 |
+| 사진 업로드 후 "사진 파일이 업로드되지 않았어요"(`file_missing`) | SQL Editor에서 `select rolbypassrls from pg_roles where rolname = 'postgres';` 가 `true`인지 (`finish_photo_upload`가 `storage.objects`를 읽어야 함) |
+| 업로드 단계에서 403 / row-level security 오류 | Storage 정책 3개가 만들어졌는지 (Storage → Policies), 마이그레이션을 다시 Run |
+| 사진 삭제 후 "사진 파일을 지우지 못했어요"(`file_still_exists`) | `select with delete ticket` 정책이 있는지 (삭제 API는 select 권한도 필요) |
+| 오래 안 쓰다가 갑자기 전부 실패 | 7일 미사용 일시정지 → 대시보드에서 Restore |
 
 ## 7. 운영
 

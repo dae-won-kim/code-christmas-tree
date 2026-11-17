@@ -16,15 +16,21 @@
 ## 저장소 구조
 ```
 web/                 정적 사이트 (GitHub Pages로 배포되는 폴더)
-  index.html         현재: 단일 파일 프로토타입 (Phase 2에서 모듈로 분리 예정)
-  js/api.js          TreeApi — DB 접근의 유일한 통로 (완성)
-  js/image.js        업로드 전 사진 리사이즈 (완성)
+  index.html         마크업만 (CSP 포함) + js/main.js
+  css/style.css      전체 스타일
+  js/main.js         진입점: 모드 결정(demo/login/mine/shared), 화면 전환
+  js/api.js          TreeApi — DB 접근의 유일한 통로
+  js/image.js        업로드 전 사진 리사이즈
+  js/tree/           트리 렌더러 createTree(canvas, options) — renderer/patterns/photos/viewer/messages
+  js/ui/             화면 — dom(공통)/login/editor/share
   config.example.js  → config.js로 복사해서 사용 (config.js는 커밋 금지)
 supabase/
   migrations/        DB 스키마 (Supabase에 적용하는 파일)
   tests/             로컬 전용 mock + RPC·보안 테스트 (Supabase에서 실행 금지)
+tests/e2e/           Playwright E2E (window.supabase mock: mock-supabase.js)
 scripts/test-db.sh   DB 테스트 실행기
-.github/workflows/   pages.yml(배포), db-test.yml(CI)
+scripts/serve.py     로컬 개발 서버 (MIME 고정, config.js 없으면 데모 모드)
+.github/workflows/   pages.yml(배포), db-test.yml·e2e.yml(CI)
 docs/                설계 문서
 ```
 
@@ -35,8 +41,15 @@ docs/                설계 문서
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres ./scripts/test-db.sh
 
 # 로컬 웹 서버 (ES 모듈 때문에 file:// 말고 http로 열 것)
-python3 -m http.server 8000 -d web
+python scripts/serve.py            # http://127.0.0.1:8000  (macOS/Linux는 python3)
+# ※ Windows에서 python -m http.server는 .js를 text/plain으로 보내 모듈이 안 뜰 수 있음
+
+# E2E 테스트 (실제 Supabase 불필요)
+npm ci && npx playwright install chromium
+npm run test:e2e
 ```
+- Docker는 있지만 호스트에 `psql`이 없으면: postgres:16 컨테이너 안에서 저장소를 마운트하고
+  `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres bash scripts/test-db.sh`를 실행합니다.
 
 ## 반드시 지킬 규칙
 
@@ -53,6 +66,9 @@ python3 -m http.server 8000 -d web
 
 ### 코드 스타일
 - 프론트엔드: **바닐라 JS + ES 모듈, 빌드 도구 없음.** 외부 스크립트는 CDN의 supabase-js(UMD)와 Google Fonts만 씁니다.
+  - supabase-js는 `js/main.js`의 `SUPABASE_JS`에 **버전 고정 + SRI**로 적혀 있습니다. 버전을 올리면 integrity도 다시 계산합니다.
+  - `index.html`의 CSP에 없는 출처는 로드되지 않습니다. 새 외부 리소스를 쓰려면 CSP도 함께 고칩니다.
+  - `package.json`은 E2E 테스트 도구용입니다. 웹 앱에 npm 의존성을 넣지 않습니다.
 - UI 문구와 코드 주석은 **한국어**, 식별자는 영어로 씁니다.
 - 반응형 유지: 모바일(390×844), 가로 모바일(844×390), 데스크톱(1280×800)에서 확인합니다.
   iOS 확대 방지를 위해 입력창 글자 크기는 16px 이상으로 합니다.
@@ -65,8 +81,9 @@ python3 -m http.server 8000 -d web
 
 ### 작업 방식
 - 단계 하나를 끝내면 `docs/ROADMAP.md`의 체크박스와 "현재 상태"를 갱신합니다.
-- UI를 바꾸면 Playwright 등으로 스크린샷을 찍어 데스크톱·모바일을 직접 확인합니다.
-- 실제 Supabase 없이 프론트를 테스트할 때는 `window.supabase`를 mock으로 바꿔서 검증합니다(ROADMAP Phase 3 참고).
+- UI를 바꾸면 `npm run test:e2e`를 돌리고, `test-results/screens/`의 데스크톱·모바일·가로 스크린샷을 직접 확인합니다.
+- 실제 Supabase 없이 프론트를 테스트할 때는 `window.supabase`를 mock(`tests/e2e/mock-supabase.js`)으로 바꿔서 검증합니다.
+  RPC를 추가·변경하면 mock도 SQL과 같게 맞춥니다.
 - 커밋 메시지는 한국어로, 형식은 `<영역>: <내용>`을 씁니다. 예: `db: 사진 삭제 티켓 만료 처리`, `web: 로그인 화면 추가`
 
 ## 알려진 제약 / 주의점

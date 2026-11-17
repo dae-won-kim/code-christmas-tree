@@ -11,7 +11,7 @@
 - 🔗 공유 링크로 읽기 전용 보기
 - 💸 **전부 무료로 운영**: GitHub Pages + Supabase Free
 
-> 진행 상황: 프로토타입과 DB·API 완료, 사용자 화면 개발 중 → [docs/ROADMAP.md](docs/ROADMAP.md)
+> 진행 상황: 프로토타입·DB·API·사용자 화면 완료, 실제 배포 준비 중 → [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## 구조
 
@@ -28,16 +28,21 @@
 | `web/` | 정적 사이트 (바닐라 JS, 빌드 없음) |
 | `supabase/migrations/` | DB 스키마·RPC·Storage 정책 |
 | `supabase/tests/` | 로컬 전용 보안·기능 테스트 (55개) |
+| `tests/e2e/` | 화면 흐름 E2E 테스트 (Playwright, Supabase mock) |
 | `docs/` | 설계·DB 명세·배포·로드맵 |
 
 ## 빠르게 시작하기
 
 ```bash
 # 1) 데모(서버 없이) 보기
-python3 -m http.server 8000 -d web      # → http://localhost:8000
+python scripts/serve.py                 # → http://127.0.0.1:8000  (macOS/Linux는 python3)
 
 # 2) DB 테스트 (Docker 필요)
 ./scripts/test-db.sh
+
+# 3) 화면 E2E 테스트 (Node.js 필요)
+npm ci && npx playwright install chromium
+npm run test:e2e
 ```
 
 내 서비스로 배포하는 방법은 [docs/DEPLOY.md](docs/DEPLOY.md)에 있습니다.
@@ -53,7 +58,7 @@ Fork한 뒤 Supabase 프로젝트를 만들고, SQL 한 번 실행하고, GitHub
 ## 기여
 
 이슈와 PR을 환영합니다. Claude Code로 작업한다면 [CLAUDE.md](CLAUDE.md)와 [docs/KICKOFF_PROMPT.md](docs/KICKOFF_PROMPT.md)를 참고하세요.
-DB를 바꾸는 PR은 `./scripts/test-db.sh` 통과가 필수입니다(CI에서 자동 실행).
+DB를 바꾸는 PR은 `./scripts/test-db.sh`, 화면을 바꾸는 PR은 `npm run test:e2e` 통과가 필수입니다(둘 다 CI에서 자동 실행).
 
 ## 라이선스
 

@@ -3,9 +3,11 @@
 > Claude Code는 단계 하나를 끝낼 때마다 이 파일의 체크박스와 "현재 상태"를 갱신합니다.
 
 ## 현재 상태 (2026-11-17)
-- ✅ **Phase 0** 프로토타입 완료 — `web/index.html` 단일 파일. 서버 연결 없음, 샘플 사진으로 동작
-- ✅ **Phase 1** DB·API 설계/구현 완료 — 마이그레이션, 테스트 55개 통과, `js/api.js`, `js/image.js`
-- ⏭ **다음: Phase 2** 프론트엔드 모듈 분리
+- ✅ **Phase 0** 프로토타입 완료
+- ✅ **Phase 1** DB·API 설계/구현 완료 — 마이그레이션, DB 테스트 55개 통과, `js/api.js`, `js/image.js`
+- ✅ **Phase 2** 프론트엔드 모듈 분리 완료 — 분리 전후 스크린샷 픽셀 비교 일치, Console 오류 0
+- ✅ **Phase 3** 사용자 화면 완료 — 로그인 / 내 트리(편집) / 공유 보기, E2E 테스트(Playwright + mock) 통과
+- ⏭ **다음: Phase 4** 실제 배포 — 코드 준비는 끝났고, Supabase 프로젝트·GitHub 설정은 사람이 직접 해야 함 (docs/DEPLOY.md)
 
 ---
 
@@ -22,7 +24,7 @@
 - [x] 로컬 테스트 하네스 (`scripts/test-db.sh`) — 55개 통과, CI 워크플로
 - [x] `web/js/api.js` (TreeApi), `web/js/image.js` (리사이즈)
 
-## Phase 2 — 프론트엔드 모듈 분리 ⬜
+## Phase 2 — 프론트엔드 모듈 분리 ✅
 목표: `web/index.html`의 인라인 CSS·JS를 ES 모듈로 나누되, **동작과 모양은 그대로 유지**합니다.
 ```
 web/
@@ -37,37 +39,50 @@ web/
     │   ├── patterns.js   # PATTERNS, genSpiral/genTiers/genRings/genCrystal
     │   ├── photos.js     # photoLib, shows(fall/sparkle), 히트 테스트
     │   ├── viewer.js     # FLIP 확대 보기
-    │   └── messages.js   # 타이핑 루프, queueMessage
-    └── ui/               # Phase 3에서 채움
+    │   └── messages.js   # 타이핑 루프(createTyper)
+    └── ui/               # Phase 3: dom.js(공통) / login.js / editor.js / share.js
 ```
-- [ ] 트리 렌더러를 `createTree(canvas, options)` → `{ setPattern, setMessages, addPhoto, removePhoto, setTitle, destroy }` API로 감싸기
-- [ ] 전역 변수 제거 (모듈 스코프 또는 객체 상태로)
-- [ ] 기존 `window.tree` 공개 함수는 renderer API로 대체
-- [ ] 검증: 분리 전후 스크린샷 비교 (데스크톱 1280×800, 모바일 390×844), Console 오류 0
+- [x] 트리 렌더러를 `createTree(canvas, options)` → `{ setPattern, setMessages, addPhoto, removePhoto, setTitle, destroy }` API로 감싸기
+      (추가: `nextPattern`, `setSettings`, `clearPhotos`, `layout`, `pattern`/`viewing`/`photoCount`)
+- [x] 전역 변수 제거 (모듈 스코프 또는 객체 상태로)
+- [x] 기존 `window.tree` 공개 함수는 renderer API로 대체
+- [x] 검증: 분리 전후 스크린샷 비교 (데스크톱 1280×800, 모바일 390×844, 가로 844×390), Console 오류 0
+      — `Math.random` 시드 고정 + Playwright 가짜 시계로 같은 시점 프레임 12장을 찍어 **픽셀 차이 0%** 확인
+      (패널 화면은 CSS 커서 깜빡임만 다름). 글귀 출력은 `innerHTML` 대신 `textContent`로 바꿈
 
-## Phase 3 — 사용자 화면 ⬜
+## Phase 3 — 사용자 화면 ✅
 라우팅: `?t=<share_id>`가 있으면 **공유 보기**, 없으면 토큰 유무에 따라 **로그인** 또는 **내 트리**로 갑니다.
 config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 갑니다.
 
-- [ ] **로그인 화면** (`ui/login.js`)
+- [x] **로그인 화면** (`ui/login.js`)
   - 이름 입력: 한글 실시간 검증. 조합 중(compositionstart~end)에는 검증 메시지를 띄우지 않기
   - PIN: `type="password" inputmode="numeric" autocomplete="off" maxlength="6"`, 6자리 권장 안내
   - [내 트리 열기] → `not_found`면 "이 이름+PIN으로 새 트리를 만들까요?" 확인 → `enter(..., {create:true})`
   - `rate_limited` 등의 오류는 `TreeError.message`를 그대로 표시
-- [ ] **내 트리 (편집 모드)** (`ui/editor.js`)
+- [x] **내 트리 (편집 모드)** (`ui/editor.js`)
   - 트리 배경 위에 편집 패널: 제목, 무늬 선택(4종), 자동 회전/자동 무늬 전환 토글(settings)
   - 상태 변경은 debounce(800ms) 후 `updateTree` 호출
   - 글귀 목록: 추가(100자 카운터), 삭제
   - 사진 목록: 썸네일 그리드, 여러 장 업로드(단계 표시: 줄이는 중 → 올리는 중 → 저장 중), 캡션, 삭제
   - 공유 링크 복사(`navigator.clipboard`, 실패 시 선택 가능한 텍스트로 표시), PIN 변경, 로그아웃
   - `unauthorized` 오류 → 로그인 화면으로
-- [ ] **공유 보기** (`ui/share.js`): 읽기 전용. "OOO님의 트리" 표시, [나도 트리 만들기] 버튼
-- [ ] 로딩·빈 상태·오류 상태 화면, 사진이 없으면 샘플 사진 대신 안내 문구
-- [ ] 접근성: 버튼 aria-label, 패널 포커스 이동, Esc로 닫기
-- [ ] 사용자 입력은 항상 `textContent`로 출력 (`innerHTML` 금지)
-- [ ] 검증: mock supabase로 E2E (Playwright) — 로그인/생성/글귀/사진/공유/로그아웃
+- [x] **공유 보기** (`ui/share.js`): 읽기 전용. "OOO님의 트리" 표시, [나도 트리 만들기] 버튼
+- [x] 로딩·빈 상태·오류 상태 화면, 사진이 없으면 샘플 사진 대신 안내 문구
+- [x] 접근성: 버튼 aria-label, 패널 포커스 이동, Esc로 닫기
+- [x] 사용자 입력은 항상 `textContent`로 출력 (`innerHTML` 금지)
+- [x] 검증: mock supabase로 E2E (Playwright) — 로그인/생성/글귀/사진/공유/로그아웃
+      — `npm run test:e2e`, 데스크톱·모바일·가로 3개 화면 × 14개 시나리오, CI: `.github/workflows/e2e.yml`
+      — mock: `tests/e2e/mock-supabase.js` (RPC 오류 코드·티켓·제한을 SQL과 같게 흉내)
+- 새 RPC는 필요 없었음 (DB 변경 없음)
 
 ## Phase 4 — 실제 배포 ⬜
+코드 쪽 준비 (완료)
+- [x] supabase-js 버전 고정(2.118.0) + SRI(integrity), 서버 모드에서만 로드
+- [x] Content-Security-Policy (스크립트 출처 제한), 웹에 secret key가 들어오면 즉시 중단
+- [x] `scripts/serve.py` — Windows에서 `.js`가 text/plain으로 나가 모듈이 안 뜨는 문제 해결, config.js 없으면 데모 모드
+- [x] E2E CI 워크플로
+
+사람이 할 일
 - [ ] Supabase 프로젝트 생성, 마이그레이션 적용 (docs/DEPLOY.md 1~3)
 - [ ] GitHub Variables 등록, Pages 소스를 GitHub Actions로 설정
 - [ ] DEPLOY.md 6번 체크리스트 전부 통과 (특히 Storage 정책 실동작)

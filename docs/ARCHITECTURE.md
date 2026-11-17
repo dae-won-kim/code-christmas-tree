@@ -116,7 +116,24 @@ Storage 정책이 그 티켓이 있는지만 확인합니다.
 - 토큰을 `localStorage`에 두므로, 페이지에 XSS가 생기면 토큰이 탈취될 수 있습니다.
   그래서 사용자 입력은 반드시 `textContent`로 넣고 `innerHTML`에 넣지 않습니다.
 
-## 6. 무료 플랜 제약
+## 6. 프론트엔드 구조
+
+```
+index.html ─ config.js(window.TREE_CONFIG) ─ js/main.js
+                                              ├─ 모드 결정: config 없음 → demo / ?t= → shared / 토큰 → mine / 그 밖 → login
+                                              ├─ tree/renderer.js  createTree(canvas, options) → 트리 API
+                                              │    ├─ patterns.js (무늬 4종 목표점) · photos.js (사진 연출·히트 테스트)
+                                              │    └─ viewer.js (FLIP 확대 보기) · messages.js (타이핑)
+                                              ├─ ui/login.js · ui/editor.js · ui/share.js  (화면별 mount → destroy)
+                                              └─ api.js TreeApi ─ supabase-js (CDN, 서버 모드에서만 로드)
+```
+
+- 트리 렌더러는 DB를 모릅니다. 화면 모듈이 `TreeApi`로 받은 데이터를 `tree.setTitle / setPattern / setMessages / addPhoto(id) / removePhoto(id)`로 넘깁니다.
+- 화면 전환(로그인 ↔ 내 트리)은 새로고침 없이 이전 화면을 `destroy()`하고 다음 화면을 mount합니다. 트리 캔버스는 하나를 계속 씁니다.
+- 제목·무늬·설정은 800ms debounce 후 `update_tree` 한 번으로 저장하고, 패널을 닫거나 로그아웃할 때 남은 변경을 바로 보냅니다.
+- XSS 방어 3겹: ① 사용자 입력은 `textContent`로만 출력 ② CSP로 스크립트 출처를 `self` + jsdelivr로 제한 ③ supabase-js는 SRI로 파일 내용까지 고정.
+
+## 7. 무료 플랜 제약
 
 | 항목 | Supabase Free | 이 앱의 대응 |
 |---|---|---|
