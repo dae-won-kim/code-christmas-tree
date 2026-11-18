@@ -42,13 +42,14 @@ npx supabase db push                              # supabase/migrations/*.sql �
 
 ## 2-1. PIN 복구 메일 설정 (Supabase Auth)
 
-PIN을 잊은 사용자에게 **복구 PIN(숫자 6자리)** 을 메일로 보내는 데 Supabase Auth의 이메일 OTP를 씁니다.
+PIN을 잊은 사용자에게 **복구 PIN(숫자 — 운영 8자리)** 을 메일로 보내는 데 Supabase Auth의 이메일 OTP를 씁니다.
 앱 코드에는 메일 관련 비밀값이 전혀 없고, 아래 설정은 모두 **대시보드에서 운영자가 직접** 합니다.
 
 ### ① 이메일 로그인 켜기 (기본값 확인)
 - **Authentication → Sign In / Providers → Email**: Enable Email provider **켜짐**
 - **Allow new users to sign up**: **켜짐** (복구할 때 Auth에 임시 사용자가 생겼다가, 재설정이 끝나면 DB가 지웁니다)
 - Email OTP Expiration: `900`초(15분) 권장 — DB도 "15분 안에 확인한 메일"만 인정합니다
+- Email OTP Length: 운영은 **8자리**(2026-11-18 실제 메일로 확인). 앱은 6~10자리를 모두 받으므로 바꿔도 코드 수정은 필요 없습니다
 - Phone·Anonymous 로그인은 켜지 않아도 됩니다(켜져 있어도 DB가 거부함)
 
 ### ② 메일 서버(SMTP) 연결 (필수 — 먼저 해야 템플릿을 고칠 수 있음)
@@ -102,6 +103,7 @@ Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내�
 <p>직접 요청하지 않았다면 이 메일은 무시해도 돼요. 트리와 PIN은 바뀌지 않아요.</p>
 ```
 - 템플릿에 `{{ .ConfirmationURL }}`(링크)은 넣지 마세요. 앱은 숫자 입력 방식만 처리합니다.
+- 운영에서 실제로 받는 메일(2026-11-18): 보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 제목 `[Code Christmas Tree] 복구 PIN <숫자 8자리>` — 제목의 프로젝트 이름은 그대로 둠(운영자 결정)
 
 ### ④ 확인
 배포된 사이트 → [PIN을 잊었어요] → 팀원(내) 주소로 복구 PIN 받기 → 새 PIN으로 트리가 열리면 정상입니다.
@@ -186,7 +188,9 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 - [ ] 같은 이름·PIN, 다른 이메일 → "트리가 없어요" 안내 후 새 트리 생성 가능 (동명이인 구분) — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
 - [ ] 꾸미기 → 공유·계정 → PIN 바꾸기 → 다른 기기 로그아웃 확인 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
 - [x] [PIN을 잊었어요] → 복구 PIN 메일 수신 → 새 PIN으로 열림 → Authentication → Users에 임시 사용자가 남지 않음 (2-1) — 2026-11-17 실제 메일(**Gmail SMTP**, 이전 주소)로 확인
-- [ ] 같은 확인을 **Resend SMTP**로 다시 — 메일 수신(받은편지함 · 스팸함, 발신 `noreply@make-xmas-tree.com`) → 새 PIN으로 열림 → 임시 사용자 안 남음 — ⬜ 미확인
+- [x] 같은 확인을 **Resend SMTP**로 다시 — 메일 수신(보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 8자리 코드) → 새 PIN으로 열림 — 2026-11-18 운영자 계정으로 확인
+- [ ] Resend 전환 후 복구 → Authentication → Users에 임시 사용자가 남지 않는지 — ⬜ 미확인
+- [x] 대시보드 정리(안 쓰는 Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
 - [ ] [메일 다시 보내기] — 60초 뒤 두 번째 메일 수신, 한도에 걸리면 "메일은 잠시 뒤에 다시 보낼 수 있어요" — ⬜ 미확인
 - [x] 자체 도메인 — DNS Check Successful · Enforce HTTPS 켬 · `https://www.make-xmas-tree.com` → 301 → `https://make-xmas-tree.com` → 200 (5-1) — 2026-11-18 운영자 보고
 - [x] Resend 도메인 `make-xmas-tree.com` **Verified**, Supabase Custom SMTP를 Resend로 설정 (2-1 ②) — 2026-11-18 운영자 보고

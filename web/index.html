@@ -71,10 +71,10 @@
       이메일은 트리 DB에 해시로만 저장돼요. 카드·휴대폰 비밀번호처럼 다른 곳에 쓰는 숫자는 PIN으로 쓰지 마세요.</p>
   </form>
 
-  <!-- PIN 복구: 메일로 받은 복구 PIN(6자리)으로 새 PIN 정하기 -->
+  <!-- PIN 복구: 메일로 받은 복구 PIN(숫자, 길이는 Supabase Email OTP Length 설정 — 운영 8자리)으로 새 PIN 정하기 -->
   <form id="recoverCard" class="card" hidden novalidate aria-labelledby="recoverHeading">
     <h1 id="recoverHeading">PIN 복구</h1>
-    <p class="hint top">트리를 만들 때 적은 이름과 이메일을 입력하면 그 주소로 <b>복구 PIN</b>(숫자 6자리)을 보내 드려요.</p>
+    <p class="hint top">트리를 만들 때 적은 이름과 이메일을 입력하면 그 주소로 숫자로 된 <b>복구 PIN</b>을 보내 드려요.</p>
     <div class="fields">
       <div class="field">
         <label for="rcName">이름</label>
@@ -90,7 +90,7 @@
       <p id="rcSent" class="msg good" role="status"></p>
       <div class="field rc-code">
         <label for="rcCode">메일로 받은 복구 PIN</label>
-        <input id="rcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]*" placeholder="123456">
+        <input id="rcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]*" placeholder="12345678">
       </div>
       <div class="fields">
         <div class="field"><label for="rcPin">새 PIN <span class="sub">(숫자 4~10자리)</span></label>

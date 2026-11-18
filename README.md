@@ -223,7 +223,7 @@ sequenceDiagram
   U->>B: [PIN을 잊었어요] → 이름 · 이메일
   B->>A: signInWithOtp(email)
   A->>R: 복구 메일 (SMTP)
-  R-->>U: 📧 복구 PIN 6자리
+  R-->>U: 📧 복구 PIN (숫자 8자리)
   Note over B: [메일 다시 보내기] 60초 잠금
   U->>B: 복구 PIN + 새 PIN (2번 입력)
   B->>A: verifyOtp(email, token, type: email)
@@ -237,7 +237,7 @@ sequenceDiagram
 
 1. 로그인 화면의 **[PIN을 잊었어요]** → 복구 카드에 이름 · 이메일(로그인 칸에 적은 값을 그대로 가져옴)
 2. **[복구 PIN 보내기]** → `api.sendRecovery()`가 `signInWithOtp({ email, options: { shouldCreateUser: true } })` 호출. 보낸 뒤에는 이메일 칸이 잠깁니다(다른 주소는 [← 로그인으로] 후 다시)
-3. Supabase Auth가 복구 메일을 만들고 Custom SMTP(Resend)로 발송
+3. Supabase Auth가 복구 메일을 만들고 Custom SMTP(Resend)로 발송 — 숫자 길이는 Supabase **Email OTP Length** 설정(운영 8자리), 앱은 6~10자리를 모두 받음
 4. 메일의 숫자와 **새 PIN · 새 PIN 확인**을 입력 → **[PIN 바꾸고 트리 열기]**
 5. `api.resetPin()`이 `verifyOtp({ email, token, type: 'email' })`로 코드를 확인 → Auth 세션(JWT)은 메모리에만(`persistSession: false`)
 6. 그 JWT로 RPC `reset_pin(p_name, p_new_pin)` 호출 → DB의 `private.verified_email()`이 JWT를 검사하고 PIN을 바꿈
@@ -264,6 +264,7 @@ sequenceDiagram
 |---|---|---|
 | 발송 한도 초과 (HTTP 429 등) | `otp_rate_limited` | 메일은 잠시 뒤에 다시 보낼 수 있어요. (1분에 한 번, 시간당 몇 통까지) |
 | 발송 실패 (SMTP 설정 문제 등) | `otp_send_failed` | 복구 메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요. |
+| 코드 칸이 숫자 6~10자리가 아님 (화면 검사) | — | 메일로 받은 숫자(6~10자리)를 입력해 주세요. |
 | 코드가 틀리거나 만료 | `otp_invalid` | 복구 PIN이 맞지 않거나 만료됐어요. … (코드 칸을 다시 선택) |
 | 메일 확인 후 15분이 지남 (DB 검사) | `email_unverified` | 메일 확인 시간이 지났어요. 복구 PIN을 다시 받아 주세요. (1단계로 돌아감) |
 | 그 이메일로 그 이름의 트리가 없음 | `not_found` | 이 이메일로 그 이름의 트리가 없어요. 트리를 만들 때 쓴 이름으로 고쳐서 다시 눌러 주세요. (코드 칸은 "메일 확인 완료"로 잠김) |
@@ -291,7 +292,15 @@ sequenceDiagram
 | SMTP Password | Resend API Key — **Supabase 대시보드에만** 입력 (저장소 · 문서 · `config.js`에 넣지 않음) |
 
 - 메일 템플릿(Confirm signup · Magic Link)에 `{{ .Token }}`을 넣어 숫자 코드를 보내는 설정은 SMTP와 별개이며 [`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1에 있습니다.
-- ⚠️ Resend 도메인 인증과 SMTP 설정까지는 확인했지만, **운영 사이트에서 Resend로 복구 메일을 받아 PIN을 바꾸는 과정은 아직 검증 전**입니다([배포 검증](#배포-검증) 참고). 이전 Gmail SMTP로는 2026-11-17에 실제 메일 복구를 확인했습니다.
+**실제로 받는 메일 (2026-11-18 운영 사이트에서 확인)**
+
+| 항목 | 내용 |
+|---|---|
+| 보낸사람 | `Make Xmas Tree <noreply@make-xmas-tree.com>` (Supabase SMTP의 Sender name / email) |
+| 제목 | `[Code Christmas Tree] 복구 PIN <숫자 8자리>` (Supabase 메일 템플릿의 Subject — 프로젝트 이름 그대로 유지) |
+| 본문 | 복구 PIN 숫자 + "15분 안에, 한 번만" 안내 ([`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1 ③) |
+
+- ✅ 운영 사이트에서 Resend로 복구 메일을 받아 **새 PIN으로 바꾸고 트리를 여는 것까지 확인**했습니다(2026-11-18, 운영자 계정). 처음 Gmail SMTP로는 2026-11-17에 확인했습니다.
 
 ## 보안
 
@@ -341,7 +350,7 @@ web/js/
 | 업그레이드 | 별도 DB | 배포된 첫 버전 DB(데이터 있음) → 이후 마이그레이션 적용 → 다시 적용 시나리오 |
 | 화면 E2E | Playwright + `window.supabase` mock(RPC + Auth OTP) | **29개 시나리오 × 데스크톱 · 모바일 · 가로** — 전체 흐름, PIN 복구, 내 트리 3개, **장식 달기 · 끌어 옮기기 · 끌어내 떼기 · 저장 · 공유 보기**, 선물 상자, 캡션 고치기 · 여러 장 삭제, 산타 · 사슴, 무늬 8종, 사이드 목록, XSS, 세션 만료, 네트워크 오류, IME, 키보드. 모든 테스트에서 **Console 오류 · CSP 위반 0**을 자동 확인 |
 | 리팩터링 회귀 | 픽셀 비교 | 단일 파일 프로토타입을 모듈로 나누기 전후를 시드 고정 + 가짜 시계로 같은 시점에 찍어 **12장 모두 픽셀 차이 0%** 확인 |
-| 실제 환경 | Playwright → 배포 사이트 + 실제 Supabase | 배포 체크리스트(업로드 · 삭제 정책 실동작, 직접 조회 차단, 공유 읽기 전용, 실제 메일로 PIN 복구) 통과 — 2026-11-17, 이전 주소(`github.io`)와 Gmail SMTP 기준. 자체 도메인 · Resend 기준 재확인은 [배포 검증](#배포-검증) 참고 |
+| 실제 환경 | Playwright → 배포 사이트 + 실제 Supabase | 배포 체크리스트(업로드 · 삭제 정책 실동작, 직접 조회 차단, 공유 읽기 전용, 실제 메일로 PIN 복구) 통과 — 2026-11-17, 이전 주소(`github.io`)와 Gmail SMTP 기준. 2026-11-18 자체 도메인 · Resend로 PIN 복구 재확인, 나머지는 [배포 검증](#배포-검증) 참고 |
 
 ## 배포 파이프라인
 
@@ -457,8 +466,10 @@ https://www.make-xmas-tree.com  →  301 Moved Permanently  →  https://make-xm
 - [x] `https://www.make-xmas-tree.com` → `301` → `https://make-xmas-tree.com` 리디렉션
 - [x] Resend 도메인 `make-xmas-tree.com` 인증 — `Verified`
 - [x] Supabase Auth Custom SMTP를 Resend(`smtp.resend.com:465`, 발신 `noreply@make-xmas-tree.com`)로 설정
-- [ ] 운영 사이트에서 Resend로 **복구 PIN 메일 수신** (받은편지함 · 스팸함 · 발신 주소 표시)
-- [ ] 받은 코드로 **PIN 재설정 → 새 PIN으로 트리 열기** → Authentication → Users에 임시 사용자가 남지 않음
+- [x] 운영 사이트에서 Resend로 **복구 PIN 메일 수신** — 보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>` (2026-11-18)
+- [x] 받은 코드(8자리)로 **PIN 재설정 → 새 PIN으로 트리 열기** (2026-11-18, 운영자 계정)
+- [x] 대시보드 정리 — 운영자 보고 (2026-11-18)
+- [ ] 복구 후 Authentication → Users에 임시 사용자가 남지 않음 (Resend 전환 후 재확인)
 - [ ] [메일 다시 보내기]로 두 번째 메일 수신, 발송 한도에 걸렸을 때의 메시지
 - [x] 이전 주소 `dae-won-kim.github.io/code-christmas-tree/?t=…` → `301` → `https://make-xmas-tree.com/?t=…` (공유 링크 쿼리 유지), `http://` → `https://`
 - [ ] 자체 도메인에서 로그인 · 사진 업로드 · 공유 보기 · Console의 CSP 위반 0 재확인

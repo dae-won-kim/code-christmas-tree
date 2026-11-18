@@ -11,7 +11,9 @@
   - ✅ Supabase **Security Advisor** 검토 (2026-11-18 확인: Errors 0 · Warnings 48 · Info 5, 모두 의도한 설계)
   - ✅ **자체 도메인** (2026-11-18): Cloudflare에서 구매 · DNS(A×4 · CNAME www, `DNS only`), GitHub Pages Custom domain · Enforce HTTPS, `www`/`http` → `https://make-xmas-tree.com` 301 확인 (DEPLOY.md 5-1)
   - ✅ **복구 메일 SMTP를 Gmail → Resend로 교체** (2026-11-18): Resend 도메인 Verified, Supabase Custom SMTP `smtp.resend.com:465`, 발신 `noreply@make-xmas-tree.com` (DEPLOY.md 2-1 ②)
-  - [ ] Resend로 실제 복구 메일 수신 → PIN 재설정 · [메일 다시 보내기] 확인, 자체 도메인에서 `check:live` (DEPLOY.md 6번 ⬜)
+  - ✅ Resend로 실제 복구 메일 수신 → 8자리 코드로 PIN 재설정 확인 (2026-11-18, 운영자 계정). 화면 안내의 "6자리"를 길이 무관 문구로 고치고 mock도 8자리로
+  - ✅ 대시보드 정리 (2026-11-18, 운영자 보고)
+  - [ ] [메일 다시 보내기] · 복구 후 임시 사용자 정리 재확인, 자체 도메인에서 `check:live` (DEPLOY.md 6번 ⬜)
 - ✅ **Phase 6** 트리 목록(담기 · 최근 본 트리, 사이드 서랍)
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·사슴 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)

@@ -9,7 +9,7 @@
 - **배포 완료:** `main` = 운영. 사이트 **https://make-xmas-tree.com** (처음 주소 `dae-won-kim.github.io/code-christmas-tree/`는 301로 넘어감, `?t=` 유지), Supabase 프로젝트 ref `ordkcohhwfgwlmhwtxja`
 - **자체 도메인 · 메일 (2026-11-18, 운영자 설정):** Cloudflare Registrar/DNS(웹 레코드 `DNS only`) + GitHub Pages Custom domain · Enforce HTTPS.
   복구 메일 SMTP는 Gmail → **Resend**(`smtp.resend.com:465`, user `resend`, 발신 `noreply@make-xmas-tree.com` / `Make Xmas Tree`). API Key는 Supabase 대시보드에만.
-  **Resend로 실제 복구 메일 → PIN 재설정은 아직 미확인**(DEPLOY.md 6번). 주소가 바뀌어 기존 사용자의 localStorage(로그인 토큰 · 로그인 전 본 기록)는 새 주소로 안 넘어감
+  **Resend로 실제 복구 메일 → PIN 재설정 확인**(2026-11-18, 운영자 계정 · 코드는 **8자리** = Email OTP Length). 메일 제목은 `[Code Christmas Tree] 복구 PIN …` 그대로 유지(운영자 결정). 주소가 바뀌어 기존 사용자의 localStorage(로그인 토큰 · 로그인 전 본 기록)는 새 주소로 안 넘어감
 - 마지막 기능 배포: Phase 8(장식 · 선물 상자 · 밤하늘 · 사진 캡션 고치기 · 사진 여러 장 삭제) + 사슴 명칭 변경 + 문서 재구성
 - 운영 DB: 마이그레이션 4개 모두 적용됨(`init` → `accounts_v2` → `tree_views` → `decorations`), PostgreSQL **17.12**
 - 테스트: DB 193개(CI, PostgreSQL 17.12) · E2E 29개 시나리오 × 3개 화면 = 83개 통과 · **실제 사이트 점검 18개 통과**
@@ -82,9 +82,10 @@
       운영 DB의 `배포점검` / `deploy-check@example.com` 계정과 트리 1개(사진 0장, 장식 기본). PIN은 저장소에 적지 않음(운영자에게 받기)
 - [x] 원격 브랜치 정리 — 2026-11-18 `feat/decor`, `chore/pg17-license` 삭제(둘 다 `main`에 없는 커밋 0개 확인 후), `docs/readme-gif`는 `main`에 합친 뒤 삭제
 - [ ] 실제 사이트에서 아직 확인 안 한 계정 기능 4개 — PIN 틀림 · 다른 이메일 · PIN 변경 · 트리 2·3번째 (DEPLOY.md 6번 ⬜ 표시, E2E로는 통과)
-- [ ] Resend SMTP로 복구 메일 수신 → PIN 재설정 · [메일 다시 보내기], 자체 도메인에서 `check:live` (기본 주소를 `make-xmas-tree.com`으로 바꿈)
-- [ ] 운영자 결정 대기: 메일 템플릿 제목 `[Code Christmas Tree]`와 발신자 이름 `Make Xmas Tree` 통일 여부
-- [ ] 운영자 대시보드 정리(권장): 안 쓰는 Gmail 앱 비밀번호 삭제, Resend API Key 권한 축소, Rate Limits를 Resend 플랜 한도에 맞춤, Supabase Site URL을 새 주소로
+- [x] Resend SMTP로 복구 메일 수신 → PIN 재설정 — 2026-11-18 운영자 계정으로 확인
+- [ ] [메일 다시 보내기] · 복구 후 Auth 임시 사용자 정리 재확인, 자체 도메인에서 `check:live` (기본 주소를 `make-xmas-tree.com`으로 바꿈)
+- [x] 메일 제목 `[Code Christmas Tree]` · 발신자 이름 `Make Xmas Tree` — **지금 모습 그대로 유지**(운영자, 2026-11-18)
+- [x] 운영자 대시보드 정리(Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
 - 백로그: 트리(계정) 삭제(사진 파일까지), 이메일 변경, 담은 트리 변경 알림, 방명록, OG 미리보기 이미지 (ROADMAP 참고)
 
 ## 6. 환경 메모 (이 프로젝트를 Windows에서 돌릴 때 겪은 것)

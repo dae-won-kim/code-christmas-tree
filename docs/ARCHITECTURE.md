@@ -129,7 +129,7 @@ sequenceDiagram
   participant D as DB 함수 reset_pin
   U->>B: [PIN을 잊었어요] 이름 · 이메일
   B->>A: signInWithOtp(email)
-  A-->>U: 📧 복구 PIN 6자리 메일
+  A-->>U: 📧 복구 PIN 메일 (숫자 8자리, Resend SMTP)
   U->>B: 복구 PIN + 새 PIN
   B->>A: verifyOtp(email, code)
   A-->>B: JWT 발급 (메모리에만, 저장 안 함)
