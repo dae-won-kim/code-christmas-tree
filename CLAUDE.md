@@ -9,6 +9,7 @@
 
 ## 먼저 읽을 문서
 0. `docs/HANDOFF.md` — **이전 세션의 인수인계**: 결정 이유, 운영자가 원하는 작업 방식, 남은 일, 환경 메모
+   (**작업 브랜치 `dev`에만 있음.** `main`에는 넣지 않습니다 — 아래 "브랜치")
 1. `docs/ROADMAP.md` — **현재 상태와 다음 할 일** (작업 시작 전에 반드시 확인)
 2. `docs/ARCHITECTURE.md` — 구조, 인증·업로드 흐름, 보안 결정의 이유
 3. `docs/DATABASE.md` — 테이블·RPC 명세, 오류 코드, 새 RPC 추가 체크리스트
@@ -33,6 +34,8 @@ scripts/test-db.sh   DB 테스트 실행기
 scripts/serve.py     로컬 개발 서버 (MIME 고정, config.js 없으면 데모 모드)
 scripts/check-mermaid.cjs  문서 Mermaid 그림 렌더링 확인 (npm run check:mermaid)
 scripts/live-check.cjs     배포 후 실제 사이트·DB 점검 (npm run check:live, LIVE_CHECK_PIN 필요 · 운영 DB에 씀)
+scripts/record-gif.cjs     README 데모 GIF 녹화 (npm run record:gif, mock DB · Pillow 필요) → make-gif.py
+scripts/release-main.sh    dev → main 합치기 (인수인계 문서 제외)
 .github/workflows/   pages.yml(배포), db-test.yml·e2e.yml(CI)
 docs/                설계 문서
 ```
@@ -93,6 +96,16 @@ npm run test:e2e
 - 실제 Supabase 없이 프론트를 테스트할 때는 `window.supabase`를 mock(`tests/e2e/mock-supabase.js`)으로 바꿔서 검증합니다.
   RPC를 추가·변경하면 mock도 SQL과 같게 맞춥니다.
 - 커밋 메시지는 한국어로, 형식은 `<영역>: <내용>`을 씁니다. 예: `db: 사진 삭제 티켓 만료 처리`, `web: 로그인 화면 추가`
+
+### 브랜치
+- **`dev` = 작업 브랜치.** 모든 작업은 `dev`(또는 `dev`에서 딴 `feat/...`)에서 하고 CI를 통과시킵니다.
+  인수인계 문서 `docs/HANDOFF.md` · `docs/KICKOFF_PROMPT.md`는 **`dev`에만** 둡니다.
+  `dev`는 Rulesets로 운영자만 push할 수 있고 삭제 · 강제 push가 막혀 있습니다(공개 저장소라 **읽기는 누구나 가능** — 비밀 값을 적지 않습니다).
+- **`main` = 운영.** push하면 사이트 배포(`web/` 변경 시)와 Supabase 마이그레이션 적용이 일어나므로 운영자가 말할 때만 합칩니다.
+  합칠 때는 `./scripts/release-main.sh`(확인 후 `git push origin main`, 또는 `--push`)를 써서 인수인계 문서를 뺍니다.
+  `main`에 그 문서가 들어오면 `main guard` 워크플로가 실패합니다.
+- **`main`을 `dev`에 merge하지 않습니다.** `main`의 "인수인계 문서 삭제"가 넘어와 `dev`의 문서가 지워집니다.
+  `main`에서 직접 고친 것이 있으면 `dev`에 cherry-pick 합니다.
 
 ## 알려진 제약 / 주의점
 - mock 테스트는 `storage.objects`의 일부 컬럼만 흉내 냅니다. Storage 정책의 **실제 동작은 Phase 4에서 실제 Supabase로 확인**해야 합니다(DEPLOY.md 6번).

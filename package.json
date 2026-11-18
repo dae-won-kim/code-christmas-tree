@@ -6,7 +6,8 @@
     "serve": "python scripts/serve.py",
     "test:e2e": "playwright test",
     "check:mermaid": "node scripts/check-mermaid.cjs",
-    "check:live": "node scripts/live-check.cjs"
+    "check:live": "node scripts/live-check.cjs",
+    "record:gif": "node scripts/record-gif.cjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"

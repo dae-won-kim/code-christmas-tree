@@ -2,7 +2,10 @@
 import { test, expect, serverMode, seedDb, sampleUser, mockDb, shot, TOKEN_KEY } from './helpers.js';
 
 test('데모 모드: config가 비어 있으면 프로토타입 그대로', async ({ page }) => {
-  await page.goto('/');                    // scripts/serve.py가 빈 config.js를 돌려줌
+  // 로컬에 실제 DB용 web/config.js를 넣어 둔 PC에서도 데모 모드를 확인하도록 빈 config로 바꿔치기
+  // (config.js가 없으면 scripts/serve.py도 빈 config.js를 돌려줌)
+  await page.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: '' }));
+  await page.goto('/');
   await expect(page.locator('#btnText')).toBeVisible();
   await expect(page.locator('#btnPhoto')).toBeVisible();
   await expect(page.locator('#btnEdit')).toBeHidden();
