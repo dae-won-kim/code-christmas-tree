@@ -10,10 +10,9 @@
 - **자체 도메인 · 메일 (2026-11-18, 운영자 설정):** Cloudflare Registrar/DNS(웹 레코드 `DNS only`) + GitHub Pages Custom domain · Enforce HTTPS.
   복구 메일 SMTP는 Gmail → **Resend**(`smtp.resend.com:465`, user `resend`, 발신 `noreply@make-xmas-tree.com` / `Make Xmas Tree`). API Key는 Supabase 대시보드에만.
   **Resend로 실제 복구 메일 → PIN 재설정 확인**(2026-11-18, 운영자 계정 · 코드는 **8자리** = Email OTP Length). 메일 제목은 `[Code Christmas Tree] 복구 PIN …` 그대로 유지(운영자 결정). 주소가 바뀌어 기존 사용자의 localStorage(로그인 토큰 · 로그인 전 본 기록)는 새 주소로 안 넘어감
-- 마지막 기능 배포: Phase 8(장식 · 선물 상자 · 밤하늘 · 사진 캡션 고치기 · 사진 여러 장 삭제) + 사슴 명칭 변경 + 문서 재구성
-- 운영 DB: 마이그레이션 4개 적용됨(`init` → `accounts_v2` → `tree_views` → `decorations`), PostgreSQL **17.12**.
-  5번째 `20261118120000_names_en.sql`(영문 이름)은 **`feat/i18n-names`에만 있고 아직 운영 미적용**
-- 테스트(`feat/i18n-names` 기준): DB 217개(CI, PostgreSQL 17.12) · E2E 33개 시나리오 × 3개 화면 = 95개 통과 + 4개 skip · **실제 사이트 점검 18개 통과**(Phase 8 기준)
+- 마지막 기능 배포: Phase 9(영문 이름 · 한국어/영어 화면 · 사이드 목록 로그아웃, 2026-11-18). 그 전: Phase 8(장식 · 선물 상자 · 밤하늘 · 캡션 · 여러 장 삭제)
+- 운영 DB: 마이그레이션 5개 적용됨(`init` → `accounts_v2` → `tree_views` → `decorations` → `names_en`), PostgreSQL **17.12**. `names_en`은 2026-11-18 적용 확인
+- 테스트: DB 217개(CI, PostgreSQL 17.12) · E2E 33개 시나리오 × 3개 화면 = 95개 통과 + 4개 skip · **실제 사이트 점검 18개 통과**(Phase 8 기준)
 - 운영자 설정 완료: Supabase Auth Custom SMTP(처음 Gmail → 2026-11-18 Resend) + 메일 템플릿 `{{ .Token }}`, 실제 메일로 PIN 복구 확인(Gmail 기준), GitHub **Private vulnerability reporting 켬**
 - Supabase **Security Advisor 검토 완료**(2026-11-18, Errors 0 · Warnings 48 · Info 5 = 정상 기준, DEPLOY.md 6번)
 - **브랜치 구성(2026-11-18):** 작업은 **`dev`**, 운영은 **`main`**. 이 문서와 `KICKOFF_PROMPT.md`는 `dev`에만 있음(CLAUDE.md "브랜치").
@@ -54,7 +53,7 @@
 |---|---|
 | 자체 도메인 · Resend 문서화 | README · DEPLOY(2-1 Resend, 5-1 도메인) · ROADMAP · NOTICES, `check:live` 기본 주소 → `make-xmas-tree.com`. curl로 github.io → 301(쿼리 유지) 확인 |
 | 복구 PIN 8자리 | 운영 Email OTP Length가 8 → 화면 "6자리" 문구 제거, mock도 8자리. Resend 복구 · 다시 보내기 · 임시 사용자 정리 운영자 확인 → `main` 배포 완료 |
-| Phase 9 (`feat/i18n-names`) | 영문 이름(`names_en` 마이그레이션), 한국어/영어 화면(`i18n.js`), 사이드 목록 로그아웃. **아직 `main`에 안 합침** |
+| Phase 9 (`feat/i18n-names`) | 영문 이름(`names_en` 마이그레이션), 한국어/영어 화면(`i18n.js`), 사이드 목록 로그아웃 → `dev` → `main` 배포(2026-11-18), 운영 DB 적용 · 실사이트 영어 화면 확인 |
 
 ## 3. 결정 사항과 이유 (되돌리기 전에 읽을 것)
 
@@ -104,7 +103,8 @@
 - [x] 복구 후 Auth 임시 사용자 정리 — 2026-11-18 Resend 전환 후에도 남은 사용자 없음(운영자 확인)
 - [x] [메일 다시 보내기] 두 번째 메일 수신 — 2026-11-18 운영자 확인
 - [ ] 자체 도메인에서 `check:live` (기본 주소를 `make-xmas-tree.com`으로 바꿈, 점검 계정 PIN 필요)
-- [ ] Phase 9(`feat/i18n-names`): `dev`에 합치고 CI 통과 → 운영자가 말하면 `main` 배포(운영 DB에 `names_en` 적용) → 실사이트 확인
+- [x] Phase 9 배포 — 2026-11-18 `main`, 운영 DB `names_en` 적용 확인, 실사이트 영어 화면 확인
+- [ ] 실사이트에서 영문 이름 트리 만들기 · 사이드 목록 로그아웃 · 새 템플릿(한국어+영어) 메일 수신 확인
 - [x] 운영자: 복구 메일 템플릿을 한국어 + 영어로 (DEPLOY.md 2-1 ③) — 2026-11-18 완료(운영자 보고). 새 템플릿 메일 수신은 아직 미확인
 - [x] 메일 제목 `[Code Christmas Tree]` · 발신자 이름 `Make Xmas Tree` — **지금 모습 그대로 유지**(운영자, 2026-11-18)
 - [x] 운영자 대시보드 정리(Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
