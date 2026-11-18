@@ -7,12 +7,15 @@
 - ✅ **Phase 1** DB·API 설계/구현 완료 — 마이그레이션, DB 테스트 55개 통과, `js/api.js`, `js/image.js`
 - ✅ **Phase 2** 프론트엔드 모듈 분리 완료 — 분리 전후 스크린샷 픽셀 비교 일치, Console 오류 0
 - ✅ **Phase 3** 사용자 화면 완료 — 로그인 / 내 트리(편집) / 공유 보기, E2E 테스트(Playwright + mock) 통과
-- ✅ **Phase 4** 실제 배포 — https://dae-won-kim.github.io/code-christmas-tree/ (Supabase GitHub 통합으로 마이그레이션 자동 적용)
+- ✅ **Phase 4** 실제 배포 — **https://make-xmas-tree.com** (처음 주소 `dae-won-kim.github.io/code-christmas-tree/`는 301로 넘어감. Supabase GitHub 통합으로 마이그레이션 자동 적용)
   - ✅ Supabase **Security Advisor** 검토 (2026-11-18 확인: Errors 0 · Warnings 48 · Info 5, 모두 의도한 설계)
+  - ✅ **자체 도메인** (2026-11-18): Cloudflare에서 구매 · DNS(A×4 · CNAME www, `DNS only`), GitHub Pages Custom domain · Enforce HTTPS, `www`/`http` → `https://make-xmas-tree.com` 301 확인 (DEPLOY.md 5-1)
+  - ✅ **복구 메일 SMTP를 Gmail → Resend로 교체** (2026-11-18): Resend 도메인 Verified, Supabase Custom SMTP `smtp.resend.com:465`, 발신 `noreply@make-xmas-tree.com` (DEPLOY.md 2-1 ②)
+  - [ ] Resend로 실제 복구 메일 수신 → PIN 재설정 · [메일 다시 보내기] 확인, 자체 도메인에서 `check:live` (DEPLOY.md 6번 ⬜)
 - ✅ **Phase 6** 트리 목록(담기 · 최근 본 트리, 사이드 서랍)
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·사슴 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
-  - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
+  - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail, 2026-11-18 Resend로 교체) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인(Gmail 기준)
 - ✅ **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿, 라이선스·제3자 고지·README 재구성, README 데모 GIF (2026-11-18)
 - ✅ **Phase 8** 풍성한 트리 — 장식 8종(달기·끌어 옮기기·떼기), 트리 아래 선물 상자, 밤하늘(별·달·눈 언덕), 사진 캡션 고치기, 사진 여러 장 삭제
   — 브랜치 `feat/decor`, DB 테스트 193개(PostgreSQL 17.12, CI) · E2E 83개 통과. 2026-11-17 `main` 배포 완료 · 운영 DB 마이그레이션 적용 확인 · 실제 사이트 점검 18개 통과
@@ -146,7 +149,7 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [x] Storage에 남은 v1 사진 파일 — 비우지 않고 **남겨 두기로 결정** (운영자, 2026-11-18. 나중에 정리할 때의 확인 SQL은 DEPLOY.md 7번)
 - [ ] 실제 사이트 확인: PIN 틀림 안내 · 같은 이름·다른 이메일 · PIN 변경(다른 기기 로그아웃) · 트리 2·3번째 만들기/이름/순서/지우기
       — E2E(mock)로는 통과, 운영 사이트에서는 아직 확인 기록 없음 (DEPLOY.md 6번)
-- [x] Supabase Auth 설정 — Confirm signup·Magic Link 템플릿에 `{{ .Token }}`, Custom SMTP, OTP 만료 900초 (DEPLOY.md 2-1) — 2026-11-17 완료 (Gmail SMTP)
+- [x] Supabase Auth 설정 — Confirm signup·Magic Link 템플릿에 `{{ .Token }}`, Custom SMTP, OTP 만료 900초 (DEPLOY.md 2-1) — 2026-11-17 완료 (Gmail SMTP) → 2026-11-18 Resend SMTP로 교체
 - [x] 실제 메일로 복구 흐름 확인 (2026-11-17)
 - [x] Authentication → Users에 임시 사용자가 남지 않음 확인 (2026-11-17)
 

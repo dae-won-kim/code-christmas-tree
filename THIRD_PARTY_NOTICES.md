@@ -30,10 +30,11 @@
 - **Supabase** — DB, 파일 저장소, 이메일 인증(복구 PIN 메일)
 - **GitHub Pages / GitHub Actions** — 웹 호스팅, CI
 - **Google Fonts** — 글꼴 제공
-- **Gmail SMTP** — 복구 메일 발송 (운영자 계정, 저장소에는 설정값 없음)
+- **Resend** — 복구 메일 발송 (Supabase Auth의 Custom SMTP, 운영자 계정, 저장소에는 설정값 없음)
+- **Cloudflare Registrar / DNS** — 도메인(`make-xmas-tree.com`) 등록 · DNS 관리
 
 이 저장소는 위 서비스나 회사와 제휴·후원 관계가 없습니다.
 
 ## 4. 상표
-Supabase, PostgreSQL, GitHub, Google, Gmail 등 이 문서에 나오는 이름은 각 소유자의 상표입니다.
+Supabase, PostgreSQL, GitHub, Google, Resend, Cloudflare 등 이 문서에 나오는 이름은 각 소유자의 상표입니다.
 이 이름들은 사용한 기술을 설명하는 데만 씁니다.

@@ -12,7 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const out = path.resolve(__dirname, '..', 'test-results', 'live');
 const { chromium } = require('@playwright/test');
-const SITE = process.env.LIVE_CHECK_SITE || 'https://dae-won-kim.github.io/code-christmas-tree/';
+const SITE = process.env.LIVE_CHECK_SITE || 'https://make-xmas-tree.com/';   // 운영 주소 (자체 도메인)
 const USER = { name: process.env.LIVE_CHECK_NAME || '배포점검', email: process.env.LIVE_CHECK_EMAIL || 'deploy-check@example.com',
                pin: process.env.LIVE_CHECK_PIN };
 if (!/^[0-9]{4,10}$/.test(USER.pin || '')) { console.error('LIVE_CHECK_PIN(숫자 4~10자리)을 환경 변수로 지정해 주세요.'); process.exit(2); }
