@@ -482,7 +482,8 @@ https://www.make-xmas-tree.com  →  301 Moved Permanently  →  https://make-xm
 - [ ] 발송 한도에 걸렸을 때의 메시지 (운영에서는 미확인, E2E mock으로 확인)
 - [x] 이전 주소 `dae-won-kim.github.io/code-christmas-tree/?t=…` → `301` → `https://make-xmas-tree.com/?t=…` (공유 링크 쿼리 유지), `http://` → `https://`
 - [ ] 자체 도메인에서 로그인 · 사진 업로드 · 공유 보기 · Console의 CSP 위반 0 재확인
-- [ ] (배포 후) 영어 화면 · 언어 전환 유지 · 영문 이름 트리 · 사이드 목록 로그아웃 — E2E mock으로는 확인, 운영 사이트는 아직
+- [x] 영어 화면 · 언어 전환 배포 (2026-11-18, 실사이트 en-US 브라우저 · Console 오류 0), 운영 DB에 영문 이름 규칙 적용 확인
+- [ ] 운영 사이트에서 영문 이름으로 트리 만들기 · 사이드 목록 로그아웃 — E2E mock으로는 확인
 - [x] 복구 메일 템플릿을 한국어 + 영어로 변경 — 2026-11-18 운영자 보고 ([`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1 ③)
 - [ ] 바뀐 템플릿으로 복구 메일 수신
 

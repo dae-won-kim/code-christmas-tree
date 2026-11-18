@@ -200,8 +200,10 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 - [x] 자체 도메인 — DNS Check Successful · Enforce HTTPS 켬 · `https://www.make-xmas-tree.com` → 301 → `https://make-xmas-tree.com` → 200 (5-1) — 2026-11-18 운영자 보고
 - [x] Resend 도메인 `make-xmas-tree.com` **Verified**, Supabase Custom SMTP를 Resend로 설정 (2-1 ②) — 2026-11-18 운영자 보고
 - [ ] 자체 도메인에서 `npm run check:live` (로그인 · 사진 · 공유 · CSP 0) — ⬜ 미확인
-- [ ] (names_en 배포 후) 영문 이름으로 새 트리 → 대소문자만 바꿔 다시 열면 같은 트리 — ⬜ 미확인 (DB 테스트 · E2E mock으로 확인)
-- [ ] (i18n 배포 후) 오른쪽 위 [English]로 영어 화면 · 새로고침 후에도 유지, 사이드 목록 [로그아웃] — ⬜ 미확인 (E2E mock으로 확인)
+- [x] `names_en` 운영 DB 적용 — 2026-11-18 공개 키로 `enter_tree('Probe Check', …, p_create=false)` → `not_found`(적용 전이면 `invalid_name`)
+- [ ] 영문 이름으로 새 트리 → 대소문자만 바꿔 다시 열면 같은 트리 — ⬜ 실제 사이트 미확인 (DB 테스트 · E2E mock으로 확인)
+- [x] 영어 화면 — 2026-11-18 실사이트를 en-US 모바일 브라우저로 열어 영어 로그인 화면 · 영문 이름 검사 통과 · [한국어] 전환 · Console 오류 0
+- [ ] 사이드 목록 [로그아웃] — ⬜ 실제 사이트 미확인 (E2E mock으로 확인)
 - [x] 메일 템플릿을 한국어 + 영어로 변경 (2-1 ③) — 2026-11-18 운영자 보고
 - [ ] 바뀐 템플릿으로 복구 메일 수신 — ⬜ 미확인
 - [x] 이전 주소 공유 링크가 새 주소로 넘어감 — 2026-11-18 `curl -IL`: `dae-won-kim.github.io/code-christmas-tree/?t=…` → 301 → `make-xmas-tree.com/?t=…`(쿼리 유지) → 200,
