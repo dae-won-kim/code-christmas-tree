@@ -67,13 +67,13 @@
 
 - [x] README GIF (화면 녹화) — 2026-11-18 `docs/images/demo.gif`, `npm run record:gif` (아래 2-1)
 - [x] Supabase **Security Advisor** 경고 확인 — 2026-11-18 확인: Errors 0 · Warnings 48 · Info 5, 모두 의도한 설계 (기준은 DEPLOY.md 6번)
-- [ ] Storage에 v1 사진 파일이 남아 있는지 확인 후 정리 (운영자 확인 필요 — 앞선 대화에서 "정보 없음"이라고 했지만 Auth 사용자 확인과 섞여 있었음)
+- [x] Storage v1 사진 파일 — **남겨 두기로 결정**(운영자, 2026-11-18). 정리하지 않음. 나중에 정리하려면:
       확인(읽기 전용, SQL Editor): DB의 사진 목록에 없는 파일
       `select o.name, o.created_at from storage.objects o where o.bucket_id = 'tree-photos' and not exists (select 1 from public.photos p where p.path = o.name) order by o.created_at;`
       나온 파일은 SQL로 지우지 말고 **Storage → tree-photos** 화면에서 지운다(SQL로 지우면 실제 파일이 남음, DEPLOY.md 7번)
-- [ ] 점검용 계정 정리 여부 — 운영 DB에 `배포점검` / `deploy-check@example.com` 계정과 트리 1개가 남아 있음(사진 0장, 장식 기본).
-      지우려면 운영자가 SQL Editor에서 `delete from tree_users where name = '배포점검';` (다음 실사이트 점검에 다시 써도 됨)
-- [ ] 원격 브랜치 정리 — `feat/decor`, `chore/pg17-license`는 모두 `main`에 들어감
+- [x] 점검용 계정 — **유지하기로 결정**(운영자, 2026-11-18): 다른 기능의 실사이트 점검(`check:live` 등)에 계속 씀. 지우지 말 것.
+      운영 DB의 `배포점검` / `deploy-check@example.com` 계정과 트리 1개(사진 0장, 장식 기본). PIN은 저장소에 적지 않음(운영자에게 받기)
+- [x] 원격 브랜치 정리 — 2026-11-18 `feat/decor`, `chore/pg17-license` 삭제(둘 다 `main`에 없는 커밋 0개 확인 후)
 - [ ] 실제 사이트에서 아직 확인 안 한 계정 기능 4개 — PIN 틀림 · 다른 이메일 · PIN 변경 · 트리 2·3번째 (DEPLOY.md 6번 ⬜ 표시, E2E로는 통과)
 - 백로그: 트리(계정) 삭제(사진 파일까지), 이메일 변경, 담은 트리 변경 알림, 방명록, OG 미리보기 이미지 (ROADMAP 참고)
 
