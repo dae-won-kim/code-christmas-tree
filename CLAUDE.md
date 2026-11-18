@@ -34,6 +34,7 @@ tests/e2e/           Playwright E2E (window.supabase mock: mock-supabase.js)
 scripts/test-db.sh   DB 테스트 실행기
 scripts/serve.py     로컬 개발 서버 (MIME 고정, config.js 없으면 데모 모드)
 scripts/check-mermaid.cjs  문서 Mermaid 그림 렌더링 확인 (npm run check:mermaid)
+scripts/check-i18n.cjs     화면 문구 ko · en 키 점검 (npm run check:i18n)
 scripts/live-check.cjs     배포 후 실제 사이트·DB 점검 (npm run check:live, LIVE_CHECK_PIN 필요 · 운영 DB에 씀)
 scripts/record-gif.cjs     README 데모 GIF 녹화 (npm run record:gif, mock DB · Pillow 필요) → make-gif.py
 scripts/release-main.sh    dev → main 합치기 (인수인계 문서 제외)

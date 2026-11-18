@@ -1,7 +1,8 @@
 # 인수인계 — 다른 PC의 Claude Code가 이어서 작업하기 위한 메모
 
-> 마지막 갱신: 2026-11-18 · 작성: Claude Code (대화 세션 `b05c56bd…` 내용을 정리, 2026-11-18 새 PC 세션에서 갱신)
-> 새 세션은 **이 문서 → `CLAUDE.md` → `docs/ROADMAP.md`** 순서로 읽고 시작하세요.
+> 마지막 갱신: 2026-11-18 · 작성: Claude Code (대화 세션 `b05c56bd…` 내용을 정리, 2026-11-18 새 PC 세션 · 도메인/다국어 세션에서 갱신)
+> 새 세션은 **이 문서 → `CLAUDE.md` → `docs/ROADMAP.md`** 순서로 읽고 시작하세요. 다른 PC에서 처음이면 **6-1 새 PC 준비**부터.
+> Claude Code의 메모리(`~/.claude/projects/...`)는 PC마다 따로라서 넘어가지 않습니다. 운영자 선호 · 남은 일은 모두 이 문서에 적습니다.
 > 이 문서는 "왜 그렇게 했는지"와 "운영자가 어떻게 일하길 원하는지"를 남기는 곳입니다. 진행 체크박스는 ROADMAP에 있습니다.
 
 ## 1. 지금 상태 (2026-11-18)
@@ -19,6 +20,9 @@
   `dev` → `main`은 `./scripts/release-main.sh`로만 합친다(인수인계 문서 자동 제외, `main guard` 워크플로가 검사). **`main`을 `dev`에 merge하지 말 것.**
   `dev`는 Rulesets `dev 보호`로 운영자만 push · 삭제/강제 push 금지. 공개 저장소라 이 문서도 **누구나 읽을 수 있음** → 비밀 값 금지
 - 2026-11-18 `main`에 반영: README 데모 GIF · 배포 체크리스트 정리 · Security Advisor 기준 · 브랜치 분리 (인수인계 문서 제외)
+  → 이어서 `4ef065f`(자체 도메인 · Resend 문서, 복구 PIN 8자리 문구) · `e9a7845`(Phase 9 영문 이름 · 한국어/영어 · 로그아웃, 운영 DB `names_en`)
+  · `9672921`(배포 기록 문서). 지금 `dev`와 `main`은 인수인계 문서 2개만 빼고 같음
+- 원격 브랜치 `feat/i18n-names`는 `dev`에 합쳐졌지만 **지우지 않고 남겨 둠**(운영자에게 아직 묻지 않음 — 지우기 전에 확인)
 
 ## 2. 이번 세션에서 한 일 (시간 순)
 
@@ -83,6 +87,8 @@
 
 ## 4. 운영자가 원하는 작업 방식
 
+- **할 일이 여러 개면 먼저 우선순위 표를 보여 주고 진행**(운영자 요청 — 순위 · 할 일 · 이유를 짧은 표로, 그다음 바로 작업).
+- 확인하지 않은 것을 완료로 쓰지 않음. 운영자가 대시보드에서 한 일은 "운영자 보고"로, 내가 확인한 것은 방법(curl · RPC · 스크린샷)과 함께 적는다.
 - 한국어로 대화. 커밋 메시지 `<영역>: <내용>`(한국어), 끝에 `Co-Authored-By` 줄.
 - **"진행해"라고 하면 끝까지:** 구현 → 테스트 → 스크린샷 확인 → 문서 · ROADMAP 갱신 → (요청 시) 배포 → **실제 사이트에서 동작 확인**까지.
 - 작업은 `dev`(큰 기능은 `dev`에서 딴 `feat/...`)에서 하고 CI(DB · E2E)를 통과시킨 뒤, 운영자가 말하면 `./scripts/release-main.sh`로 `main`에 합쳐 배포. `main` push = 운영 DB 마이그레이션 + 사이트 배포.
@@ -105,12 +111,26 @@
 - [ ] 자체 도메인에서 `check:live` (기본 주소를 `make-xmas-tree.com`으로 바꿈, 점검 계정 PIN 필요)
 - [x] Phase 9 배포 — 2026-11-18 `main`, 운영 DB `names_en` 적용 확인, 실사이트 영어 화면 확인
 - [ ] 실사이트에서 영문 이름 트리 만들기 · 사이드 목록 로그아웃 · 새 템플릿(한국어+영어) 메일 수신 확인
+      (영문 이름 트리는 운영 DB에 사용자가 생기므로 운영자가 직접 하거나 허락받고 할 것)
+- [ ] (선택) `otp_rate_limited` 문구 "(1분에 한 번, 시간당 몇 통까지)"를 Supabase Rate Limits 실제 값에 맞출지 — 운영자 결정
+- [ ] (선택) 원격 브랜치 `feat/i18n-names` 지우기 — 운영자 확인 후
 - [x] 운영자: 복구 메일 템플릿을 한국어 + 영어로 (DEPLOY.md 2-1 ③) — 2026-11-18 완료(운영자 보고). 새 템플릿 메일 수신은 아직 미확인
 - [x] 메일 제목 `[Code Christmas Tree]` · 발신자 이름 `Make Xmas Tree` — **지금 모습 그대로 유지**(운영자, 2026-11-18)
 - [x] 운영자 대시보드 정리(Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
 - 백로그: 트리(계정) 삭제(사진 파일까지), 이메일 변경, 담은 트리 변경 알림, 방명록, OG 미리보기 이미지 (ROADMAP 참고)
 
 ## 6. 환경 메모 (이 프로젝트를 Windows에서 돌릴 때 겪은 것)
+
+### 6-1. 새 PC 준비 (처음 한 번)
+1. `git clone https://github.com/dae-won-kim/code-christmas-tree.git` → **`git switch dev`** (이 문서는 `dev`에만 있음)
+2. Node.js(LTS) · Python 3 · Docker Desktop 설치. GitHub CLI `gh` 설치 후 **`gh auth login`**(CI 결과 확인 · `gh run watch`에 씀)
+3. `npm ci && npx playwright install chromium`
+4. 확인: `npm run test:e2e`(95개 통과 + 4개 skip) · DB 테스트(217개, 아래 컨테이너 명령) · `npm run check:i18n` · `npm run check:mermaid`
+5. (선택) 실제 DB로 로컬 확인: `web/config.example.js` → `web/config.js`에 Project URL · Publishable key (배포된 `https://make-xmas-tree.com/config.js`와 같은 값, 커밋 금지)
+6. (선택) GIF 녹화는 `pip install pillow`, 실사이트 점검은 운영자에게 점검 계정 PIN을 받아 `LIVE_CHECK_PIN`으로
+7. `git push`는 운영자 계정으로만 됨(Rulesets). push할 때 `Bypassed rule violations` 안내가 나오는 것은 정상
+
+### 6-2. 겪은 문제
 
 - DB 테스트는 **Docker Desktop이 켜져 있어야** 로컬에서 돌아감. 꺼져 있으면 브랜치에 push해서 CI(`db-test.yml`)로 확인.
 - E2E 준비: `npm ci && npx playwright install chromium` (한 번만).
@@ -124,14 +144,22 @@
   `MSYS_NO_PATHCONV=1 docker run --rm -e POSTGRES_PASSWORD=postgres -v "$(pwd -W):/repo" -w /repo postgres:17.12 bash -c 'docker-entrypoint.sh postgres >/tmp/pg.log 2>&1 & until pg_isready -h localhost -U postgres; do sleep 1; done; sleep 2; DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres bash scripts/test-db.sh'`
 - DB 테스트(Docker)와 E2E를 **동시에 돌리면** CPU가 모자라 E2E 몇 개가 시간 초과로 실패할 수 있음 → 하나씩.
 - Node 스크립트에서 `scripts/serve.py`(python http.server)에 `fetch`를 쓰면 undici가 assert로 죽는 경우가 있음 → `http.get` 사용.
+- Windows의 Python은 콘솔이 cp949라 한글 · 이모지를 `print`하면 `UnicodeEncodeError` → 스크립트 첫 줄에 `sys.stdout.reconfigure(encoding='utf-8')`.
+  `python -I`(격리 모드)에서는 `PYTHONIOENCODING` 환경 변수가 무시됨.
+- 화면 언어가 브라우저 언어로 정해지므로 **Playwright는 `locale: 'ko-KR'`로 고정**(`playwright.config.js`, `record-gif.cjs`, `live-check.cjs`). 영어 화면은 `i18n.spec.js`가 `en-US`로 따로 확인.
+- 화면 문구를 고치면 `npm run check:i18n`으로 ko · en 키가 맞는지 확인(en에 빠지면 영어 화면에 한국어가 나옴).
+- `web/js/ui/library.js`처럼 트리 객체를 `t`라는 이름으로 받는 함수 안에서는 번역 함수가 가려짐 → `t_`(별칭)를 씀. 새 코드에서 지역 변수 이름 `t`를 피할 것.
 
 ## 7. 검증 도구
 
 | 명령 | 내용 |
 |---|---|
-| `./scripts/test-db.sh` | DB 마이그레이션(파일마다 2회) · RPC · 보안 · 업그레이드 테스트 193개 |
+| `./scripts/test-db.sh` | DB 마이그레이션(파일마다 2회) · RPC · 보안 · 업그레이드 테스트 217개 |
 | `npm run test:e2e` | 화면 E2E(mock), 스크린샷 `test-results/screens/` — UI를 바꾸면 데스크톱 · 모바일 · 가로 스크린샷을 직접 확인 |
 | `npm run record:gif` | README 데모 GIF 다시 만들기 → `docs/images/demo.gif` (mock DB, Python **Pillow** 필요: `pip install pillow`). 프레임은 `test-results/gif/` |
 | `npm run check:mermaid` | 문서의 Mermaid 그림 16개 렌더링 확인, PNG `test-results/mermaid/` |
+| `npm run check:i18n` | `web/js/i18n.js`의 ko · en 키가 같은지, HTML · JS에서 쓰는 키가 모두 있는지 (2026-11-18 각 265개) |
 | `npm run check:live` | **운영 사이트 + 운영 DB** 점검 18개 (점검 계정 PIN을 `LIVE_CHECK_PIN` 환경 변수로, 운영자에게 받기). 사진은 올렸다가 모두 지움 |
 | 운영 RPC 확인 | 배포된 `config.js`의 Publishable key로 새 RPC를 잘못된 토큰으로 호출 → `unauthorized`면 마이그레이션 적용됨, `PGRST202`면 아직 |
+| 운영 이름 규칙 확인 | `POST <SUPABASE_URL>/rest/v1/rpc/enter_tree` (헤더 `apikey: <Publishable key>`), 본문 `{"p_name":"Probe Check","p_email":"deploy-probe@example.com","p_pin":"0000","p_create":false}` → `not_found`면 `names_en` 적용됨, `invalid_name`이면 아직. 사용자는 안 생기고 시도 기록 한 줄만 남음 |
+| CI 결과 | `gh run list --branch dev --limit 4` → `gh run watch <id> --exit-status` |

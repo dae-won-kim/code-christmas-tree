@@ -6,6 +6,7 @@
     "serve": "python scripts/serve.py",
     "test:e2e": "playwright test",
     "check:mermaid": "node scripts/check-mermaid.cjs",
+    "check:i18n": "node scripts/check-i18n.cjs",
     "check:live": "node scripts/live-check.cjs",
     "record:gif": "node scripts/record-gif.cjs"
   },

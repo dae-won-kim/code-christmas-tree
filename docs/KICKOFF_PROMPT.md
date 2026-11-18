@@ -5,7 +5,20 @@ Claude Code는 `CLAUDE.md`를 자동으로 읽습니다. 그래도 프롬프트�
 
 ---
 
-## ① 첫 세션 (현재 상태 파악 + Phase 2 시작)
+## ⓪ 다른 PC에서 이어서 하기 (지금 쓰는 것)
+
+먼저 `docs/HANDOFF.md`의 **6-1 새 PC 준비**를 따라 `dev` 브랜치를 받고 도구를 설치한 뒤:
+
+```
+이 저장소는 "Code Christmas Tree"(https://make-xmas-tree.com)야. dev 브랜치에서 작업해.
+docs/HANDOFF.md → CLAUDE.md → docs/ROADMAP.md 순서로 읽고, 지금 상태와 남은 일을 우선순위 표로 보여 줘.
+그다음 npm run test:e2e, DB 테스트(HANDOFF 6-2의 컨테이너 명령), npm run check:i18n 을 돌려서
+이 PC에서도 모두 통과하는지 확인해 줘. main 배포와 운영 DB에 쓰는 일은 내가 말할 때만 해.
+```
+
+---
+
+## ① 첫 세션 (현재 상태 파악 + Phase 2 시작) — 프로젝트 초기 기록
 
 ```
 이 저장소는 "Code Christmas Tree" 프로젝트야. 작업 전에 CLAUDE.md, docs/ROADMAP.md,
