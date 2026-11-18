@@ -6,6 +6,7 @@
 | `20261117110000_accounts_v2.sql` | 계정 v2: (이름, 이메일) 복합 기본키 + PIN, 이메일 PIN 복구, 트리 분리(사용자당 3개), 무늬 8종. v1 데이터는 버림 |
 | `20261117120000_tree_views.sql` | 본 트리 기록 · 담은 트리 |
 | `20261118000000_decorations.sql` | 트리 장식 위치(`trees.decorations`) · 사진 캡션 고치기 |
+| `20261118120000_names_en.sql` | 이름에 영문 허용(한글·영문 2~20자, 공백 한 칸) · 대소문자 무시(`lower(name)` 유일 인덱스) |
 
 테스트: `supabase/tests/10_rpc_test.sql`(기본·보안), `20_views_test.sql`(목록), `30_multi_trees_test.sql`(트리 여러 개), `40_pin_reset_test.sql`(PIN 복구), `50_decorations_test.sql`(장식·캡션),
 `upgrade/`(배포된 v1 DB에 적용하는 상황) — `./scripts/test-db.sh`가 모두 실행합니다.
@@ -26,7 +27,7 @@ erDiagram
   trees ||--o{ upload_tickets : "사진 경로"
 
   tree_users {
-    text name PK "한글 2~10자 (복합키 1)"
+    text name PK "한글·영문 2~20자 (복합키 1)"
     text email_hash PK "HMAC 64자 (복합키 2)"
     text pin_hash "HMAC 64자 · 키 아님"
     uuid id UK "대리키 · 다른 테이블이 참조"
@@ -116,7 +117,7 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 ```
 - 동명이인은 이메일로 구분합니다. 가족이 메일 하나를 같이 써도 이름이 다르면 다른 사용자입니다.
 - 이메일·PIN 모두 평문으로 저장하지 않습니다. pepper는 `private.secrets`에 있고 DB 밖으로 나가지 않습니다.
-- 이름: 완성형 한글 2~10자, NFC 정규화 · 이메일: 공백 제거+소문자, `아무개@도메인.최상위`, 254자 이하 · PIN: 숫자 4~10자리
+- 이름: 완성형 한글·영문 2~20자(단어 사이 공백 한 칸), NFC 정규화 + 공백 정리, 대소문자 무시(찾기 · 시도 제한 키는 `lower(name)`, 저장 · 표시는 처음 만든 그대로) · 이메일: 공백 제거+소문자, `아무개@도메인.최상위`, 254자 이하 · PIN: 숫자 4~10자리
 - PIN 복구는 Supabase Auth 이메일 OTP로 메일 주인을 확인한 JWT가 있어야 합니다(`reset_pin`, `private.verified_email`).
 
 ## 테이블
@@ -124,7 +125,7 @@ pin_hash   = HMAC-SHA256(pepper, 'pin:' || 사용자 id || ':' || PIN)
 ### public.tree_users — 사용자
 | 컬럼 | 타입 | 제약 |
 |---|---|---|
-| **name** | text | **PK①**, `^[가-힣]{2,10}$` |
+| **name** | text | **PK①**, 2~20자 `^[가-힣A-Za-z]+( [가-힣A-Za-z]+)*$` (`tree_users_name_valid`), `(lower(name), email_hash)` 유일(`tree_users_name_ci_key`) |
 | **email_hash** | text | **PK②**, HMAC hex 64자 |
 | pin_hash | text | HMAC hex 64자 (사용자 id를 섞어 같은 PIN도 사람마다 다름) |
 | id | uuid | unique, 다른 테이블이 참조하는 대리키 |
@@ -238,7 +239,7 @@ flowchart LR
 ## 제한 값 (바꾸려면 마이그레이션 + 테스트 + 이 표를 함께 수정)
 | 항목 | 값 | 위치 |
 |---|---|---|
-| 이름 | 한글 2~10자 | enter_tree, tree_users 제약, api.js `isValidName` |
+| 이름 | 한글·영문 2~20자, 공백 한 칸, 대소문자 무시 | private.valid_name · normalize_name, tree_users 제약 · lower 인덱스, api.js `isValidName` · `normalizeName` |
 | 이메일 | 254자 이하, `아무개@도메인.최상위` | private.valid_email, api.js `isValidEmail` |
 | PIN | 숫자 4~10자리 | private.valid_pin, api.js `isValidPin` |
 | 로그인 시도 | (이름, 이메일)당 15분 10회 + 하루 30회 | private.assert_rate |
@@ -259,7 +260,7 @@ flowchart LR
 1. `create or replace function public.xxx(...) ... security definer set search_path = ''`
 2. 함수 안의 모든 이름은 스키마까지 붙여 쓰기 (`public.photos`, `extensions.digest`)
 3. 로그인이 필요하면 맨 앞에서 `private.require_user(p_token)`을 호출. 트리를 다루면 `private.owned_tree(user, p_tree_id)`로 소유 확인
-4. 오류는 짧은 영어 코드로 raise → `web/js/api.js`의 `ERROR_MESSAGES`에 한국어 메시지 추가
+4. 오류는 짧은 영어 코드로 raise → `web/js/api.js`의 `ERROR_MESSAGES`(한국어)와 `ERROR_MESSAGES_EN`(영어)에 메시지 추가
 5. 실패 기록을 남겨야 하는 경로는 raise 대신 `{ok:false, error}`를 return (롤백 방지)
 6. 마이그레이션 끝의 grant 목록에 시그니처 추가 (새 private 함수는 revoke)
 7. `supabase/tests/`에 정상 경로와 권한 침해 경로 테스트를 추가하고 `./scripts/test-db.sh` 통과 확인

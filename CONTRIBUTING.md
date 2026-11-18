@@ -47,7 +47,8 @@ npm run test:e2e
 - **바닐라 JS + ES 모듈, 빌드 도구 없음.** 웹 앱에 npm 의존성을 넣지 않습니다(`package.json`은 테스트 도구용).
 - 새 외부 리소스는 `web/index.html`의 CSP도 함께 고쳐야 로드됩니다.
 - 반응형 확인: 모바일 390×844, 가로 844×390, 데스크톱 1280×800. 입력창 글자 크기는 16px 이상.
-- 오류는 `TreeError.message`(한국어)로 보여 주고, 새 오류 코드는 `ERROR_MESSAGES`에 추가합니다.
+- 오류는 `TreeError.message`(지금 화면 언어)로 보여 주고, 새 오류 코드는 `ERROR_MESSAGES`(한국어)와 `ERROR_MESSAGES_EN`(영어)에 함께 추가합니다.
+- 화면 문구는 `web/js/i18n.js`의 `ko` · `en`에 같은 키로 추가하고 `t('키')`로 씁니다(코드에 문구를 직접 쓰지 않음).
 - 무늬는 DB에 번호로 저장됩니다. `PATTERNS`에는 **맨 뒤에만** 추가하고, 늘리면 `trees_pattern` 제약도 새 마이그레이션으로 바꿉니다.
 
 ### DB 마이그레이션
