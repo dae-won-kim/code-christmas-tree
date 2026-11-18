@@ -471,7 +471,8 @@ https://www.make-xmas-tree.com  →  301 Moved Permanently  →  https://make-xm
 - [x] 받은 코드(8자리)로 **PIN 재설정 → 새 PIN으로 트리 열기** (2026-11-18, 운영자 계정)
 - [x] 대시보드 정리 — 운영자 보고 (2026-11-18)
 - [x] 복구 후 Authentication → Users에 임시 사용자가 남지 않음 (2026-11-18, Resend 전환 후 운영자 확인)
-- [ ] [메일 다시 보내기]로 두 번째 메일 수신, 발송 한도에 걸렸을 때의 메시지
+- [x] [메일 다시 보내기]로 두 번째 메일 수신 (2026-11-18, 운영자 확인)
+- [ ] 발송 한도에 걸렸을 때의 메시지 (운영에서는 미확인, E2E mock으로 확인)
 - [x] 이전 주소 `dae-won-kim.github.io/code-christmas-tree/?t=…` → `301` → `https://make-xmas-tree.com/?t=…` (공유 링크 쿼리 유지), `http://` → `https://`
 - [ ] 자체 도메인에서 로그인 · 사진 업로드 · 공유 보기 · Console의 CSP 위반 0 재확인
 
