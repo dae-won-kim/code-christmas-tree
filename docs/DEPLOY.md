@@ -124,19 +124,20 @@ npm run test:e2e            # 화면 흐름 E2E (window.supabase mock)
 ## 6. 배포 후 확인 체크리스트
 
 mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서 꼭 확인해야 합니다.
+체크 표시는 **운영 사이트에서 실제로 확인한 항목**입니다(날짜 · 근거). 사진 · 장식 · 공유 · CSP는 `npm run check:live`로 다시 확인할 수 있습니다.
 
-- [ ] 새 트리 만들기 → 로그아웃 → 같은 이름+이메일+PIN으로 다시 열기
-- [ ] PIN을 틀리면 "PIN이 맞지 않아요" (새 트리를 만들자고 하지 않음)
-- [ ] 같은 이름·PIN, 다른 이메일 → "트리가 없어요" 안내 후 새 트리 생성 가능 (동명이인 구분)
-- [ ] 꾸미기 → 공유·계정 → PIN 바꾸기 → 다른 기기 로그아웃 확인
-- [ ] [PIN을 잊었어요] → 복구 PIN 메일 수신 → 새 PIN으로 열림 → Authentication → Users에 임시 사용자가 남지 않음 (2-1)
-- [ ] 사이드 목록에서 트리 2·3번째 만들기, 이름·순서 바꾸기, 빈 트리 지우기
-- [ ] 사진 업로드 → 새로고침 후에도 보임 (Storage 업로드 정책이 실제로 동작하는지)
-- [ ] 사진 삭제 → Storage 버킷에서도 파일이 사라짐 (select/delete 정책)
-- [ ] 공유 링크(`?t=...`)를 시크릿 창에서 열면 읽기 전용으로 보임
-- [ ] 개발자도구 Console에서 테이블 직접 조회가 막히는지
+- [x] 새 트리 만들기 → 로그아웃 → 같은 이름+이메일+PIN으로 다시 열기 — 2026-11-17 점검 계정을 만들고 새 브라우저에서 다시 열기(`check:live`)
+- [ ] PIN을 틀리면 "PIN이 맞지 않아요" (새 트리를 만들자고 하지 않음) — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
+- [ ] 같은 이름·PIN, 다른 이메일 → "트리가 없어요" 안내 후 새 트리 생성 가능 (동명이인 구분) — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
+- [ ] 꾸미기 → 공유·계정 → PIN 바꾸기 → 다른 기기 로그아웃 확인 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
+- [x] [PIN을 잊었어요] → 복구 PIN 메일 수신 → 새 PIN으로 열림 → Authentication → Users에 임시 사용자가 남지 않음 (2-1) — 2026-11-17 실제 메일(Gmail SMTP)로 확인
+- [ ] 사이드 목록에서 트리 2·3번째 만들기, 이름·순서 바꾸기, 빈 트리 지우기 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
+- [x] 사진 업로드 → 새로고침 후에도 보임 (Storage 업로드 정책이 실제로 동작하는지) — 2026-11-17 (Phase 4 점검, Phase 8 `check:live` 3장)
+- [x] 사진 삭제 → Storage 버킷에서도 파일이 사라짐 (select/delete 정책) — 2026-11-17 (골라 삭제 → 0장, 새로고침 후에도 0장)
+- [x] 공유 링크(`?t=...`)를 시크릿 창에서 열면 읽기 전용으로 보임 — 2026-11-17 (로그인 없는 새 브라우저, `check:live`)
+- [x] 개발자도구 Console에서 테이블 직접 조회가 막히는지 — 2026-11-17 `42501` 권한 오류 확인
       `supabase.createClient(URL, KEY).from('tree_users').select()` → 권한 오류여야 정상
-- [ ] Supabase **Advisors → Security Advisor** 경고 확인
+- [x] Supabase **Advisors → Security Advisor** 경고 확인 — 2026-11-18 아래 정상 기준과 일치
       `security definer` 함수가 public에 있다는 경고는 의도한 설계입니다(함수가 직접 권한 검사).
       그 밖의 경고는 원인을 확인하세요. **정상 기준 (2026-11-18, RPC 24개):**
 
@@ -148,8 +149,8 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
       | Info | 5 | (RLS는 켰지만 정책 없음) `public` 테이블 5개 | 테이블 직접 접근을 막는 의도한 설정 — 정책을 추가하지 않음 |
 
       RPC를 추가하면 Warnings가 2개씩 늘어납니다. 개수가 이와 다르거나, Entity가 `public.`이 아니거나, 다른 이슈 타입이 보이면 원인을 확인하세요.
-- [ ] Project Settings → Data API의 **Exposed schemas**에 `private`이 없어야 함 (기본값은 public, graphql_public)
-- [ ] 개발자도구 **Console에 CSP 위반(`Refused to ...`) 오류가 없는지**
+- [x] Project Settings → Data API의 **Exposed schemas**에 `private`이 없어야 함 (기본값은 public, graphql_public) — 2026-11-17 API로 `private` 접근 시 `PGRST106`(노출 안 됨) 확인
+- [x] 개발자도구 **Console에 CSP 위반(`Refused to ...`) 오류가 없는지** — 2026-11-17 내 트리 · 공유 보기 모두 0건(`check:live`)
       Supabase를 커스텀 도메인으로 연결했다면 `web/index.html`의 CSP `connect-src`·`img-src`에 그 도메인을 추가해야 합니다.
 
 ### 문제가 생기면

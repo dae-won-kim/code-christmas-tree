@@ -4,13 +4,15 @@
 > 새 세션은 **이 문서 → `CLAUDE.md` → `docs/ROADMAP.md`** 순서로 읽고 시작하세요.
 > 이 문서는 "왜 그렇게 했는지"와 "운영자가 어떻게 일하길 원하는지"를 남기는 곳입니다. 진행 체크박스는 ROADMAP에 있습니다.
 
-## 1. 지금 상태 (2026-11-17)
+## 1. 지금 상태 (2026-11-18)
 
 - **배포 완료:** `main` = 운영. 사이트 https://dae-won-kim.github.io/code-christmas-tree/ , Supabase 프로젝트 ref `ordkcohhwfgwlmhwtxja`
 - 마지막 기능 배포: Phase 8(장식 · 선물 상자 · 밤하늘 · 사진 캡션 고치기 · 사진 여러 장 삭제) + 사슴 명칭 변경 + 문서 재구성
 - 운영 DB: 마이그레이션 4개 모두 적용됨(`init` → `accounts_v2` → `tree_views` → `decorations`), PostgreSQL **17.12**
 - 테스트: DB 193개(CI, PostgreSQL 17.12) · E2E 29개 시나리오 × 3개 화면 = 83개 통과 · **실제 사이트 점검 18개 통과**
 - 운영자 설정 완료: Supabase Auth Custom SMTP(Gmail) + 메일 템플릿 `{{ .Token }}`, 실제 메일로 PIN 복구 확인, GitHub **Private vulnerability reporting 켬**
+- Supabase **Security Advisor 검토 완료**(2026-11-18, Errors 0 · Warnings 48 · Info 5 = 정상 기준, DEPLOY.md 6번)
+- 브랜치 `docs/readme-gif`(README 데모 GIF · Advisor 기록 · MD 체크 정리)는 CI 통과, **`main`에 아직 안 합침**
 
 ## 2. 이번 세션에서 한 일 (시간 순)
 
@@ -72,6 +74,7 @@
 - [ ] 점검용 계정 정리 여부 — 운영 DB에 `배포점검` / `deploy-check@example.com` 계정과 트리 1개가 남아 있음(사진 0장, 장식 기본).
       지우려면 운영자가 SQL Editor에서 `delete from tree_users where name = '배포점검';` (다음 실사이트 점검에 다시 써도 됨)
 - [ ] 원격 브랜치 정리 — `feat/decor`, `chore/pg17-license`는 모두 `main`에 들어감
+- [ ] 실제 사이트에서 아직 확인 안 한 계정 기능 4개 — PIN 틀림 · 다른 이메일 · PIN 변경 · 트리 2·3번째 (DEPLOY.md 6번 ⬜ 표시, E2E로는 통과)
 - 백로그: 트리(계정) 삭제(사진 파일까지), 이메일 변경, 담은 트리 변경 알림, 방명록, OG 미리보기 이미지 (ROADMAP 참고)
 
 ## 6. 환경 메모 (이 프로젝트를 Windows에서 돌릴 때 겪은 것)

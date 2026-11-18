@@ -143,7 +143,9 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [x] 산타·사슴가 배경을 천천히 날아다니고 누르면 반응 (`tree/characters.js`, 끄기 설정)
 - [x] 눈 양 증가 (데스크톱 160 → 300, 모바일 90 → 170, 가끔 큰 눈송이)
 - [x] 줄바꿈 LF 고정(`.gitattributes`) — Windows에서 CRLF가 섞여 `test-db.sh`가 리눅스에서 깨지는 문제 방지
-- [ ] push 후: Storage에 남은 v1 사진 파일을 대시보드에서 비우기
+- [ ] push 후: Storage에 남은 v1 사진 파일을 대시보드에서 비우기 (확인 SQL은 HANDOFF.md 5번)
+- [ ] 실제 사이트 확인: PIN 틀림 안내 · 같은 이름·다른 이메일 · PIN 변경(다른 기기 로그아웃) · 트리 2·3번째 만들기/이름/순서/지우기
+      — E2E(mock)로는 통과, 운영 사이트에서는 아직 확인 기록 없음 (DEPLOY.md 6번)
 - [x] Supabase Auth 설정 — Confirm signup·Magic Link 템플릿에 `{{ .Token }}`, Custom SMTP, OTP 만료 900초 (DEPLOY.md 2-1) — 2026-11-17 완료 (Gmail SMTP)
 - [x] 실제 메일로 복구 흐름 확인 (2026-11-17)
 - [x] Authentication → Users에 임시 사용자가 남지 않음 확인 (2026-11-17)
