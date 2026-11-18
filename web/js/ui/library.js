@@ -2,6 +2,7 @@
  * 트리 목록 (사이드 서랍) — 내 트리(최대 3개) + 담은 트리 + 최근 본 트리
  *
  *  - 내 트리: 로그인했을 때만. 이름(=제목) 바꾸기, 순서 바꾸기(▲▼), 새로 만들기, 지우기(사진이 없는 트리만)
+ *    그 아래 "OOO님으로 로그인됨 · [로그아웃]" (꾸미기 → 공유·계정 탭에도 같은 버튼이 있음)
  *
  *  - 로그인했으면 DB(list_trees)에서, 아니면 이 브라우저의 localStorage에서 읽는다.
  *    로그인하면 브라우저 기록을 DB로 합친다(main.js의 afterLogin).
@@ -10,7 +11,10 @@
  */
 import { $, h, toast, confirmButton, trackComposition, isImeEnter } from './dom.js';
 import { shareUrlFor } from './editor.js';
-import { PATTERN_NAMES } from '../tree/patterns.js';
+import { patternName } from '../tree/patterns.js';
+import { t, getLang } from '../i18n.js';
+
+const t_ = t;   // 트리 객체를 t라는 이름으로 받는 함수 안에서 쓰는 번역 함수
 
 const MAX_TREES = 3;
 
@@ -45,27 +49,30 @@ export const pendingSave = {
 };
 
 /* ---------- "3일 전" 같은 상대 시간 ---------- */
-const rtf = new Intl.RelativeTimeFormat('ko', { numeric: 'auto' });
 function ago(iso) {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return '';
-  const sec = (t - Date.now()) / 1000;
+  const rtf = new Intl.RelativeTimeFormat(getLang(), { numeric: 'auto' });
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return '';
+  const sec = (at - Date.now()) / 1000;
   for (const [unit, size] of [['year', 31536000], ['month', 2592000], ['week', 604800], ['day', 86400], ['hour', 3600], ['minute', 60]]) {
     if (Math.abs(sec) >= size) return rtf.format(Math.round(sec / size), unit);
   }
-  return '방금';
+  return t('lib.justNow');
 }
 
 /**
- * @param {{ api, onOpen: (shareId: string) => void, onOpenMine: (treeId: string|null) => void, isViewing?: () => boolean }} deps
+ * @param {{ api, onOpen: (shareId: string) => void, onOpenMine: (treeId: string|null) => void,
+ *           onLogout: () => Promise<void>, isViewing?: () => boolean }} deps
  */
-export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false }) {
+export function createLibrary({ api, onOpen, onOpenMine, onLogout, isViewing = () => false }) {
   const toggle = $('btnLibrary'), panel = $('library'), closeBtn = $('libClose');
   const savedList = $('libSaved'), historyList = $('libHistory');
   const savedEmpty = $('libSavedEmpty'), historyEmpty = $('libHistoryEmpty');
   const errorEl = $('libError'), clearBtn = $('libClear');
   const mineSection = $('libMine'), mineList = $('libMineList'), newTreeBtn = $('libNewTree');
+  const logoutBtn = $('libLogout'), whoEl = $('libWho');
   let items = [], mine = [], current = null, currentMine = null, open = false, loading = null, editingId = null;
+  let userName = null;   // 로그인한 사람 이름 (화면 표시용, 저장하지 않음)
 
   /* ---------- 데이터 ---------- */
   // 동작(이름 바꾸기·지우기 등)에서 난 오류는 바로 뒤따르는 refresh()에서 지워지지 않게 한 번 남긴다
@@ -83,7 +90,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     try { [items, mine] = await Promise.all([api.listTrees(), api.listMyTrees()]); }
     catch (e) {
       if (e.code === 'unauthorized') { items = localHistory.list().map(x => ({ ...x, saved: false })); mine = []; return; }
-      errorEl.textContent = `목록을 불러오지 못했어요. ${e.message}`;
+      errorEl.textContent = t('lib.loadFail', { msg: e.message });
     }
   }
   function refresh() {
@@ -94,7 +101,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
   /* ---------- 그리기 (사용자 입력은 textContent로만) ---------- */
   function row(item, kind) {
     const link = h('a', { href: shareUrlFor(item.share_id), className: 'item' },
-      h('span', { className: 'who', text: `${item.saved && kind === 'history' ? '★ ' : ''}${item.name}님의 트리` }),
+      h('span', { className: 'who', text: `${item.saved && kind === 'history' ? '★ ' : ''}${t('tree.of', { name: item.name })}` }),
       h('span', { className: 'meta', text: [item.title, ago(kind === 'saved' ? item.saved_at : item.viewed_at)].filter(Boolean).join(' · ') }));
     if (item.share_id === current) link.setAttribute('aria-current', 'page');
     link.addEventListener('click', e => {
@@ -104,8 +111,8 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
       onOpen(item.share_id);
     });
     const remove = kind === 'saved'
-      ? h('button', { type: 'button', className: 'icon', text: '☆', 'aria-label': `담기 취소: ${item.name}님의 트리`, title: '담기 취소' })
-      : h('button', { type: 'button', className: 'icon', text: '✕', 'aria-label': `기록에서 지우기: ${item.name}님의 트리`, title: '기록에서 지우기' });
+      ? h('button', { type: 'button', className: 'icon', text: '☆', 'aria-label': `${t('lib.unsave')}: ${t('tree.of', { name: item.name })}`, title: t('lib.unsave') })
+      : h('button', { type: 'button', className: 'icon', text: '✕', 'aria-label': `${t('lib.forget')}: ${t('tree.of', { name: item.name })}`, title: t('lib.forget') });
     remove.addEventListener('click', () => (kind === 'saved' ? unsave(item) : forget(item)));
     return h('li', {}, link, remove);
   }
@@ -115,7 +122,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     if (t.id === editingId) return renameRow(t);
     const link = h('a', { href: '#', className: 'item' },
       h('span', { className: 'who', text: t.title }),
-      h('span', { className: 'meta', text: `${PATTERN_NAMES[t.pattern] ?? ''} · 글귀 ${t.messages} · 사진 ${t.photos}` }));
+      h('span', { className: 'meta', text: t_('lib.mineMeta', { pattern: patternName(t.pattern), m: t.messages, p: t.photos }) }));
     if (t.id === currentMine) link.setAttribute('aria-current', 'page');
     link.addEventListener('click', e => {
       e.preventDefault();
@@ -124,17 +131,17 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     });
     const btn = (text, label, onclick, disabled = false) =>
       h('button', { type: 'button', className: 'icon', text, 'aria-label': `${label}: ${t.title}`, title: label, disabled, onclick });
-    const del = btn('🗑', '트리 지우기', null, mine.length <= 1);
+    const del = btn('🗑', t_('lib.deleteTree'), null, mine.length <= 1);
     confirmButton(del, '?', () => removeTree(t));
     return h('li', { dataset: { id: t.id } }, link,
       h('span', { className: 'actions' },
-        btn('✎', '이름 바꾸기', () => { editingId = t.id; render(); }),
-        btn('▲', '위로', () => move(i, -1), i === 0),
-        btn('▼', '아래로', () => move(i, 1), i === mine.length - 1),
+        btn('✎', t_('lib.rename'), () => { editingId = t.id; render(); }),
+        btn('▲', t_('lib.up'), () => move(i, -1), i === 0),
+        btn('▼', t_('lib.down'), () => move(i, 1), i === mine.length - 1),
         del));
   }
   function renameRow(t) {
-    const input = h('input', { value: t.title, maxlength: '30', 'aria-label': `‘${t.title}’ 새 이름 (1~30자)` });
+    const input = h('input', { value: t.title, maxlength: '30', 'aria-label': t_('lib.renameAria', { title: t.title }) });
     const ime = trackComposition(input);
     let done = false;
     const finish = async save => {
@@ -145,9 +152,9 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
         try {
           await api.updateTree({ title }, t.id);
           document.dispatchEvent(new CustomEvent('tree:renamed', { detail: { id: t.id, title } }));
-          toast('트리 이름을 바꿨어요.');
+          toast(t_('lib.renamed'));
         } catch (e) { setError(e.message); }
-      } else if (save && !title) setError('트리 이름은 1~30자로 입력해 주세요.');
+      } else if (save && !title) setError(t_('lib.renameInvalid'));
       await refresh();
       mineList.querySelector(`li[data-id="${t.id}"] button`)?.focus();
     };
@@ -158,7 +165,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     input.addEventListener('blur', () => finish(true));
     queueMicrotask(() => { input.focus(); input.select(); });
     return h('li', { className: 'editing', dataset: { id: t.id } }, input,
-      h('button', { type: 'button', className: 'icon', text: '✓', 'aria-label': '이름 저장', onmousedown: e => e.preventDefault(), onclick: () => finish(true) }));
+      h('button', { type: 'button', className: 'icon', text: '✓', 'aria-label': t_('lib.renameSave'), onmousedown: e => e.preventDefault(), onclick: () => finish(true) }));
   }
   // 순서는 화면에 바로 반영하고 저장 요청은 차례대로 보낸다.
   // (응답을 기다렸다 다시 그리면, 빠르게 두 번 누를 때 두 번째가 옛 순서 기준이 되어 한 칸만 움직임)
@@ -173,7 +180,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     // 옮긴 트리의 같은 방향 버튼에 포커스를 남겨 연속으로 옮길 수 있게
     const refocus = () => {
       const li = mineList.querySelector(`li[data-id="${movedId}"]`);
-      (li?.querySelector(`button[title="${d < 0 ? '위로' : '아래로'}"]:not(:disabled)`) || li?.querySelector('a'))?.focus();
+      (li?.querySelector(`button[title="${t(d < 0 ? 'lib.up' : 'lib.down')}"]:not(:disabled)`) || li?.querySelector('a'))?.focus();
     };
     render(); refocus();
     const mine_ = moving = moving.then(() => api.reorderTrees(ids)).catch(e => setError(e.message));
@@ -184,7 +191,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
   async function removeTree(t) {
     try {
       await api.deleteTree(t.id);
-      toast(`‘${t.title}’ 트리를 지웠어요.`);
+      toast(t_('lib.deleted', { title: t.title }));
       if (t.id === currentMine) onOpenMine(null);
     } catch (e) { setError(e.message); toast(e.message, { error: true }); }
     await refresh();
@@ -193,7 +200,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     newTreeBtn.disabled = true;
     try {
       const t = await api.createTree();
-      toast('새 트리를 만들었어요! ✎ 꾸미기로 이름과 무늬를 정해 보세요.');
+      toast(t_('lib.created'));
       if (matchMedia('(max-width: 700px)').matches) setOpen(false, { focusToggle: false });
       onOpenMine(t.id);
     } catch (e) { setError(e.message); }
@@ -209,9 +216,8 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
       mineList.replaceChildren(...mine.map(mineRow));
       $('libMineCount').textContent = `${mine.length}/${MAX_TREES}`;
       newTreeBtn.disabled = mine.length >= MAX_TREES;
-      $('libMineNote').textContent = mine.length >= MAX_TREES
-        ? '트리는 3개까지예요. 새로 만들려면 하나를 지워 주세요. (사진이 없는 트리만 지울 수 있어요)'
-        : '트리마다 공유 링크가 따로 있어요. 이름은 트리 위에 보이는 제목이에요.';
+      $('libMineNote').textContent = mine.length >= MAX_TREES ? t('lib.mineFull') : t('lib.mineNote');
+      whoEl.textContent = userName ? t('lib.who', { name: userName }) : t('lib.whoUnknown');
     }
     const saved = items.filter(x => x.saved).sort((a, b) => String(b.saved_at).localeCompare(String(a.saved_at)));
     const history = items.filter(x => x.viewed_at).sort((a, b) => String(b.viewed_at).localeCompare(String(a.viewed_at)));
@@ -219,9 +225,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     historyList.replaceChildren(...history.map(x => row(x, 'history')));
     $('libSavedCount').textContent = api.loggedIn ? String(saved.length) : '';
     $('libHistoryCount').textContent = String(history.length);
-    savedEmpty.textContent = api.loggedIn
-      ? '공유 링크로 연 트리에서 ☆ 담기를 누르면 여기에 모여요.'
-      : '로그인하면 마음에 드는 트리를 담아 두고, 다른 기기에서도 같은 목록을 볼 수 있어요.';
+    savedEmpty.textContent = api.loggedIn ? t('lib.savedEmpty') : t('lib.savedEmptyGuest');
     savedEmpty.hidden = saved.length > 0;
     historyEmpty.hidden = history.length > 0;
     clearBtn.hidden = history.length === 0;
@@ -231,7 +235,7 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
   async function unsave(item) {
     try {
       await api.setSaved(item.share_id, false);
-      toast(`${item.name}님의 트리를 목록에서 뺐어요.`);
+      toast(t('lib.unsaved', { name: item.name }));
       document.dispatchEvent(new CustomEvent('tree:saved-change', { detail: { shareId: item.share_id, saved: false } }));
     } catch (e) { setError(e.message); }
     await refresh();
@@ -241,10 +245,22 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     catch (e) { setError(e.message); }
     await refresh();
   }
-  confirmButton(clearBtn, '정말 다 지울까요?', async () => {
-    try { api.loggedIn ? await api.forgetViews(null) : localHistory.clear(); toast('본 기록을 지웠어요. 담은 트리는 그대로예요.'); }
+  confirmButton(clearBtn, t('lib.clearConfirm'), async () => {
+    try { api.loggedIn ? await api.forgetViews(null) : localHistory.clear(); toast(t('lib.cleared')); }
     catch (e) { setError(e.message); }
     await refresh();
+  });
+
+  /* ---------- 로그아웃 ---------- */
+  logoutBtn.addEventListener('click', async () => {
+    if (logoutBtn.disabled) return;
+    logoutBtn.disabled = true;
+    const label = logoutBtn.textContent;
+    logoutBtn.textContent = t('acc.loggingOut');
+    try {
+      await onLogout();
+      if (matchMedia('(max-width: 700px)').matches) setOpen(false, { focusToggle: false });   // 좁은 화면: 로그인 칸을 가리지 않게
+    } finally { logoutBtn.disabled = false; logoutBtn.textContent = label; }
   });
 
   /* ---------- 펼치기 / 접기 ---------- */
@@ -281,6 +297,8 @@ export function createLibrary({ api, onOpen, onOpenMine, isViewing = () => false
     setCurrent(shareId) { current = shareId; render(); },
     /** 지금 편집 중인 내 트리 표시 (없으면 null) */
     setCurrentMine(treeId) { currentMine = treeId; render(); },
+    /** 로그인한 사람 이름 (로그아웃하면 null) */
+    setUser(name) { userName = name || null; render(); },
     /** 서버 모드에서만 보이게 */
     show() {
       toggle.hidden = false; panel.hidden = false;

@@ -20,11 +20,12 @@
 web/                 정적 사이트 (GitHub Pages로 배포되는 폴더)
   index.html         마크업만 (CSP 포함) + js/main.js
   css/style.css      전체 스타일
-  js/main.js         진입점: 모드 결정(demo/login/mine/shared), 화면 전환
+  js/main.js         진입점: 모드 결정(demo/login/mine/shared), 화면 전환, 언어 전환
+  js/i18n.js         화면 문구 한국어/영어 사전 t('키') · applyStatic() (index.html의 data-i18n*)
   js/api.js          TreeApi — DB 접근의 유일한 통로
   js/image.js        업로드 전 사진 리사이즈
   js/tree/           트리 렌더러 createTree(canvas, options) — renderer/patterns/photos/viewer/messages/characters/decor(장식·선물·밤하늘)
-  js/ui/             화면 — dom(공통)/login(로그인·PIN 복구)/editor/share/library(사이드 목록: 내 트리·담은 트리·본 기록)
+  js/ui/             화면 — dom(공통)/login(로그인·PIN 복구)/editor/share/library(사이드 목록: 내 트리·담은 트리·본 기록·로그아웃)
   config.example.js  → config.js로 복사해서 사용 (config.js는 커밋 금지)
 supabase/
   migrations/        DB 스키마 (Supabase에 적용하는 파일)
@@ -79,10 +80,14 @@ npm run test:e2e
   - supabase-js는 `js/main.js`의 `SUPABASE_JS`에 **버전 고정 + SRI**로 적혀 있습니다. 버전을 올리면 integrity도 다시 계산합니다.
   - `index.html`의 CSP에 없는 출처는 로드되지 않습니다. 새 외부 리소스를 쓰려면 CSP도 함께 고칩니다.
   - `package.json`은 E2E 테스트 도구용입니다. 웹 앱에 npm 의존성을 넣지 않습니다.
-- UI 문구와 코드 주석은 **한국어**, 식별자는 영어로 씁니다.
+- 코드 주석은 **한국어**, 식별자는 영어로 씁니다.
+- 화면 문구는 코드에 직접 쓰지 않고 `web/js/i18n.js`의 `ko`와 `en`에 **같은 키로 함께** 추가합니다(`t('키')`).
+  `index.html`의 고정 문구는 `data-i18n`(글자) · `data-i18n-ph` · `data-i18n-aria` · `data-i18n-title`로 키를 적습니다.
+  번역문의 굵게는 `**…**`, 줄바꿈은 `\n`(DOM으로 만듦, innerHTML 금지). 사용자 입력은 번역하지 않습니다.
+  E2E는 `locale: 'ko-KR'`로 돌고, 영어 화면은 `tests/e2e/i18n.spec.js`에서 확인합니다.
 - 반응형 유지: 모바일(390×844), 가로 모바일(844×390), 데스크톱(1280×800)에서 확인합니다.
   iOS 확대 방지를 위해 입력창 글자 크기는 16px 이상으로 합니다.
-- 오류 표시는 `TreeError.message`(한국어)를 씁니다. 새 오류 코드는 `ERROR_MESSAGES`에 추가합니다.
+- 오류 표시는 `TreeError.message`(지금 화면 언어)를 씁니다. 새 오류 코드는 `ERROR_MESSAGES`(한국어)와 `ERROR_MESSAGES_EN`(영어)에 함께 추가합니다.
 
 ### DB 마이그레이션
 - **배포된 마이그레이션은 수정하지 않습니다.** 변경은 `supabase/migrations/<타임스탬프>_<설명>.sql`을 새로 추가합니다.
@@ -111,7 +116,7 @@ npm run test:e2e
 
 ## 알려진 제약 / 주의점
 - mock 테스트는 `storage.objects`의 일부 컬럼만 흉내 냅니다. Storage 정책의 **실제 동작은 Phase 4에서 실제 Supabase로 확인**해야 합니다(DEPLOY.md 6번).
-- 사용자 = (이름, 이메일), PIN은 확인용 값(기본키 아님). 이메일은 복구 주소라서 로그인 화면의 안내 문구(`#emailWarn`)와 새로 만들 때의 주소 확인을 없애지 않습니다.
+- 사용자 = (이름, 이메일), PIN은 확인용 값(기본키 아님). 이름은 한글·영문 2~20자이고 대소문자를 구분하지 않습니다(찾기는 `lower(name)`). 이메일은 복구 주소라서 로그인 화면의 안내 문구(`#emailWarn`)와 새로 만들 때의 주소 확인을 없애지 않습니다.
 - PIN은 숫자 4~10자리라 근본적으로 약하고, 해시는 조회를 위해 빠른 HMAC입니다. 보안을 과장하는 문구를 쓰지 않습니다.
 - 이메일·PIN은 평문으로 저장하지 않습니다(해시만). 새 기능에서도 평문 컬럼을 만들지 않습니다.
 - 복구 메일이 실제로 가려면 Supabase 대시보드 설정(메일 템플릿 `{{ .Token }}`, SMTP)이 필요합니다(`docs/DEPLOY.md` 2-1). mock E2E로는 검증되지 않습니다.

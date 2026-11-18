@@ -26,8 +26,12 @@ test('로그인부터 공유 보기까지 전체 흐름', async ({ page, browser
   });
 
   await test.step('이름·PIN·이메일 검증 메시지', async () => {
-    await name.fill('kim');
-    await expect(page.locator('#nameMsg')).toContainText('한글만');
+    await name.fill('kim1');
+    await expect(page.locator('#nameMsg')).toContainText('숫자');
+    await name.fill('kim!');
+    await expect(page.locator('#nameMsg')).toContainText('한글과 영문만');
+    await name.fill('Kim Minsu');                                   // 영문 이름(공백 한 칸)도 허용
+    await expect(page.locator('#nameMsg')).toBeEmpty();
     await name.fill('김민수');
     await expect(page.locator('#nameMsg')).toBeEmpty();
     await pin.fill('12a');

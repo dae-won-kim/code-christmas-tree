@@ -3,6 +3,8 @@
  *  - 사용자 입력(이름·제목·글귀·캡션)은 반드시 textContent로 넣는다. innerHTML 금지
  *    (세션 토큰이 localStorage에 있어서 XSS가 생기면 토큰이 탈취된다)
  */
+import { t } from '../i18n.js';
+
 export const $ = id => document.getElementById(id);
 
 /** 요소 만들기: h('li', { className: 'x', text: '사용자 입력' }, child1, child2) */
@@ -81,7 +83,7 @@ export function confirmButton(button, confirmLabel, action) {
   button.addEventListener('click', async () => {
     if (!timer) {
       button.classList.add('confirming'); button.textContent = confirmLabel;
-      if (ariaLabel) button.setAttribute('aria-label', `${ariaLabel} — 한 번 더 누르면 실행`);
+      if (ariaLabel) button.setAttribute('aria-label', t('common.confirmSuffix', { label: ariaLabel }));
       timer = setTimeout(reset, 3000);
       return;
     }

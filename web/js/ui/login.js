@@ -1,5 +1,5 @@
 /**
- * 로그인 화면 — 이름 + PIN(숫자 4~10자리) + 이메일로 "내 트리 열기", 없으면 새로 만들지 확인
+ * 로그인 화면 — 이름(한글·영문 2~20자) + PIN(숫자 4~10자리) + 이메일로 "내 트리 열기", 없으면 새로 만들지 확인
  *               + PIN을 잊었을 때 이메일로 복구 PIN을 받아 새 PIN 정하기
  *
  *  - 사용자 = (이름, 이메일). 이메일은 사람마다 달라서 동명이인과 겹치지 않는다.
@@ -12,36 +12,35 @@
 import { TreeError, normalizeName, normalizeEmail, isValidName, isValidEmail, isValidPin } from '../api.js';
 import { $, trackComposition, toast } from './dom.js';
 import { pendingSave } from './library.js';
+import { t } from '../i18n.js';
 
 const RESEND_SECONDS = 60;
 
 /** 이름 검사 결과: null(문제 없음/아직 판단 안 함) 또는 오류 문구 */
 function nameProblem(raw, { final }) {
-  const v = normalizeName(raw);
-  if (!v) return final ? '이름을 입력해 주세요.' : null;
-  if (/[^가-힣]/.test(v)) {
-    if (/\s/.test(v)) return '이름에는 공백을 넣을 수 없어요.';
-    if (/[ㄱ-ㅎㅏ-ㅣ]/.test(v)) return '자음·모음만 따로 쓸 수 없어요. 완성된 글자로 입력해 주세요.';
-    return '이름은 한글만 쓸 수 있어요. (영문·숫자·기호 불가)';
-  }
-  if (v.length > 10) return '이름은 10자까지예요.';
-  if (v.length < 2) return final ? '이름은 2자 이상이에요.' : null;
+  const v = normalizeName(raw);   // 공백 여러 칸은 한 칸으로 (DB와 같은 규칙)
+  if (!v) return final ? t('name.empty') : null;
+  if (/[0-9]/.test(v)) return t('name.digits');
+  if (/[ㄱ-ㅎㅏ-ㅣ]/.test(v)) return t('name.jamo');
+  if (/[^가-힣A-Za-z ]/.test(v)) return t('name.chars');
+  if (v.length > 20) return t('name.long');
+  if (v.length < 2) return final ? t('name.short') : null;
   return null;
 }
-function pinProblem(raw, { final, label = 'PIN' }) {
+function pinProblem(raw, { final, label = t('pin.label') }) {
   const v = String(raw ?? '');
-  if (/[^0-9]/.test(v)) return `${label}은 숫자만 입력해 주세요.`;
-  if (!v) return final ? `${label}을 입력해 주세요. (숫자 4~10자리)` : null;
-  if (v.length < 4) return final ? `${label}은 4자리 이상이에요.` : null;
-  if (v.length > 10) return `${label}은 10자리까지예요.`;
+  if (/[^0-9]/.test(v)) return t('pin.digits', { label });
+  if (!v) return final ? t('pin.empty', { label }) : null;
+  if (v.length < 4) return final ? t('pin.short', { label }) : null;
+  if (v.length > 10) return t('pin.long', { label });
   return null;
 }
 function emailProblem(raw, { final }) {
   const v = normalizeEmail(raw);
-  if (!v) return final ? '이메일을 입력해 주세요. PIN을 잊었을 때 복구 메일을 받는 주소예요.' : null;
-  if (/\s/.test(String(raw).trim())) return '이메일에는 공백을 넣을 수 없어요.';
+  if (!v) return final ? t('email.empty') : null;
+  if (/\s/.test(String(raw).trim())) return t('email.space');
   if (!final && !v.includes('@')) return null;
-  if (!isValidEmail(v)) return final ? '이메일 주소를 확인해 주세요. (예: name@example.com)' : null;
+  if (!isValidEmail(v)) return final ? t('email.invalid') : null;
   return null;
 }
 /** 남이 맞히기 쉬운 PIN인가 (막지는 않고 새로 만들 때 한 번 더 안내) */
@@ -97,25 +96,23 @@ export function mountLogin({ api, onEnter }) {
     working = true;
     const button = create ? btnCreate : btnEnter;
     const label = button.textContent;
-    button.disabled = true; button.textContent = create ? '만드는 중…' : '여는 중…';
+    button.disabled = true; button.textContent = create ? t('login.creating') : t('login.opening');
     errorEl.textContent = '';
     const input = pending ?? { name: name.value, email: email.value, pin: pin.value };
     try {
       const r = await api.enter(input.name, input.email, input.pin, { create });
-      if (r.created) toast('새 트리를 만들었어요! ✎ 꾸미기로 글귀와 사진을 걸어 보세요.', { ms: 4200 });
+      if (r.created) toast(t('login.created'), { ms: 4200 });
       onEnter(r);
     } catch (e) {
       const err = e instanceof TreeError ? e : new TreeError('unknown');
       if (err.code === 'not_found' && !create) {
         pending = { name: normalizeName(name.value), email: normalizeEmail(email.value), pin: pin.value };
-        const tip = easyPin(pending.pin) ? ' 1234·생일처럼 쉬운 PIN은 남이 맞히기 쉬우니 다른 숫자를 권해요.' : '';
-        $('createText').textContent =
-          `‘${pending.name}’ · ${pending.email} 로 된 트리가 없어요. 새 트리를 만들까요? `
-          + `이 이메일로 PIN 복구 메일이 가니 주소가 맞는지 한 번 더 확인해 주세요.${tip}`;
+        const tip = easyPin(pending.pin) ? t('login.easyPinTip') : '';
+        $('createText').textContent = t('login.confirmCreate', { name: pending.name, email: pending.email }) + tip;
         confirmBox.hidden = false; actions.hidden = true;
         btnCreate.focus();
       } else if (err.code === 'wrong_pin') {
-        errorEl.textContent = 'PIN이 맞지 않아요. 기억나지 않으면 [PIN을 잊었어요]로 이메일 복구를 할 수 있어요.';
+        errorEl.textContent = t('login.wrongPin');
         resetConfirm();
         pin.select(); pin.focus();
       } else {
@@ -147,7 +144,7 @@ export function mountLogin({ api, onEnter }) {
   /* ── PIN 복구 ─────────────────────────────────────── */
   const recovery = mountRecovery({
     api, on,
-    onDone: r => { toast('새 PIN으로 바꿨어요. 다른 기기는 로그아웃됐어요.', { ms: 4200 }); onEnter(r); },
+    onDone: r => { toast(t('recover.done'), { ms: 4200 }); onEnter(r); },
     onBack: () => { form.hidden = false; pin.value = ''; pin.focus({ preventScroll: true }); }
   });
   on(btnForgot, 'click', () => {
@@ -157,7 +154,7 @@ export function mountLogin({ api, onEnter }) {
 
   // 공유 보기에서 로그인 없이 [담기]를 누르고 온 경우 안내
   const note = $('loginNote'), pendingItem = pendingSave.peek();
-  note.textContent = pendingItem ? `로그인하면 ‘${pendingItem.name}님의 트리’를 내 목록에 담아 둘게요.` : '';
+  note.textContent = pendingItem ? t('login.pendingSave', { name: pendingItem.name }) : '';
   note.hidden = !pendingItem;
 
   // 초기화 후 표시
@@ -192,14 +189,14 @@ function mountRecovery({ api, on, onDone, onBack }) {
     rcEmail.readOnly = !!sent;
     btnResend.hidden = !sent;
     rcCode.disabled = false; rcCode.placeholder = '12345678';
-    btnMain.textContent = sent ? 'PIN 바꾸고 트리 열기' : '복구 PIN 보내기';
+    btnMain.textContent = sent ? t('recover.submit') : t('recover.send');
   }
   function cooldown() {
     clearInterval(timer);
     let left = RESEND_SECONDS;
     const tick = () => {
       btnResend.disabled = left > 0;
-      btnResend.textContent = left > 0 ? `다시 보내기 (${left}초)` : '메일 다시 보내기';
+      btnResend.textContent = left > 0 ? t('recover.resendIn', { n: left }) : t('recover.resend');
       if (left-- <= 0) { clearInterval(timer); timer = 0; }
     };
     tick(); timer = setInterval(tick, 1000);
@@ -228,10 +225,10 @@ function mountRecovery({ api, on, onDone, onBack }) {
   async function send() {
     const e = normalizeEmail(rcEmail.value);
     if (finalNameProblem()) return fail(finalNameProblem(), rcName);
-    if (!isValidEmail(e)) return fail('이메일 주소를 확인해 주세요. (예: name@example.com)', rcEmail);
+    if (!isValidEmail(e)) return fail(t('email.invalid'), rcEmail);
     await api.sendRecovery(e);
     setStep(e);
-    rcSent.textContent = `${e} 로 복구 PIN을 보냈어요. 메일이 안 보이면 스팸함도 확인해 주세요.`;
+    rcSent.textContent = t('recover.sent', { email: e });
     cooldown();
     rcCode.focus();
   }
@@ -239,11 +236,11 @@ function mountRecovery({ api, on, onDone, onBack }) {
   async function reset() {
     if (finalNameProblem()) return fail(finalNameProblem(), rcName);
     if (!api.recoveryVerified && !/^[0-9]{6,10}$/.test(rcCode.value.replace(/\s/g, ''))) {
-      return fail('메일로 받은 숫자(6~10자리)를 입력해 주세요.', rcCode);
+      return fail(t('recover.codeFormat'), rcCode);
     }
-    const p = pinProblem(rcPin.value, { final: true, label: '새 PIN' });
+    const p = pinProblem(rcPin.value, { final: true, label: t('pin.newLabel') });
     if (p) return fail(p, rcPin);
-    if (rcPin.value !== rcPin2.value) return fail('새 PIN 확인이 일치하지 않아요.', rcPin2);
+    if (rcPin.value !== rcPin2.value) return fail(t('pin.mismatch'), rcPin2);
     try {
       const r = await api.resetPin(rcName.value, sentTo, rcCode.value, rcPin.value);
       close();
@@ -251,8 +248,8 @@ function mountRecovery({ api, on, onDone, onBack }) {
     } catch (e) {
       if (e?.code === 'not_found' && api.recoveryVerified) {
         // 메일 확인은 끝났고 이름만 다름 → 복구 PIN은 다시 받지 않아도 된다
-        rcCode.value = ''; rcCode.disabled = true; rcCode.placeholder = '메일 확인 완료';
-        return fail('이 이메일로 그 이름의 트리가 없어요. 트리를 만들 때 쓴 이름으로 고쳐서 다시 눌러 주세요.', rcName);
+        rcCode.value = ''; rcCode.disabled = true; rcCode.placeholder = t('recover.verified');
+        return fail(t('recover.nameNotFound'), rcName);
       }
       if (e?.code === 'email_unverified') { setStep(null); rcSent.textContent = ''; }
       if (e?.code === 'otp_invalid') { rcCode.select(); rcCode.focus(); }
@@ -262,10 +259,10 @@ function mountRecovery({ api, on, onDone, onBack }) {
 
   on(card, 'submit', e => {
     e.preventDefault();
-    if (sentTo) run(btnMain, '바꾸는 중…', reset);
-    else run(btnMain, '보내는 중…', send);
+    if (sentTo) run(btnMain, t('recover.changing'), reset);
+    else run(btnMain, t('recover.sending'), send);
   });
-  on(btnResend, 'click', () => run(btnResend, '보내는 중…', send));
+  on(btnResend, 'click', () => run(btnResend, t('recover.sending'), send));
   on(btnBack, 'click', () => { close(); onBack(); });
   // 버튼이 잠깐 disabled되면 포커스가 body로 빠지므로 카드가 아니라 문서 전체에서 Esc를 받는다
   on(document, 'keydown', e => { if (e.key === 'Escape' && !card.hidden) { close(); onBack(); } });

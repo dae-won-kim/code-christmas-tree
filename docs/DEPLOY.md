@@ -24,7 +24,7 @@
 
 ### 방법 A — SQL Editor (가장 간단)
 1. 왼쪽 메뉴 **SQL Editor** → New query
-2. `supabase/migrations/`의 파일을 **이름 순서대로** 하나씩 붙여 넣고 **Run** (init → accounts_v2 → tree_views → decorations)
+2. `supabase/migrations/`의 파일을 **이름 순서대로** 하나씩 붙여 넣고 **Run** (init → accounts_v2 → tree_views → decorations → names_en)
 3. 확인
    - Table Editor: `tree_users`, `trees`, `messages`, `photos`, `tree_views`
    - Storage: `tree-photos` 버킷
@@ -94,16 +94,21 @@ Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내�
 (Custom SMTP가 없으면 "Set up custom SMTP to edit templates"라고 나오며 잠겨 있습니다 → ②를 먼저 하세요. 본문은 **Source** 탭에서 기존 내용을 지우고 붙여 넣습니다)
 처음 보는 주소에는 **Confirm signup**, 이미 있는 주소에는 **Magic Link** 템플릿이 쓰이기 때문입니다.
 
-- Subject: `[Code Christmas Tree] 복구 PIN {{ .Token }}`
+화면이 한국어 · 영어를 지원하므로 메일도 **한 통에 두 언어를 함께** 씁니다(운영자 결정, 2026-11-18 — 템플릿이 하나라 받는 사람 언어로 나누지 않음).
+
+- Subject: `[Code Christmas Tree] 복구 PIN · Recovery PIN {{ .Token }}`
 - Body:
 ```html
-<h2>🎄 PIN 복구</h2>
+<h2>🎄 PIN 복구 · PIN recovery</h2>
 <p>아래 <b>복구 PIN</b>을 트리 화면에 입력하고 새 PIN을 정해 주세요. (15분 안에, 한 번만 쓸 수 있어요)</p>
+<p lang="en">Enter the <b>recovery PIN</b> below on the tree page and choose a new PIN. (Valid for 15 minutes, one use only.)</p>
 <p style="font-size:28px;font-weight:700;letter-spacing:6px">{{ .Token }}</p>
 <p>직접 요청하지 않았다면 이 메일은 무시해도 돼요. 트리와 PIN은 바뀌지 않아요.</p>
+<p lang="en">If you didn't request this, you can ignore this email. Your tree and PIN stay the same.</p>
 ```
+- 운영 프로젝트는 2026-11-18 이 템플릿으로 바꿨습니다(운영자). 한국어만 쓰던 이전 템플릿(제목 `[Code Christmas Tree] 복구 PIN {{ .Token }}`)도 그대로 동작합니다.
 - 템플릿에 `{{ .ConfirmationURL }}`(링크)은 넣지 마세요. 앱은 숫자 입력 방식만 처리합니다.
-- 운영에서 실제로 받는 메일(2026-11-18): 보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 제목 `[Code Christmas Tree] 복구 PIN <숫자 8자리>` — 제목의 프로젝트 이름은 그대로 둠(운영자 결정)
+- 운영에서 실제로 받는 메일(2026-11-18 확인, 한국어 템플릿 기준): 보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 제목 `[Code Christmas Tree] 복구 PIN <숫자 8자리>` — 제목의 프로젝트 이름은 그대로 둠(운영자 결정)
 
 ### ④ 확인
 배포된 사이트 → [PIN을 잊었어요] → 팀원(내) 주소로 복구 PIN 받기 → 새 PIN으로 트리가 열리면 정상입니다.
@@ -195,6 +200,10 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 - [x] 자체 도메인 — DNS Check Successful · Enforce HTTPS 켬 · `https://www.make-xmas-tree.com` → 301 → `https://make-xmas-tree.com` → 200 (5-1) — 2026-11-18 운영자 보고
 - [x] Resend 도메인 `make-xmas-tree.com` **Verified**, Supabase Custom SMTP를 Resend로 설정 (2-1 ②) — 2026-11-18 운영자 보고
 - [ ] 자체 도메인에서 `npm run check:live` (로그인 · 사진 · 공유 · CSP 0) — ⬜ 미확인
+- [ ] (names_en 배포 후) 영문 이름으로 새 트리 → 대소문자만 바꿔 다시 열면 같은 트리 — ⬜ 미확인 (DB 테스트 · E2E mock으로 확인)
+- [ ] (i18n 배포 후) 오른쪽 위 [English]로 영어 화면 · 새로고침 후에도 유지, 사이드 목록 [로그아웃] — ⬜ 미확인 (E2E mock으로 확인)
+- [x] 메일 템플릿을 한국어 + 영어로 변경 (2-1 ③) — 2026-11-18 운영자 보고
+- [ ] 바뀐 템플릿으로 복구 메일 수신 — ⬜ 미확인
 - [x] 이전 주소 공유 링크가 새 주소로 넘어감 — 2026-11-18 `curl -IL`: `dae-won-kim.github.io/code-christmas-tree/?t=…` → 301 → `make-xmas-tree.com/?t=…`(쿼리 유지) → 200,
       `http://make-xmas-tree.com` → 301 → `https://`, 배포된 `config.js`에 실제 Supabase 값(데모 모드 아님)
 - [ ] 사이드 목록에서 트리 2·3번째 만들기, 이름·순서 바꾸기, 빈 트리 지우기 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)

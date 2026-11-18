@@ -15,7 +15,9 @@
 <script src="config.js"></script>
 </head>
 <body data-mode="boot">
-<canvas id="c" role="img" aria-label="빛 입자로 그린 3D 크리스마스 트리. 드래그해서 돌려 볼 수 있어요."></canvas>
+<canvas id="c" role="img" data-i18n-aria="canvas.aria" aria-label="빛 입자로 그린 3D 크리스마스 트리. 드래그해서 돌려 볼 수 있어요."></canvas>
+
+<button type="button" id="btnLang" class="lang-toggle" data-i18n="lang.toggle" data-i18n-aria="lang.toggleAria" aria-label="Switch to English (영어로 보기)">English</button>
 
 <div id="top">
   <div id="title">Merry Christmas</div>
@@ -26,21 +28,21 @@
 <div id="bottom">
   <!-- 타이핑 효과는 화면 낭독기에 한 글자씩 읽히지 않도록 숨기고, 전체 글귀는 #srMessages로 제공 -->
   <div id="message" aria-hidden="true"></div>
-  <ul id="srMessages" class="sr-only" aria-label="트리에 걸린 글귀"></ul>
+  <ul id="srMessages" class="sr-only" data-i18n-aria="sr.messages" aria-label="트리에 걸린 글귀"></ul>
   <div id="notice" hidden></div>
 
   <!-- 로그인 (login 모드) -->
   <form id="loginCard" class="card" hidden novalidate aria-labelledby="loginHeading">
-    <h1 id="loginHeading">내 트리 열기</h1>
+    <h1 id="loginHeading" data-i18n="login.heading">내 트리 열기</h1>
     <p id="loginNote" class="msg good" hidden></p>
     <div class="fields">
       <div class="field">
-        <label for="inName">이름 <span class="sub">(한글 2~10자)</span></label>
-        <input id="inName" name="name" lang="ko" autocomplete="nickname" autocapitalize="off" spellcheck="false"
-               placeholder="김민수" aria-describedby="nameMsg">
+        <label for="inName"><span data-i18n="login.name">이름</span> <span class="sub" data-i18n="login.nameSub">(한글·영문 2~20자)</span></label>
+        <input id="inName" name="name" autocomplete="nickname" autocapitalize="off" spellcheck="false" maxlength="40"
+               placeholder="김민수" data-i18n-ph="login.namePh" aria-describedby="nameMsg">
       </div>
       <div class="field pin">
-        <label for="inPin">PIN <span class="sub">(숫자 4~10자리)</span></label>
+        <label for="inPin">PIN <span class="sub" data-i18n="login.pinSub">(숫자 4~10자리)</span></label>
         <input id="inPin" name="pin" type="password" inputmode="numeric" autocomplete="current-password"
                maxlength="10" pattern="[0-9]*" aria-describedby="pinMsg">
       </div>
@@ -48,40 +50,40 @@
     <p id="nameMsg" class="msg" aria-live="polite"></p>
     <p id="pinMsg" class="msg" aria-live="polite"></p>
     <div class="field email">
-      <label for="inEmail">이메일 <span class="sub">(PIN을 잊었을 때 복구용)</span></label>
+      <label for="inEmail"><span data-i18n="login.email">이메일</span> <span class="sub" data-i18n="login.emailSub">(PIN을 잊었을 때 복구용)</span></label>
       <input id="inEmail" name="email" type="email" inputmode="email" autocomplete="username email" autocapitalize="off"
              spellcheck="false" maxlength="254" placeholder="name@example.com" aria-describedby="emailMsg emailWarn">
     </div>
     <p id="emailMsg" class="msg" aria-live="polite"></p>
-    <p id="emailWarn" class="warn">📧 PIN을 잊으면 <b>이 이메일로 복구 PIN</b>을 보내 드려요.
+    <p id="emailWarn" class="warn" data-i18n="login.emailWarn">📧 PIN을 잊으면 <b>이 이메일로 복구 PIN</b>을 보내 드려요.
       메일을 받을 수 있는 주소를 정확히 적어 주세요.</p>
     <p id="loginError" class="msg error" role="alert"></p>
     <div id="createConfirm" class="confirm" hidden>
       <p id="createText"></p>
       <div class="row">
-        <button type="button" id="btnCreateCancel">취소</button>
-        <button type="button" id="btnCreate" class="primary">새 트리 만들기</button>
+        <button type="button" id="btnCreateCancel" data-i18n="common.cancel">취소</button>
+        <button type="button" id="btnCreate" class="primary" data-i18n="login.create">새 트리 만들기</button>
       </div>
     </div>
     <div class="row spread" id="loginActions">
-      <button type="button" id="btnForgot" class="ghost">PIN을 잊었어요</button>
-      <button type="submit" id="btnEnter" class="primary">내 트리 열기</button>
+      <button type="button" id="btnForgot" class="ghost" data-i18n="login.forgot">PIN을 잊었어요</button>
+      <button type="submit" id="btnEnter" class="primary" data-i18n="login.enter">내 트리 열기</button>
     </div>
-    <p class="hint">처음이면 이름·이메일·PIN을 정해서 새 트리를 만들 수 있어요.<br>
+    <p class="hint" data-i18n="login.hint">처음이면 이름·이메일·PIN을 정해서 새 트리를 만들 수 있어요.<br>
       이메일은 트리 DB에 해시로만 저장돼요. 카드·휴대폰 비밀번호처럼 다른 곳에 쓰는 숫자는 PIN으로 쓰지 마세요.</p>
   </form>
 
   <!-- PIN 복구: 메일로 받은 복구 PIN(숫자, 길이는 Supabase Email OTP Length 설정 — 운영 8자리)으로 새 PIN 정하기 -->
   <form id="recoverCard" class="card" hidden novalidate aria-labelledby="recoverHeading">
-    <h1 id="recoverHeading">PIN 복구</h1>
-    <p class="hint top">트리를 만들 때 적은 이름과 이메일을 입력하면 그 주소로 숫자로 된 <b>복구 PIN</b>을 보내 드려요.</p>
+    <h1 id="recoverHeading" data-i18n="recover.heading">PIN 복구</h1>
+    <p class="hint top" data-i18n="recover.hint">트리를 만들 때 적은 이름과 이메일을 입력하면 그 주소로 숫자로 된 <b>복구 PIN</b>을 보내 드려요.</p>
     <div class="fields">
       <div class="field">
-        <label for="rcName">이름</label>
-        <input id="rcName" lang="ko" autocomplete="nickname" autocapitalize="off" spellcheck="false" placeholder="김민수">
+        <label for="rcName" data-i18n="login.name">이름</label>
+        <input id="rcName" autocomplete="nickname" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="김민수" data-i18n-ph="login.namePh">
       </div>
       <div class="field email-wide">
-        <label for="rcEmail">이메일</label>
+        <label for="rcEmail" data-i18n="login.email">이메일</label>
         <input id="rcEmail" type="email" inputmode="email" autocomplete="username email" autocapitalize="off"
                spellcheck="false" maxlength="254" placeholder="name@example.com">
       </div>
@@ -89,19 +91,19 @@
     <div id="rcStep2" hidden>
       <p id="rcSent" class="msg good" role="status"></p>
       <div class="field rc-code">
-        <label for="rcCode">메일로 받은 복구 PIN</label>
+        <label for="rcCode" data-i18n="recover.code">메일로 받은 복구 PIN</label>
         <input id="rcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="10" pattern="[0-9]*" placeholder="12345678">
       </div>
       <div class="fields">
-        <div class="field"><label for="rcPin">새 PIN <span class="sub">(숫자 4~10자리)</span></label>
+        <div class="field"><label for="rcPin"><span data-i18n="recover.newPin">새 PIN</span> <span class="sub" data-i18n="login.pinSub">(숫자 4~10자리)</span></label>
           <input id="rcPin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
-        <div class="field"><label for="rcPin2">새 PIN 확인</label>
+        <div class="field"><label for="rcPin2" data-i18n="recover.newPin2">새 PIN 확인</label>
           <input id="rcPin2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
       </div>
     </div>
     <p id="rcError" class="msg error" role="alert"></p>
     <div class="row spread">
-      <button type="button" id="btnRecoverBack" class="ghost">← 로그인으로</button>
+      <button type="button" id="btnRecoverBack" class="ghost" data-i18n="recover.back">← 로그인으로</button>
       <span class="row-gap">
         <button type="button" id="btnResend" hidden>메일 다시 보내기</button>
         <button type="submit" id="btnRecover" class="primary">복구 PIN 보내기</button>
@@ -110,11 +112,11 @@
   </form>
 
   <div id="toolbar">
-    <button id="btnPattern" data-modes="demo mine shared login" aria-label="무늬 바꾸기">🎄 무늬 바꾸기</button>
-    <button id="btnText" data-modes="demo" aria-label="글귀 편집">✎ 글귀</button>
-    <button id="btnPhoto" data-modes="demo" aria-label="사진 추가">📷 사진 추가</button>
-    <button id="btnEdit" data-modes="mine" aria-label="트리 꾸미기" aria-haspopup="dialog" aria-controls="editPanel" aria-expanded="false">✎ 꾸미기</button>
-    <button id="btnShare" data-modes="mine" aria-label="공유 링크 복사">🔗 공유</button>
+    <button id="btnPattern" data-modes="demo mine shared login" aria-label="무늬 바꾸기" data-i18n="tb.pattern" data-i18n-aria="tb.patternAria">🎄 무늬 바꾸기</button>
+    <button id="btnText" data-modes="demo" aria-label="글귀 편집" data-i18n="tb.text" data-i18n-aria="tb.textAria">✎ 글귀</button>
+    <button id="btnPhoto" data-modes="demo" aria-label="사진 추가" data-i18n="tb.photo" data-i18n-aria="tb.photoAria">📷 사진 추가</button>
+    <button id="btnEdit" data-modes="mine" aria-label="트리 꾸미기" data-i18n="tb.edit" data-i18n-aria="tb.editAria" aria-haspopup="dialog" aria-controls="editPanel" aria-expanded="false">✎ 꾸미기</button>
+    <button id="btnShare" data-modes="mine" aria-label="공유 링크 복사" data-i18n="tb.share" data-i18n-aria="tb.shareAria">🔗 공유</button>
     <button id="btnSave" data-modes="shared" aria-pressed="false">☆ 담기</button>
     <a id="btnMake" data-modes="shared" class="button" href="./">✨ 나도 트리 만들기</a>
   </div>
@@ -122,155 +124,160 @@
 
 <!-- 데모 모드: 로컬에서만 바뀌는 글귀 편집 패널 -->
 <div class="panel" id="textPanel">
-  <label for="inTitle">제목</label>
+  <label for="inTitle" data-i18n="demo.title">제목</label>
   <input id="inTitle" maxlength="40">
-  <label for="inMsgs">글귀 (한 줄 = 한 문장, 순서대로 타이핑됩니다)</label>
+  <label for="inMsgs" data-i18n="demo.msgs">글귀 (한 줄 = 한 문장, 순서대로 타이핑됩니다)</label>
   <textarea id="inMsgs" rows="5"></textarea>
-  <div class="hint">새로고침하면 처음 설정으로 돌아갑니다. 고정하려면 코드의 CONFIG를 수정하세요.</div>
+  <div class="hint" data-i18n="demo.hint">새로고침하면 처음 설정으로 돌아갑니다. 고정하려면 코드의 CONFIG를 수정하세요.</div>
   <div class="row">
-    <button id="btnCancel">닫기</button>
-    <button id="btnApply">적용</button>
+    <button id="btnCancel" data-i18n="demo.close">닫기</button>
+    <button id="btnApply" data-i18n="demo.apply">적용</button>
   </div>
 </div>
 
 <!-- 내 트리(편집) 패널 -->
 <section class="panel edit" id="editPanel" role="dialog" aria-modal="false" aria-labelledby="editHeading" hidden>
   <div class="panel-head">
-    <h2 id="editHeading">트리 꾸미기</h2>
+    <h2 id="editHeading" data-i18n="ed.heading">트리 꾸미기</h2>
     <span id="saveState" class="save-state" aria-live="polite"></span>
-    <button type="button" id="btnEditClose" class="icon" aria-label="꾸미기 닫기">✕</button>
+    <button type="button" id="btnEditClose" class="icon" aria-label="꾸미기 닫기" data-i18n-aria="ed.close">✕</button>
   </div>
-  <div class="tabs" role="tablist" aria-label="꾸미기 항목">
-    <button type="button" role="tab" id="tab-basic" aria-controls="pane-basic" aria-selected="true">기본</button>
-    <button type="button" role="tab" id="tab-decor" aria-controls="pane-decor" aria-selected="false" tabindex="-1">장식</button>
-    <button type="button" role="tab" id="tab-msgs" aria-controls="pane-msgs" aria-selected="false" tabindex="-1">글귀</button>
-    <button type="button" role="tab" id="tab-photos" aria-controls="pane-photos" aria-selected="false" tabindex="-1">사진</button>
-    <button type="button" role="tab" id="tab-account" aria-controls="pane-account" aria-selected="false" tabindex="-1">공유·계정</button>
+  <div class="tabs" role="tablist" aria-label="꾸미기 항목" data-i18n-aria="ed.tabs">
+    <button type="button" role="tab" id="tab-basic" aria-controls="pane-basic" aria-selected="true" data-i18n="ed.tabBasic">기본</button>
+    <button type="button" role="tab" id="tab-decor" aria-controls="pane-decor" aria-selected="false" tabindex="-1" data-i18n="ed.tabDecor">장식</button>
+    <button type="button" role="tab" id="tab-msgs" aria-controls="pane-msgs" aria-selected="false" tabindex="-1" data-i18n="ed.tabMsgs">글귀</button>
+    <button type="button" role="tab" id="tab-photos" aria-controls="pane-photos" aria-selected="false" tabindex="-1" data-i18n="ed.tabPhotos">사진</button>
+    <button type="button" role="tab" id="tab-account" aria-controls="pane-account" aria-selected="false" tabindex="-1" data-i18n="ed.tabAccount">공유·계정</button>
   </div>
 
   <div class="pane" role="tabpanel" id="pane-basic" aria-labelledby="tab-basic">
-    <label for="edTitle">제목 <span class="counter" id="edTitleCount"></span></label>
+    <label for="edTitle"><span data-i18n="ed.title">제목</span> <span class="counter" id="edTitleCount"></span></label>
     <input id="edTitle" maxlength="30" autocomplete="off" aria-describedby="edTitleMsg">
     <p id="edTitleMsg" class="msg" aria-live="polite"></p>
     <fieldset>
-      <legend>무늬</legend>
+      <legend data-i18n="ed.pattern">무늬</legend>
       <div class="choices" id="patternChoices"></div>
     </fieldset>
-    <label class="check"><input type="checkbox" id="edAutoRotate"> 자동으로 천천히 돌기</label>
-    <label class="check"><input type="checkbox" id="edPatternCycle"> 무늬 자동 전환 (1분마다)</label>
-    <label class="check"><input type="checkbox" id="edCharacters"> 산타·사슴 날아다니기</label>
-    <p class="hint">✨ 전구·별·양말 같은 장식은 <b>장식</b> 탭에서 달 수 있어요.</p>
-    <p class="hint">바꾼 내용은 잠시 뒤 자동으로 저장돼요.</p>
+    <label class="check"><input type="checkbox" id="edAutoRotate"> <span data-i18n="ed.autoRotate">자동으로 천천히 돌기</span></label>
+    <label class="check"><input type="checkbox" id="edPatternCycle"> <span data-i18n="ed.patternCycle">무늬 자동 전환 (1분마다)</span></label>
+    <label class="check"><input type="checkbox" id="edCharacters"> <span data-i18n="ed.characters">산타·사슴 날아다니기</span></label>
+    <p class="hint" data-i18n="ed.decorHint">✨ 전구·별·양말 같은 장식은 <b>장식</b> 탭에서 달 수 있어요.</p>
+    <p class="hint" data-i18n="ed.autoSave">바꾼 내용은 잠시 뒤 자동으로 저장돼요.</p>
   </div>
 
   <div class="pane" role="tabpanel" id="pane-decor" aria-labelledby="tab-decor" hidden>
-    <p class="hint top" id="decorHelp">장식을 고르고 <b>트리를 누르면</b> 그 자리에 달려요. 달린 장식은 <b>끌어서 옮기고</b>, 트리 밖으로 끌어내면 떼어져요.</p>
-    <div class="decor-kinds" id="decorKinds" role="group" aria-label="달 장식 종류"></div>
-    <div class="decor-colors" id="decorColors" role="group" aria-label="장식 색 (고른 장식이 있으면 그 장식의 색도 바뀜)"></div>
+    <p class="hint top" id="decorHelp" data-i18n="decor.help">장식을 고르고 <b>트리를 누르면</b> 그 자리에 달려요. 달린 장식은 <b>끌어서 옮기고</b>, 트리 밖으로 끌어내면 떼어져요.</p>
+    <div class="decor-kinds" id="decorKinds" role="group" aria-label="달 장식 종류" data-i18n-aria="decor.kindsAria"></div>
+    <div class="decor-colors" id="decorColors" role="group" aria-label="장식 색 (고른 장식이 있으면 그 장식의 색도 바뀜)" data-i18n-aria="decor.colorsAria"></div>
     <div class="row spread decor-actions">
       <span class="counter" id="decorTotal" aria-live="polite"></span>
       <span class="row-gap">
-        <button type="button" id="btnDecorAdd" class="primary">＋ 아무 곳에 달기</button>
-        <button type="button" id="btnDecorRemove" disabled>고른 장식 떼기</button>
+        <button type="button" id="btnDecorAdd" class="primary" data-i18n="decor.add">＋ 아무 곳에 달기</button>
+        <button type="button" id="btnDecorRemove" disabled data-i18n="decor.remove">고른 장식 떼기</button>
       </span>
     </div>
     <div class="row decor-actions">
-      <button type="button" id="btnDecorClear">모두 떼기</button>
-      <button type="button" id="btnDecorReset">기본 장식으로</button>
+      <button type="button" id="btnDecorClear" data-i18n="decor.clear">모두 떼기</button>
+      <button type="button" id="btnDecorReset" data-i18n="decor.reset">기본 장식으로</button>
     </div>
     <p id="decorState" class="msg" aria-live="polite"></p>
-    <label class="check"><input type="checkbox" id="edGifts"> 트리 아래 선물 상자 (누르면 열려요)</label>
+    <label class="check"><input type="checkbox" id="edGifts"> <span data-i18n="decor.gifts">트리 아래 선물 상자 (누르면 열려요)</span></label>
   </div>
 
   <div class="pane" role="tabpanel" id="pane-msgs" aria-labelledby="tab-msgs" hidden>
-    <label for="edMsg">새 글귀 <span class="counter" id="edMsgCount">0/100</span></label>
+    <label for="edMsg"><span data-i18n="msg.new">새 글귀</span> <span class="counter" id="edMsgCount">0/100</span></label>
     <div class="inline">
-      <input id="edMsg" maxlength="100" autocomplete="off" placeholder="따뜻한 한마디를 적어 주세요" aria-describedby="msgError">
-      <button type="button" id="btnAddMsg" class="primary">추가</button>
+      <input id="edMsg" maxlength="100" autocomplete="off" placeholder="따뜻한 한마디를 적어 주세요" data-i18n-ph="msg.ph" aria-describedby="msgError">
+      <button type="button" id="btnAddMsg" class="primary" data-i18n="msg.add">추가</button>
     </div>
     <p id="msgError" class="msg error" role="alert"></p>
-    <h3 class="list-head">걸린 글귀 <span class="counter" id="msgTotal"></span></h3>
+    <h3 class="list-head"><span data-i18n="msg.list">걸린 글귀</span> <span class="counter" id="msgTotal"></span></h3>
     <ul id="msgList" class="items"></ul>
-    <p id="msgEmpty" class="empty" hidden>아직 글귀가 없어요. 첫 글귀를 적어 보세요.</p>
+    <p id="msgEmpty" class="empty" hidden data-i18n="msg.empty">아직 글귀가 없어요. 첫 글귀를 적어 보세요.</p>
   </div>
 
   <div class="pane" role="tabpanel" id="pane-photos" aria-labelledby="tab-photos" hidden>
-    <label for="edCaption">캡션 <span class="sub">(선택, 30자 · 이번에 올릴 사진 모두에 붙어요. 올린 뒤 사진마다 고칠 수 있어요)</span></label>
+    <label for="edCaption"><span data-i18n="photo.caption">캡션</span> <span class="sub" data-i18n="photo.captionSub">(선택, 30자 · 이번에 올릴 사진 모두에 붙어요. 올린 뒤 사진마다 고칠 수 있어요)</span></label>
     <div class="inline">
-      <input id="edCaption" maxlength="30" autocomplete="off" placeholder="예: 우리 가족 첫 크리스마스">
-      <button type="button" id="btnUpload" class="primary">사진 올리기</button>
+      <input id="edCaption" maxlength="30" autocomplete="off" placeholder="예: 우리 가족 첫 크리스마스" data-i18n-ph="photo.captionPh">
+      <button type="button" id="btnUpload" class="primary" data-i18n="photo.upload">사진 올리기</button>
     </div>
     <input type="file" id="photoInput" accept="image/*" multiple hidden>
     <p id="uploadState" class="msg" aria-live="polite"></p>
-    <h3 class="list-head">걸린 사진 <span class="counter" id="photoTotal"></span></h3>
+    <h3 class="list-head"><span data-i18n="photo.list">걸린 사진</span> <span class="counter" id="photoTotal"></span></h3>
     <div class="row spread photo-tools" id="photoTools">
-      <label class="check"><input type="checkbox" id="photoSelectAll"> 모두 선택</label>
-      <button type="button" id="btnPhotoDeleteSel" class="danger" disabled>선택한 사진 삭제</button>
+      <label class="check"><input type="checkbox" id="photoSelectAll"> <span data-i18n="photo.selectAll">모두 선택</span></label>
+      <button type="button" id="btnPhotoDeleteSel" class="danger" disabled data-i18n="photo.deleteSelected">선택한 사진 삭제</button>
     </div>
     <ul id="photoGrid" class="grid"></ul>
-    <p class="hint" id="photoGridHint">사진 아래 칸에서 캡션을 바로 고칠 수 있어요. (입력을 마치면 자동 저장)</p>
-    <p id="photoEmpty" class="empty" hidden>아직 사진이 없어요. 사진을 올리면 트리 주변에 나타나요.</p>
+    <p class="hint" id="photoGridHint" data-i18n="photo.gridHint">사진 아래 칸에서 캡션을 바로 고칠 수 있어요. (입력을 마치면 자동 저장)</p>
+    <p id="photoEmpty" class="empty" hidden data-i18n="photo.empty">아직 사진이 없어요. 사진을 올리면 트리 주변에 나타나요.</p>
   </div>
 
   <div class="pane" role="tabpanel" id="pane-account" aria-labelledby="tab-account" hidden>
-    <label for="shareUrl">공유 링크 <span class="sub">(받은 사람은 읽기만 할 수 있어요)</span></label>
+    <label for="shareUrl"><span data-i18n="acc.shareLink">공유 링크</span> <span class="sub" data-i18n="acc.shareSub">(받은 사람은 읽기만 할 수 있어요)</span></label>
     <div class="inline">
       <input id="shareUrl" readonly>
-      <button type="button" id="btnCopy" class="primary">복사</button>
+      <button type="button" id="btnCopy" class="primary" data-i18n="acc.copy">복사</button>
     </div>
     <p id="copyState" class="msg" aria-live="polite"></p>
-    <p><a id="shareOpen" href="#" target="_blank" rel="noopener">공유 화면 새 탭에서 보기 ↗</a></p>
+    <p><a id="shareOpen" href="#" target="_blank" rel="noopener" data-i18n="acc.openShare">공유 화면 새 탭에서 보기 ↗</a></p>
 
-    <h3 class="list-head">PIN 바꾸기</h3>
+    <h3 class="list-head" data-i18n="acc.pinHeading">PIN 바꾸기</h3>
     <form id="pinForm" novalidate>
       <div class="fields three">
-        <div class="field"><label for="pinOld">지금 PIN</label>
+        <div class="field"><label for="pinOld" data-i18n="acc.pinOld">지금 PIN</label>
           <input id="pinOld" type="password" inputmode="numeric" autocomplete="current-password" maxlength="10" pattern="[0-9]*"></div>
-        <div class="field"><label for="pinNew">새 PIN</label>
+        <div class="field"><label for="pinNew" data-i18n="acc.pinNew">새 PIN</label>
           <input id="pinNew" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
-        <div class="field"><label for="pinNew2">새 PIN 확인</label>
+        <div class="field"><label for="pinNew2" data-i18n="acc.pinNew2">새 PIN 확인</label>
           <input id="pinNew2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="10" pattern="[0-9]*"></div>
       </div>
       <p id="pinState" class="msg" role="status"></p>
-      <div class="row"><button type="submit" id="btnPin">PIN 바꾸기</button></div>
+      <div class="row"><button type="submit" id="btnPin" data-i18n="acc.pinSubmit">PIN 바꾸기</button></div>
     </form>
-    <p class="hint">PIN을 바꾸면 지금 쓰는 기기를 뺀 다른 기기는 모두 로그아웃돼요.
+    <p class="hint" data-i18n="acc.pinHint">PIN을 바꾸면 지금 쓰는 기기를 뺀 다른 기기는 모두 로그아웃돼요.
       지금 PIN이 기억나지 않으면 로그아웃한 뒤 [PIN을 잊었어요]로 이메일 복구를 해 주세요.</p>
 
     <div class="row spread">
       <span id="whoami" class="sub"></span>
-      <button type="button" id="btnLogout">로그아웃</button>
+      <button type="button" id="btnLogout" data-i18n="common.logout">로그아웃</button>
     </div>
   </div>
 </section>
 
 <!-- 트리 목록 (서버 모드): 왼쪽 위 버튼으로 펼치고 접는 서랍. 기본은 접힘 -->
-<button type="button" id="btnLibrary" class="side-toggle" aria-controls="library" aria-expanded="false" hidden>☰ 목록</button>
+<button type="button" id="btnLibrary" class="side-toggle" aria-controls="library" aria-expanded="false" hidden data-i18n="lib.toggle">☰ 목록</button>
 <aside id="library" aria-labelledby="libHeading" hidden inert>
   <div class="lib-head">
-    <h2 id="libHeading">트리 목록</h2>
-    <button type="button" id="libClose" class="icon" aria-label="목록 접기">✕</button>
+    <h2 id="libHeading" data-i18n="lib.heading">트리 목록</h2>
+    <button type="button" id="libClose" class="icon" aria-label="목록 접기" data-i18n-aria="lib.close">✕</button>
   </div>
   <div class="lib-body">
     <p id="libError" class="msg error" role="alert"></p>
     <section id="libMine" aria-labelledby="libMineHead" hidden>
-      <h3 id="libMineHead" class="list-head">🎄 내 트리 <span class="counter" id="libMineCount"></span></h3>
+      <h3 id="libMineHead" class="list-head"><span data-i18n="lib.mine">🎄 내 트리</span> <span class="counter" id="libMineCount"></span></h3>
       <ul id="libMineList" class="lib-list mine"></ul>
-      <div class="row"><button type="button" id="libNewTree" class="primary">＋ 새 트리 만들기</button></div>
+      <div class="row"><button type="button" id="libNewTree" class="primary" data-i18n="lib.newTree">＋ 새 트리 만들기</button></div>
       <p id="libMineNote" class="hint"></p>
+      <div class="lib-account" id="libAccount">
+        <span id="libWho" class="sub"></span>
+        <button type="button" id="libLogout" data-i18n="common.logout">로그아웃</button>
+      </div>
+      <p class="hint" data-i18n="lib.logoutHint">이 브라우저에서 로그아웃해요. 트리는 그대로 남아요.</p>
     </section>
     <section aria-labelledby="libSavedHead">
-      <h3 id="libSavedHead" class="list-head">⭐ 담은 트리 <span class="counter" id="libSavedCount"></span></h3>
+      <h3 id="libSavedHead" class="list-head"><span data-i18n="lib.saved">⭐ 담은 트리</span> <span class="counter" id="libSavedCount"></span></h3>
       <ul id="libSaved" class="lib-list"></ul>
       <p id="libSavedEmpty" class="empty"></p>
     </section>
     <section aria-labelledby="libHistoryHead">
-      <h3 id="libHistoryHead" class="list-head">🕘 최근 본 트리 <span class="counter" id="libHistoryCount"></span></h3>
+      <h3 id="libHistoryHead" class="list-head"><span data-i18n="lib.history">🕘 최근 본 트리</span> <span class="counter" id="libHistoryCount"></span></h3>
       <ul id="libHistory" class="lib-list"></ul>
-      <p id="libHistoryEmpty" class="empty">공유 링크로 본 트리가 여기에 기록돼요.</p>
-      <div class="row"><button type="button" id="libClear" class="danger">기록 모두 지우기</button></div>
+      <p id="libHistoryEmpty" class="empty" data-i18n="lib.historyEmpty">공유 링크로 본 트리가 여기에 기록돼요.</p>
+      <div class="row"><button type="button" id="libClear" class="danger" data-i18n="lib.clear">기록 모두 지우기</button></div>
     </section>
-    <p class="hint">목록의 트리는 읽기 전용이에요. 볼 수만 있고 고칠 수 없어요.<br>트리 주인은 누가 자기 트리를 봤는지 알 수 없어요.</p>
+    <p class="hint" data-i18n="lib.hint">목록의 트리는 읽기 전용이에요. 볼 수만 있고 고칠 수 없어요.<br>트리 주인은 누가 자기 트리를 봤는지 알 수 없어요.</p>
   </div>
 </aside>
 
@@ -286,7 +293,7 @@
 
 <div id="viewer">
   <div id="card"><img id="cardImg" alt=""><div id="cardCap"></div></div>
-  <div id="viewerHint">사진을 누르면 트리로 돌아갑니다</div>
+  <div id="viewerHint" data-i18n="viewer.hint">사진을 누르면 트리로 돌아갑니다</div>
 </div>
 <input type="file" id="fileInput" accept="image/*" multiple>
 

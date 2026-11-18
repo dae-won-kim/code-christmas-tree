@@ -8,22 +8,20 @@
  *  renderer.js가 매 프레임 prepare(project, axisZ) → drawSky → drawBack → (트리 입자) → drawFront 순서로 부른다.
  */
 import { TAU, TOP, TH, R, rnd, clamp01 } from './patterns.js';
+import { t } from '../i18n.js';
 
-/** 장식 종류. k 값은 DB에 저장되므로 바꾸지 말 것 (새 종류는 SQL의 private.clean_decorations에도 추가) */
+/** 장식 종류. k 값은 DB에 저장되므로 바꾸지 말 것 (새 종류는 SQL의 private.clean_decorations에도 추가)
+ *  이름은 i18n.js의 'decor.<k>' (방울 · 전구 · 별 · 양말 · 종 · 사탕 · 리본 · 눈꽃) */
+const ornament = (k, icon) => ({ k, icon, get name() { return t(`decor.${k}`); } });
 export const ORNAMENTS = [
-  { k: 'ball',  name: '방울', icon: '🔴' },
-  { k: 'bulb',  name: '전구', icon: '💡' },
-  { k: 'star',  name: '별',   icon: '⭐' },
-  { k: 'sock',  name: '양말', icon: '🧦' },
-  { k: 'bell',  name: '종',   icon: '🔔' },
-  { k: 'candy', name: '사탕', icon: '🍭' },
-  { k: 'bow',   name: '리본', icon: '🎀' },
-  { k: 'flake', name: '눈꽃', icon: '❄️' }
+  ornament('ball', '🔴'), ornament('bulb', '💡'), ornament('star', '⭐'), ornament('sock', '🧦'),
+  ornament('bell', '🔔'), ornament('candy', '🍭'), ornament('bow', '🎀'), ornament('flake', '❄️')
 ];
-/** 장식 색. 순서(번호)가 DB에 저장되므로 맨 뒤에만 추가 (SQL은 0~5까지 허용) */
+/** 장식 색 [이름 키, 색]. 순서(번호)가 DB에 저장되므로 맨 뒤에만 추가 (SQL은 0~5까지 허용)
+ *  이름은 i18n.js의 'color.<키>' (빨강 · 금 · 파랑 · 초록 · 분홍 · 하양) */
 export const DECOR_COLORS = [
-  ['빨강', '#e8384f'], ['금색', '#f2c14e'], ['파랑', '#4f8ef7'],
-  ['초록', '#3fbf7f'], ['분홍', '#f27ab3'], ['하양', '#f4f1ea']
+  ['red', '#e8384f'], ['gold', '#f2c14e'], ['blue', '#4f8ef7'],
+  ['green', '#3fbf7f'], ['pink', '#f27ab3'], ['white', '#f4f1ea']
 ];
 export const MAX_DECOR = 60;
 
@@ -311,7 +309,7 @@ export function createDecor({ ctx, view, burst, isMobile }) {
       ctx.save();
       ctx.font = `${Math.round(Math.max(12, 13 * boost))}px 'Gowun Batang', serif`;
       ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,190,190,.95)';
-      ctx.fillText('놓으면 떼어져요', ghost.x, ghost.y + SIZE[o.k] * view.scale * boost * 2.4 + 6);
+      ctx.fillText(t('decor.dropHint'), ghost.x, ghost.y + SIZE[o.k] * view.scale * boost * 2.4 + 6);
       ctx.restore();
     }
   }
