@@ -292,6 +292,7 @@ sequenceDiagram
 | SMTP Password | Resend API Key — **Supabase 대시보드에만** 입력 (저장소 · 문서 · `config.js`에 넣지 않음) |
 
 - 메일 템플릿(Confirm signup · Magic Link)에 `{{ .Token }}`을 넣어 숫자 코드를 보내는 설정은 SMTP와 별개이며 [`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1에 있습니다.
+
 **실제로 받는 메일 (2026-11-18 운영 사이트에서 확인)**
 
 | 항목 | 내용 |
