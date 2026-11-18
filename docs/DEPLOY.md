@@ -106,7 +106,7 @@ Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내�
 <p>직접 요청하지 않았다면 이 메일은 무시해도 돼요. 트리와 PIN은 바뀌지 않아요.</p>
 <p lang="en">If you didn't request this, you can ignore this email. Your tree and PIN stay the same.</p>
 ```
-- 한국어만 쓰던 이전 템플릿(제목 `[Code Christmas Tree] 복구 PIN {{ .Token }}`)도 그대로 동작합니다. 바꾸는 것은 대시보드에서 운영자가 합니다.
+- 운영 프로젝트는 2026-11-18 이 템플릿으로 바꿨습니다(운영자). 한국어만 쓰던 이전 템플릿(제목 `[Code Christmas Tree] 복구 PIN {{ .Token }}`)도 그대로 동작합니다.
 - 템플릿에 `{{ .ConfirmationURL }}`(링크)은 넣지 마세요. 앱은 숫자 입력 방식만 처리합니다.
 - 운영에서 실제로 받는 메일(2026-11-18 확인, 한국어 템플릿 기준): 보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 제목 `[Code Christmas Tree] 복구 PIN <숫자 8자리>` — 제목의 프로젝트 이름은 그대로 둠(운영자 결정)
 
@@ -202,7 +202,8 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 - [ ] 자체 도메인에서 `npm run check:live` (로그인 · 사진 · 공유 · CSP 0) — ⬜ 미확인
 - [ ] (names_en 배포 후) 영문 이름으로 새 트리 → 대소문자만 바꿔 다시 열면 같은 트리 — ⬜ 미확인 (DB 테스트 · E2E mock으로 확인)
 - [ ] (i18n 배포 후) 오른쪽 위 [English]로 영어 화면 · 새로고침 후에도 유지, 사이드 목록 [로그아웃] — ⬜ 미확인 (E2E mock으로 확인)
-- [ ] 메일 템플릿을 한국어 + 영어로 바꾼 뒤 복구 메일 수신 (2-1 ③) — ⬜ 운영자 대시보드 작업 대기
+- [x] 메일 템플릿을 한국어 + 영어로 변경 (2-1 ③) — 2026-11-18 운영자 보고
+- [ ] 바뀐 템플릿으로 복구 메일 수신 — ⬜ 미확인
 - [x] 이전 주소 공유 링크가 새 주소로 넘어감 — 2026-11-18 `curl -IL`: `dae-won-kim.github.io/code-christmas-tree/?t=…` → 301 → `make-xmas-tree.com/?t=…`(쿼리 유지) → 200,
       `http://make-xmas-tree.com` → 301 → `https://`, 배포된 `config.js`에 실제 Supabase 값(데모 모드 아님)
 - [ ] 사이드 목록에서 트리 2·3번째 만들기, 이름·순서 바꾸기, 빈 트리 지우기 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)

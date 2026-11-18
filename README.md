@@ -296,7 +296,7 @@ sequenceDiagram
 | SMTP Password | Resend API Key — **Supabase 대시보드에만** 입력 (저장소 · 문서 · `config.js`에 넣지 않음) |
 
 - 메일 템플릿(Confirm signup · Magic Link)에 `{{ .Token }}`을 넣어 숫자 코드를 보내는 설정은 SMTP와 별개이며 [`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1에 있습니다.
-  화면이 영어도 지원하므로 템플릿은 **한 통에 한국어 + 영어**로 쓰기로 했습니다(문구는 DEPLOY.md 2-1 ③, 대시보드 반영은 운영자).
+  화면이 영어도 지원하므로 템플릿은 **한 통에 한국어 + 영어**로 씁니다(문구는 DEPLOY.md 2-1 ③, 2026-11-18 운영 대시보드에 반영).
 
 **실제로 받는 메일 (2026-11-18 운영 사이트에서 확인)**
 
@@ -483,7 +483,8 @@ https://www.make-xmas-tree.com  →  301 Moved Permanently  →  https://make-xm
 - [x] 이전 주소 `dae-won-kim.github.io/code-christmas-tree/?t=…` → `301` → `https://make-xmas-tree.com/?t=…` (공유 링크 쿼리 유지), `http://` → `https://`
 - [ ] 자체 도메인에서 로그인 · 사진 업로드 · 공유 보기 · Console의 CSP 위반 0 재확인
 - [ ] (배포 후) 영어 화면 · 언어 전환 유지 · 영문 이름 트리 · 사이드 목록 로그아웃 — E2E mock으로는 확인, 운영 사이트는 아직
-- [ ] 복구 메일 템플릿을 한국어 + 영어로 바꾸기 — 운영자 대시보드 작업 ([`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1 ③)
+- [x] 복구 메일 템플릿을 한국어 + 영어로 변경 — 2026-11-18 운영자 보고 ([`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1 ③)
+- [ ] 바뀐 템플릿으로 복구 메일 수신
 
 ## 다음 단계
 
