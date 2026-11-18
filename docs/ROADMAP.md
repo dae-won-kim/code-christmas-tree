@@ -2,7 +2,7 @@
 
 > Claude Code는 단계 하나를 끝낼 때마다 이 파일의 체크박스와 "현재 상태"를 갱신합니다.
 
-## 현재 상태 (2026-11-17)
+## 현재 상태 (2026-11-18)
 - ✅ **Phase 0** 프로토타입 완료
 - ✅ **Phase 1** DB·API 설계/구현 완료 — 마이그레이션, DB 테스트 55개 통과, `js/api.js`, `js/image.js`
 - ✅ **Phase 2** 프론트엔드 모듈 분리 완료 — 분리 전후 스크린샷 픽셀 비교 일치, Console 오류 0
@@ -13,7 +13,7 @@
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·사슴 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
   - ✅ Supabase Auth 설정 완료 (2026-11-17): Custom SMTP(Gmail) · 메일 템플릿 `{{ .Token }}` · 실제 메일로 PIN 복구 확인
-- 🔄 **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿 완료, 라이선스·제3자 고지·README 재구성 완료, GIF 남음
+- ✅ **Phase 5** 오픈소스 마무리 — CONTRIBUTING·SECURITY·이슈/PR 템플릿, 라이선스·제3자 고지·README 재구성, README 데모 GIF (2026-11-18)
 - ✅ **Phase 8** 풍성한 트리 — 장식 8종(달기·끌어 옮기기·떼기), 트리 아래 선물 상자, 밤하늘(별·달·눈 언덕), 사진 캡션 고치기, 사진 여러 장 삭제
   — 브랜치 `feat/decor`, DB 테스트 193개(PostgreSQL 17.12, CI) · E2E 83개 통과. 2026-11-17 `main` 배포 완료 · 운영 DB 마이그레이션 적용 확인 · 실제 사이트 점검 18개 통과
 - 🔒 **보안 업데이트** (2026-11-17 KISA PostgreSQL 보안 업데이트 권고, CVE 25건)
@@ -108,12 +108,14 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
 - [ ] Supabase **Advisors → Security Advisor** 경고 확인 (`security definer` 함수 경고는 의도된 설계)
 - [x] 배포 후에는 `20261117000000_init.sql`을 수정하지 않고, 변경 사항은 새 마이그레이션 파일로 추가 (accounts_v2·tree_views 모두 새 파일로 추가)
 
-## Phase 5 — 오픈소스 마무리 🔄
-- [x] README에 스크린샷, 데모 링크 — 사용 가이드 / 포트폴리오 두 부분으로 구성 (GIF는 아직)
+## Phase 5 — 오픈소스 마무리 ✅
+- [x] README에 스크린샷, 데모 링크 — 사용 가이드 / 포트폴리오 두 부분으로 구성
 - [x] CONTRIBUTING.md, SECURITY.md(비공개 취약점 신고), 이슈 템플릿(버그·기능, 보안 신고 링크)·PR 템플릿
 - [x] GitHub 설정: Settings → Code security → **Private vulnerability reporting** 켜기 (SECURITY.md가 이 경로를 안내함) — 2026-11-17 켬
 - [x] 라이선스 저작권자 `dae-won-kim`으로 표기, 외부 라이브러리·글꼴·서비스는 `THIRD_PARTY_NOTICES.md`에 저작권자·라이선스 명시
-- [ ] README GIF
+- [x] README GIF `docs/images/demo.gif` (2026-11-18) — `npm run record:gif`로 다시 만들 수 있음.
+      mock DB로 "내 트리"를 띄워 녹화(운영 DB에 쓰지 않음): 글귀 · 사진 등장 → 무늬 바꾸기 → 장식 달기 → 선물 상자 열기, 1280×800 → 560px · 8fps · 약 24초 · 5MB 안팎
+      (Playwright CDP screencast + Pillow. 사진 그림은 이모지 대신 캔버스 도형 — 제3자 고지 갱신)
 
 ## Phase 6 — 트리 목록 (담기 · 본 기록) ✅
 - [x] DB: `tree_views` 테이블 + RPC 5개 (`record_view`, `list_trees`, `set_saved`, `forget_views`, `merge_views`)

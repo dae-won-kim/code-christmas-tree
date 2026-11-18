@@ -14,6 +14,8 @@
 - 글꼴 파일은 Google Fonts에서 바로 받아 쓰고, 이 저장소에 넣거나 고쳐서 배포하지 않습니다.
 - 샘플 사진의 그림 문자(⛄ 등)는 이미지 파일이 아니라 **보는 사람 기기의 이모지 글꼴**로 그립니다.
 - 산타·사슴 캐릭터, 장식·선물 상자, 트리 무늬는 그림 파일 없이 캔버스 도형으로 직접 그렸습니다.
+- `docs/images/`의 스크린샷과 데모 GIF에 보이는 이모지(장식 버튼 아이콘 등)는 촬영한 PC의 이모지 글꼴(Windows: Segoe UI Emoji, Microsoft Corporation)로 그려진 것으로,
+  그 글리프 디자인은 해당 저작권자의 소유입니다. 데모 GIF 속 사진 그림(눈사람 · 선물 · 촛불)은 이모지 없이 캔버스 도형으로 직접 그렸습니다(`scripts/record-gif.cjs`).
 
 ## 2. 개발·테스트에만 쓰는 것 (웹 앱에 포함되지 않음)
 
@@ -21,6 +23,7 @@
 |---|---|---|---|
 | [Playwright](https://github.com/microsoft/playwright) (`@playwright/test` 1.64.1) | E2E 테스트 | Microsoft Corporation | Apache License 2.0 |
 | [PostgreSQL](https://www.postgresql.org/) (`postgres:17.12` Docker 이미지) | DB 테스트 | The PostgreSQL Global Development Group | PostgreSQL License |
+| [Pillow](https://github.com/python-pillow/Pillow) | README 데모 GIF 만들기 (`scripts/make-gif.py`, 저장소에 포함하지 않고 각자 설치) | Jeffrey A. Clark and contributors (원본 PIL: Secret Labs AB, Fredrik Lundh) | MIT-CMU License |
 
 ## 3. 외부 서비스
 아래 서비스는 소프트웨어를 가져다 쓰는 것이 아니라 **API로 연결해 이용**합니다. 각 서비스의 이용약관을 따릅니다.

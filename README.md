@@ -5,7 +5,7 @@
 **👉 바로 써 보기: https://dae-won-kim.github.io/code-christmas-tree/** · 라이선스: [MIT](LICENSE) · 운영 비용: **0원**
 
 <p>
-  <img src="docs/images/characters-desktop.png" alt="장식 · 선물 상자 · 산타와 사슴이 있는 트리 (데스크톱)" width="62%">
+  <img src="docs/images/demo.gif" alt="데모: 글귀 타이핑과 사진 등장, 무늬 바꾸기, 장식 탭에서 별과 양말 달기, 선물 상자 열기 (데스크톱)" width="62%">
   <img src="docs/images/shared-mobile.png" alt="공유 보기 화면 (모바일)" width="23%">
 </p>
 
@@ -92,7 +92,7 @@ npm ci && npx playwright install chromium && npm run test:e2e   # 화면 E2E
 | **PIN 변경 · 복구** | 꾸미기 → 공유·계정에서 PIN 변경, 잊었으면 로그인 화면의 [PIN을 잊었어요] → 메일로 복구 |
 
 <p>
-  <img src="docs/images/decor-desktop.png" alt="장식 탭: 종류와 색을 고르고 트리를 눌러 달기 (데스크톱)" width="62%">
+  <img src="docs/images/characters-desktop.png" alt="장식 · 선물 상자 · 산타와 사슴이 있는 트리 (데스크톱)" width="62%">
   <img src="docs/images/photos-mobile.png" alt="사진마다 캡션 고치기와 여러 장 선택 삭제 (모바일)" width="23%">
 </p>
 

@@ -1,6 +1,6 @@
 # 인수인계 — 다른 PC의 Claude Code가 이어서 작업하기 위한 메모
 
-> 마지막 갱신: 2026-11-17 · 작성: Claude Code (운영자와의 대화 세션 `b05c56bd…` 내용을 정리)
+> 마지막 갱신: 2026-11-18 · 작성: Claude Code (대화 세션 `b05c56bd…` 내용을 정리, 2026-11-18 새 PC 세션에서 갱신)
 > 새 세션은 **이 문서 → `CLAUDE.md` → `docs/ROADMAP.md`** 순서로 읽고 시작하세요.
 > 이 문서는 "왜 그렇게 했는지"와 "운영자가 어떻게 일하길 원하는지"를 남기는 곳입니다. 진행 체크박스는 ROADMAP에 있습니다.
 
@@ -27,6 +27,14 @@
 | README 재구성 | 첫 화면: 핵심 요약 → 기술 스택 → 구현 방법 → 라이선스 → 빠른 시작, 그 아래 "자세히 보기" |
 | 배포 + 실사이트 점검 | 점검 중 버그 발견 → 수정 → 재배포 → 재점검 통과 (아래 4번) |
 
+### 2-1. 2026-11-18 새 PC 세션
+
+| 작업 | 결과 |
+|---|---|
+| 새 PC 기준 테스트 | DB 193개 통과(호스트에 psql이 없어 `postgres:17.12` 컨테이너 안에서 실행), E2E 83개 통과 |
+| E2E 데모 모드 테스트 수정 | 인수인계 안내대로 `web/config.js`(실제 값)를 넣으면 serve.py가 그 값을 줘서 데모 모드 테스트가 3개 화면 모두 실패 → 테스트가 빈 config로 바꿔치기하게 고침 |
+| README 데모 GIF | `scripts/record-gif.cjs` + `scripts/make-gif.py`, README 첫 화면 큰 그림을 GIF로(산타·사슴 스크린샷은 아래 기능 표 밑으로) |
+
 ## 3. 결정 사항과 이유 (되돌리기 전에 읽을 것)
 
 - **장식 저장 = `trees.decorations` jsonb 한 칸.** 트리와 함께 읽고 통째로 저장하므로 별도 테이블을 두지 않음.
@@ -39,6 +47,9 @@
 - **테스트 DB 버전 = 운영 DB 버전(17.12)으로 고정.** 새 보안 공지가 나오면 `scripts/test-db.sh`의 `PG_IMAGE`와 `.github/workflows/db-test.yml`을 함께 올린다.
 - **레이아웃 높이 670 → 700:** 앞쪽 선물 상자가 아래 글귀와 겹치지 않게 트리를 조금 작게.
 - **README 순서:** 운영자 요청. 필수 정보(핵심 · 스택 · 구현 · 라이선스)를 먼저, 설명은 아래. 숫자(RPC 수 · 테스트 수)가 바뀌면 함께 갱신.
+- **데모 GIF는 mock DB로 녹화.** 운영 DB에 쓰지 않고, 화면은 실제 앱 그대로. 창 크기는 **1280×800**(짧은 변이 700px 미만이면 렌더러가 모바일로 판정해 입자 수가 줄고 hover가 꺼짐).
+  사진 그림은 이모지 대신 캔버스 도형(녹화 PC의 이모지 글꼴이 GIF에 크게 박히지 않게). 팔레트는 FASTOCTREE + 전체 구간 표본(MAXCOVERAGE는 패널 색이 틀어짐).
+  떨어지는 사진이 클릭 자리를 지나면 사진 확대가 열리므로, 캔버스 클래스(`pointing`/`placing`, `hovering` 아님)를 확인하고 누른다.
 - **그림은 Mermaid.** 운영자가 "텍스트가 아니라 그림으로 한눈에" 요청. 새 그림도 Mermaid로, 고친 뒤 `npm run check:mermaid`로 렌더링 확인.
 
 ## 4. 운영자가 원하는 작업 방식
@@ -52,9 +63,12 @@
 
 ## 5. 남은 일
 
-- [ ] README GIF (화면 녹화) — ROADMAP Phase 5의 마지막 항목
+- [x] README GIF (화면 녹화) — 2026-11-18 `docs/images/demo.gif`, `npm run record:gif` (아래 2-1)
 - [ ] Supabase **Security Advisor** 경고 확인 (대시보드에서만 가능, `security definer` 경고는 의도된 설계)
 - [ ] Storage에 v1 사진 파일이 남아 있는지 확인 후 정리 (운영자 확인 필요 — 앞선 대화에서 "정보 없음"이라고 했지만 Auth 사용자 확인과 섞여 있었음)
+      확인(읽기 전용, SQL Editor): DB의 사진 목록에 없는 파일
+      `select o.name, o.created_at from storage.objects o where o.bucket_id = 'tree-photos' and not exists (select 1 from public.photos p where p.path = o.name) order by o.created_at;`
+      나온 파일은 SQL로 지우지 말고 **Storage → tree-photos** 화면에서 지운다(SQL로 지우면 실제 파일이 남음, DEPLOY.md 7번)
 - [ ] 점검용 계정 정리 여부 — 운영 DB에 `배포점검` / `deploy-check@example.com` 계정과 트리 1개가 남아 있음(사진 0장, 장식 기본).
       지우려면 운영자가 SQL Editor에서 `delete from tree_users where name = '배포점검';` (다음 실사이트 점검에 다시 써도 됨)
 - [ ] 원격 브랜치 정리 — `feat/decor`, `chore/pg17-license`는 모두 `main`에 들어감
@@ -69,6 +83,11 @@
 - `web/config.js`는 커밋하지 않음. 없으면 데모 모드. 실제 DB로 보려면 `web/config.example.js`를 복사해 Project URL · Publishable key만 넣기
   (배포된 사이트의 `config.js`와 같은 값, 공개 키라 숨길 필요는 없지만 커밋은 하지 않음).
 - 같은 대화 세션을 두 PC에서 동시에 이어 쓰지 말 것(대화가 갈라짐). PC를 바꾸기 전 커밋 · push, 바꾼 뒤 `git pull`.
+- 인수인계 묶음(zip · 대화 `.jsonl`, 개인 정보 · 점검 PIN 포함)을 저장소 폴더에 풀었다면 **`.git/info/exclude`에 추가**해서 실수로 커밋되지 않게 한다(공유되지 않는 로컬 제외 목록).
+- 호스트에 `psql`이 없으면 DB 테스트는 컨테이너 안에서:
+  `MSYS_NO_PATHCONV=1 docker run --rm -e POSTGRES_PASSWORD=postgres -v "$(pwd -W):/repo" -w /repo postgres:17.12 bash -c 'docker-entrypoint.sh postgres >/tmp/pg.log 2>&1 & until pg_isready -h localhost -U postgres; do sleep 1; done; sleep 2; DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres bash scripts/test-db.sh'`
+- DB 테스트(Docker)와 E2E를 **동시에 돌리면** CPU가 모자라 E2E 몇 개가 시간 초과로 실패할 수 있음 → 하나씩.
+- Node 스크립트에서 `scripts/serve.py`(python http.server)에 `fetch`를 쓰면 undici가 assert로 죽는 경우가 있음 → `http.get` 사용.
 
 ## 7. 검증 도구
 
@@ -76,6 +95,7 @@
 |---|---|
 | `./scripts/test-db.sh` | DB 마이그레이션(파일마다 2회) · RPC · 보안 · 업그레이드 테스트 193개 |
 | `npm run test:e2e` | 화면 E2E(mock), 스크린샷 `test-results/screens/` — UI를 바꾸면 데스크톱 · 모바일 · 가로 스크린샷을 직접 확인 |
+| `npm run record:gif` | README 데모 GIF 다시 만들기 → `docs/images/demo.gif` (mock DB, Python **Pillow** 필요: `pip install pillow`). 프레임은 `test-results/gif/` |
 | `npm run check:mermaid` | 문서의 Mermaid 그림 16개 렌더링 확인, PNG `test-results/mermaid/` |
 | `npm run check:live` | **운영 사이트 + 운영 DB** 점검 18개 (점검 계정 PIN을 `LIVE_CHECK_PIN` 환경 변수로, 운영자에게 받기). 사진은 올렸다가 모두 지움 |
 | 운영 RPC 확인 | 배포된 `config.js`의 Publishable key로 새 RPC를 잘못된 토큰으로 호출 → `unauthorized`면 마이그레이션 적용됨, `PGRST202`면 아직 |
