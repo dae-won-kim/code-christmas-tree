@@ -12,7 +12,10 @@
 - 테스트: DB 193개(CI, PostgreSQL 17.12) · E2E 29개 시나리오 × 3개 화면 = 83개 통과 · **실제 사이트 점검 18개 통과**
 - 운영자 설정 완료: Supabase Auth Custom SMTP(Gmail) + 메일 템플릿 `{{ .Token }}`, 실제 메일로 PIN 복구 확인, GitHub **Private vulnerability reporting 켬**
 - Supabase **Security Advisor 검토 완료**(2026-11-18, Errors 0 · Warnings 48 · Info 5 = 정상 기준, DEPLOY.md 6번)
-- 브랜치 `docs/readme-gif`(README 데모 GIF · Advisor 기록 · MD 체크 정리)는 CI 통과, **`main`에 아직 안 합침**
+- **브랜치 구성(2026-11-18):** 작업은 **`dev`**, 운영은 **`main`**. 이 문서와 `KICKOFF_PROMPT.md`는 `dev`에만 있음(CLAUDE.md "브랜치").
+  `dev` → `main`은 `./scripts/release-main.sh`로만 합친다(인수인계 문서 자동 제외, `main guard` 워크플로가 검사). **`main`을 `dev`에 merge하지 말 것.**
+  `dev`는 Rulesets `dev 보호`로 운영자만 push · 삭제/강제 push 금지. 공개 저장소라 이 문서도 **누구나 읽을 수 있음** → 비밀 값 금지
+- 2026-11-18 `main`에 반영: README 데모 GIF · 배포 체크리스트 정리 · Security Advisor 기준 · 브랜치 분리 (인수인계 문서 제외)
 
 ## 2. 이번 세션에서 한 일 (시간 순)
 
@@ -36,6 +39,10 @@
 | 새 PC 기준 테스트 | DB 193개 통과(호스트에 psql이 없어 `postgres:17.12` 컨테이너 안에서 실행), E2E 83개 통과 |
 | E2E 데모 모드 테스트 수정 | 인수인계 안내대로 `web/config.js`(실제 값)를 넣으면 serve.py가 그 값을 줘서 데모 모드 테스트가 3개 화면 모두 실패 → 테스트가 빈 config로 바꿔치기하게 고침 |
 | README 데모 GIF | `scripts/record-gif.cjs` + `scripts/make-gif.py`, README 첫 화면 큰 그림을 GIF로(산타·사슴 스크린샷은 아래 기능 표 밑으로) |
+| Security Advisor | 운영자 화면 확인: Errors 0 · Warnings 48(anon 24 + authenticated 24) · Info 5 → 의도한 설계, DEPLOY.md 6번에 정상 기준 |
+| MD 체크 정리 | DEPLOY.md 6번을 실제 확인 기록대로 체크, 실사이트 미확인 4개는 ⬜ 표시 |
+| 운영자 결정 | 점검 계정 유지 · Storage v1 사진 유지 · 합쳐진 원격 브랜치(`feat/decor`, `chore/pg17-license`, `docs/readme-gif`) 삭제 |
+| 브랜치 분리 | 운영자 요청: "main에는 인수인계 내용 제외, 작업은 새 브랜치" → `dev` + `release-main.sh` + `main guard`. 브랜치를 남이 **못 보게** 하는 건 공개 저장소에선 불가 → 운영자가 "공개 저장소 + 쓰기 보호" 선택 |
 
 ## 3. 결정 사항과 이유 (되돌리기 전에 읽을 것)
 
@@ -58,7 +65,7 @@
 
 - 한국어로 대화. 커밋 메시지 `<영역>: <내용>`(한국어), 끝에 `Co-Authored-By` 줄.
 - **"진행해"라고 하면 끝까지:** 구현 → 테스트 → 스크린샷 확인 → 문서 · ROADMAP 갱신 → (요청 시) 배포 → **실제 사이트에서 동작 확인**까지.
-- 큰 기능은 브랜치(`feat/...`)에서 만들고 CI(DB · E2E)를 통과시킨 뒤, 운영자가 말하면 `main`에 합쳐 배포. `main` push = 운영 DB 마이그레이션 + 사이트 배포.
+- 작업은 `dev`(큰 기능은 `dev`에서 딴 `feat/...`)에서 하고 CI(DB · E2E)를 통과시킨 뒤, 운영자가 말하면 `./scripts/release-main.sh`로 `main`에 합쳐 배포. `main` push = 운영 DB 마이그레이션 + 사이트 배포.
 - 운영 데이터를 지우는 일(`delete`, 계정 정리 등)은 SQL을 알려 주고 **운영자가 직접 실행**하게 한다.
 - 대시보드에서만 할 수 있는 일(Supabase · GitHub 설정)은 메뉴 위치와 입력 값을 단계별로 구체적으로 안내.
 - 법적 문제(라이선스 · 상표)에 신경 씀. 외부 리소스를 새로 쓰면 `THIRD_PARTY_NOTICES.md`도 갱신.
@@ -67,13 +74,10 @@
 
 - [x] README GIF (화면 녹화) — 2026-11-18 `docs/images/demo.gif`, `npm run record:gif` (아래 2-1)
 - [x] Supabase **Security Advisor** 경고 확인 — 2026-11-18 확인: Errors 0 · Warnings 48 · Info 5, 모두 의도한 설계 (기준은 DEPLOY.md 6번)
-- [x] Storage v1 사진 파일 — **남겨 두기로 결정**(운영자, 2026-11-18). 정리하지 않음. 나중에 정리하려면:
-      확인(읽기 전용, SQL Editor): DB의 사진 목록에 없는 파일
-      `select o.name, o.created_at from storage.objects o where o.bucket_id = 'tree-photos' and not exists (select 1 from public.photos p where p.path = o.name) order by o.created_at;`
-      나온 파일은 SQL로 지우지 말고 **Storage → tree-photos** 화면에서 지운다(SQL로 지우면 실제 파일이 남음, DEPLOY.md 7번)
+- [x] Storage v1 사진 파일 — **남겨 두기로 결정**(운영자, 2026-11-18). 정리하지 않음. 나중에 정리하려면 DEPLOY.md 7번의 확인 SQL
 - [x] 점검용 계정 — **유지하기로 결정**(운영자, 2026-11-18): 다른 기능의 실사이트 점검(`check:live` 등)에 계속 씀. 지우지 말 것.
       운영 DB의 `배포점검` / `deploy-check@example.com` 계정과 트리 1개(사진 0장, 장식 기본). PIN은 저장소에 적지 않음(운영자에게 받기)
-- [x] 원격 브랜치 정리 — 2026-11-18 `feat/decor`, `chore/pg17-license` 삭제(둘 다 `main`에 없는 커밋 0개 확인 후)
+- [x] 원격 브랜치 정리 — 2026-11-18 `feat/decor`, `chore/pg17-license` 삭제(둘 다 `main`에 없는 커밋 0개 확인 후), `docs/readme-gif`는 `main`에 합친 뒤 삭제
 - [ ] 실제 사이트에서 아직 확인 안 한 계정 기능 4개 — PIN 틀림 · 다른 이메일 · PIN 변경 · 트리 2·3번째 (DEPLOY.md 6번 ⬜ 표시, E2E로는 통과)
 - 백로그: 트리(계정) 삭제(사진 파일까지), 이메일 변경, 담은 트리 변경 알림, 방명록, OG 미리보기 이미지 (ROADMAP 참고)
 
