@@ -5,7 +5,8 @@
  *   ?t=<share_id>              → shared (공유 보기, 읽기 전용)
  *   저장된 세션 토큰 있음       → mine   (내 트리 편집)
  *   그 밖                      → login
- *   (서버 모드에서는 왼쪽 위 [☰ 목록]에 담은 트리 · 최근 본 트리가 있다)
+ *   (서버 모드에서는 왼쪽 위 [☰ 목록]에 내 트리 · 담은 트리 · 최근 본 트리 · 로그아웃이 있다)
+ *   오른쪽 위 [English / 한국어] 버튼으로 화면 언어를 바꾼다 (js/i18n.js)
  *
  * DB 접근은 js/api.js의 TreeApi만 사용한다.
  */
@@ -17,6 +18,7 @@ import { mountLogin } from './ui/login.js';
 import { mountEditor, DEFAULT_SETTINGS, shareUrlFor } from './ui/editor.js';
 import { mountShare, homeUrl } from './ui/share.js';
 import { createLibrary, localHistory, pendingSave } from './ui/library.js';
+import { t, applyStatic, setLang, getLang, onLangChange } from './i18n.js';
 
 /* supabase-js (UMD) — 버전 고정 + SRI. 버전을 올릴 때는 integrity도 함께 바꿀 것
    openssl dgst -sha384 -binary supabase.js | openssl base64 -A */
@@ -27,26 +29,18 @@ const SUPABASE_JS = {
 
 /* =========================================================
  *  CONFIG — 데모 모드의 글귀·사진을 고정하려면 여기를 수정하세요.
+ *  messages: null이면 화면 언어의 기본 글귀(i18n.js의 'demo.messages')
  *  photos: [{ src: 'photos/a.jpg' 또는 'data:image/jpeg;base64,...', caption: '설명' }]
  * ========================================================= */
 const CONFIG = {
   title: 'Merry Christmas',
-  messages: [
-    '올 한 해도 정말 고생 많았어요.',
-    '따뜻하고 반짝이는 연말 보내세요 ✨',
-    'Merry Christmas & Happy New Year!'
-  ],
+  messages: null,
   photos: [],
   useSamplePhotos: true,   // 사진이 하나도 없을 때 샘플 사진 표시
   patternInterval: 60,     // 무늬 자동 전환 간격(초)
   morphDuration: 2.6,      // 무늬 전환 애니메이션 길이(초)
   photoInterval: 3.2       // 사진 등장 간격(초)
 };
-
-const LOGIN_MESSAGES = [
-  '이름·이메일·PIN으로 나만의 트리를 만들어 보세요 ✨',
-  '글귀와 사진을 걸고, 링크 하나로 마음을 전해요.'
-];
 
 /** 자동 테스트용: window.__TREE_DEBUG__가 켜져 있을 때만 트리 API를 노출 (평소에는 아무 일도 안 함) */
 const exposeForTests = tree => { if (window.__TREE_DEBUG__) window.__tree = tree; };
@@ -81,9 +75,10 @@ function loadScript({ src, integrity }) {
  * ========================================================= */
 function startDemo() {
   setMode('demo');
+  const demoMessages = CONFIG.messages || t('demo.messages');
   const tree = createTree($('c'), {
     title: CONFIG.title,
-    messages: CONFIG.messages,
+    messages: demoMessages,
     patternInterval: CONFIG.patternInterval,
     morphDuration: CONFIG.morphDuration,
     photoInterval: CONFIG.photoInterval,
@@ -94,7 +89,7 @@ function startDemo() {
   $('btnPattern').onclick = () => tree.nextPattern();
 
   const panel = $('textPanel');
-  let messages = [...CONFIG.messages];
+  let messages = [...demoMessages];
   $('btnText').onclick = () => {
     $('inTitle').value = $('title').textContent;
     $('inMsgs').value = messages.join('\n');
@@ -203,7 +198,7 @@ async function afterLogin() {
   if (pending) {
     try {
       await api.setSaved(pending.share_id, true);
-      toast(`${pending.name}님의 트리를 담았어요 ⭐ 왼쪽 위 ☰ 목록에서 볼 수 있어요.`, { ms: 4200 });
+      toast(t('share.afterLogin', { name: pending.name }), { ms: 4200 });
     } catch (e) {
       if (e.code !== 'own_tree') toast(e.message, { error: true });
     }
@@ -218,9 +213,9 @@ function showLogin() {
   tree.setTitle('Merry Christmas');
   tree.setSettings(DEFAULT_SETTINGS);
   tree.setDecorations(null);
-  tree.setMessages(LOGIN_MESSAGES);
+  tree.setMessages(t('login.messages'));
   $('btnPattern').addEventListener('click', () => tree.nextPattern(), { signal });
-  current = mountLogin({ api, onEnter: () => { afterLogin(); rememberTree(null); showMine(null); } });
+  current = mountLogin({ api, onEnter: r => { library.setUser(r?.name); afterLogin(); rememberTree(null); showMine(null); } });
   library.refresh();
   tree.layout();
 }
@@ -232,32 +227,33 @@ async function showMine(treeId = rememberedTree()) {
   switchTo('boot');
   library.setCurrent(null);
   tree.setMessages([]);
-  screen('loading', '트리를 불러오는 중…');
+  screen('loading', t('common.loadingTree'));
   let data;
   try { data = await api.getMyTree(treeId); }
   catch (e) {
     if (nav !== navSeq) return;
     if (e.code === 'not_found' && treeId) { rememberTree(null); return showMine(null); }   // 지운 트리 → 맨 앞 트리로
     if (e.code === 'unauthorized') { toast(e.message, { error: true }); return showLogin(); }
-    return screen('error', `내 트리를 불러오지 못했어요. ${e.message}`, [
-      { label: '다시 시도', primary: true, onClick: () => showMine() },
-      { label: '로그아웃', onClick: async () => { await api.logout().catch(() => {}); showLogin(); } }
+    return screen('error', t('main.mineFail', { msg: e.message }), [
+      { label: t('common.retry'), primary: true, onClick: () => showMine() },
+      { label: t('common.logout'), onClick: () => logout() }
     ]);
   }
   if (nav !== navSeq) return;
   screen(null);
   rememberTree(data.id);
   library.setCurrentMine(data.id);
+  library.setUser(data.name);
   applyTree(data);
   setMode('mine');
   current = mountEditor({
     api, tree, data,
-    onLogout: () => { rememberTree(null); showLogin(); },
+    onLogout: () => { rememberTree(null); library.setUser(null); showLogin(); },
     onUnauthorized: () => showLogin(),
     refreshNotice: s => setNotice(
-      !s.messages.length && !s.photos.length ? '아직 비어 있는 트리예요 · ✎ 꾸미기에서 글귀와 사진을 걸어 보세요'
-      : !s.photos.length ? '사진이 아직 없어요 · ✎ 꾸미기 → 사진에서 올려 보세요'
-      : !s.messages.length ? '글귀가 아직 없어요 · ✎ 꾸미기 → 글귀에서 적어 보세요'
+      !s.messages.length && !s.photos.length ? t('main.emptyMine')
+      : !s.photos.length ? t('main.noPhotos')
+      : !s.messages.length ? t('main.noMessages')
       : '')
   });
 }
@@ -267,18 +263,18 @@ async function showShared(shareId) {
   switchTo('boot');
   library.setCurrent(shareId); library.setCurrentMine(null);
   tree.setMessages([]);
-  screen('loading', '트리를 불러오는 중…');
+  screen('loading', t('common.loadingTree'));
   let data;
   try { data = await api.getTree(shareId); }
   catch (e) {
     if (nav !== navSeq) return;
     if (e.code === 'not_found') {
-      return screen('error', '트리를 찾을 수 없어요. 링크가 정확한지 확인해 주세요.', [
-        { label: '✨ 나도 트리 만들기', primary: true, onClick: () => goHome() }
+      return screen('error', t('main.notFound'), [
+        { label: t('tb.make'), primary: true, onClick: () => goHome() }
       ]);
     }
-    return screen('error', `트리를 불러오지 못했어요. ${e.message}`, [
-      { label: '다시 시도', primary: true, onClick: () => showShared(shareId) }
+    return screen('error', t('main.treeFail', { msg: e.message }), [
+      { label: t('common.retry'), primary: true, onClick: () => showShared(shareId) }
     ]);
   }
   if (nav !== navSeq) return;
@@ -286,30 +282,52 @@ async function showShared(shareId) {
   applyTree(data);
   setMode('shared');
   current = mountShare({ api, tree, data, shareId, library, onHome: goHome, onOpenMine: openMine });
-  if (!data.messages.length && !data.photos.length) setNotice('아직 꾸미는 중인 트리예요. 조금 뒤에 다시 와 주세요 🎄');
+  if (!data.messages.length && !data.photos.length) setNotice(t('main.emptyShared'));
 }
+
+/** 로그아웃 (사이드 목록 · 오류 화면): 남은 저장을 보내고 → 토큰 지우기 → 공유 보기면 그대로, 아니면 로그인 화면 */
+async function logout() {
+  await current?.flush?.();
+  try { await api.logout(); } catch { /* 서버 응답과 상관없이 이 브라우저의 토큰은 지워짐 */ }
+  rememberTree(null);
+  library.setUser(null);
+  toast(t('acc.loggedOut'));
+  route();
+}
+
+/** 화면 언어를 바꾸면: 남은 저장을 보낸 뒤 지금 화면을 새 언어로 다시 그림 (데이터는 다시 읽음) */
+onLangChange(async () => {
+  if (!api) { location.reload(); return; }   // 데모 · 서버 준비 실패 화면은 새로 불러오기
+  await current?.flush?.();
+  route();
+  library.refresh();
+});
 
 async function startServer(cfg) {
   setMode('boot');
   tree = createTree($('c'), { title: 'Merry Christmas', messages: [], elements: { srMessages: $('srMessages') } });
   exposeForTests(tree);
   if (cfg.key.startsWith('sb_secret_')) {   // 관리자 키가 웹에 들어오면 즉시 중단
-    return screen('error', 'config.js에 secret key가 들어 있어요. 공개용 Publishable key로 바꿔 주세요.');
+    return screen('error', t('main.secretKey'));
   }
   try {
     if (!window.supabase?.createClient) await loadScript(SUPABASE_JS);
     api = new TreeApi(cfg);
   } catch (e) {
-    return screen('error', '서버 연결 준비에 실패했어요. 네트워크를 확인하고 다시 시도해 주세요.', [
-      { label: '다시 시도', primary: true, onClick: () => location.reload() }
+    return screen('error', t('main.serverFail'), [
+      { label: t('common.retry'), primary: true, onClick: () => location.reload() }
     ]);
   }
-  library = createLibrary({ api, onOpen: openShared, onOpenMine: openMine, isViewing: () => tree.viewing });
+  library = createLibrary({ api, onOpen: openShared, onOpenMine: openMine, onLogout: logout, isViewing: () => tree.viewing });
   library.show();
   if (api.loggedIn && localHistory.list().length) afterLogin();   // 예전에 로그인 전 본 기록이 남아 있으면 합치기
   addEventListener('popstate', () => route());                     // 뒤로·앞으로 가기
   route();
 }
+
+/* ---------- 시작 ---------- */
+applyStatic();
+$('btnLang').addEventListener('click', () => setLang(getLang() === 'ko' ? 'en' : 'ko'));
 
 const cfg = readConfig();
 cfg ? startServer(cfg) : startDemo();

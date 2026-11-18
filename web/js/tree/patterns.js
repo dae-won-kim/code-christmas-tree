@@ -2,6 +2,7 @@
  * 트리 무늬 정의 — 각 생성 함수는 정확히 M개의 목표점을 만든다.
  * 좌표계: y 꼭대기 -300 → 바닥 +300, 반지름 최대 230
  */
+import { t } from '../i18n.js';
 export const TAU = Math.PI * 2;
 export const rnd = (a, b) => a + Math.random() * (b - a);
 export const clamp01 = x => Math.max(0, Math.min(1, x));
@@ -154,18 +155,21 @@ function genGarland(out, M) {
   }
 }
 
-/** 무늬 목록. 순서(인덱스)는 DB의 trees.pattern(0~7)과 같다. 새 무늬는 항상 맨 뒤에 추가할 것 */
+/** 무늬 목록. 순서(인덱스)는 DB의 trees.pattern(0~7)과 같다. 새 무늬는 항상 맨 뒤에 추가할 것
+ *  (이름은 i18n.js의 'pattern.<번호>' — 한국어: 나선 리본 · 층층 전나무 · 빛의 고리 · 얼음 크리스탈 ·
+ *   은하수 소용돌이 · 캔디 스트라이프 · 눈꽃 결정층 · 금빛 가랜드) */
 export const PATTERNS = [
-  { name: '나선 리본',     gen: genSpiral,     base: C.gold,  bg: [11, 18, 48] },
-  { name: '층층 전나무',   gen: genTiers,      base: C.warm,  bg: [5, 22, 22] },
-  { name: '빛의 고리',     gen: genRings,      base: C.red,   bg: [26, 10, 32] },
-  { name: '얼음 크리스탈', gen: genCrystal,    base: C.ice,   bg: [6, 20, 54] },
-  { name: '은하수 소용돌이', gen: genGalaxy,   base: C.lav,   bg: [16, 8, 40] },
-  { name: '캔디 스트라이프', gen: genCandy,    base: C.white, bg: [36, 10, 18] },
-  { name: '눈꽃 결정층',   gen: genSnowflakes, base: C.ice,   bg: [8, 24, 48] },
-  { name: '금빛 가랜드',   gen: genGarland,    base: C.gold,  bg: [20, 18, 8] }
+  { gen: genSpiral,     base: C.gold,  bg: [11, 18, 48] },
+  { gen: genTiers,      base: C.warm,  bg: [5, 22, 22] },
+  { gen: genRings,      base: C.red,   bg: [26, 10, 32] },
+  { gen: genCrystal,    base: C.ice,   bg: [6, 20, 54] },
+  { gen: genGalaxy,     base: C.lav,   bg: [16, 8, 40] },
+  { gen: genCandy,      base: C.white, bg: [36, 10, 18] },
+  { gen: genSnowflakes, base: C.ice,   bg: [8, 24, 48] },
+  { gen: genGarland,    base: C.gold,  bg: [20, 18, 8] }
 ];
-export const PATTERN_NAMES = PATTERNS.map(p => p.name);
+/** 무늬 이름 (지금 화면 언어) */
+export const patternName = i => (PATTERNS[i] ? t(`pattern.${i}`) : '');
 
 /**
  * 무늬마다 N개의 목표점 배열을 만든다. 무늬 하나 = 몸통 + 바닥 원반.

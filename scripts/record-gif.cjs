@@ -162,7 +162,7 @@ const center = async loc => { const b = await loc.boundingBox(); return { x: b.x
     });
     await boot.close();
 
-    const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 1 });
+    const ctx = await browser.newContext({ viewport: VIEW, deviceScaleFactor: 1, locale: 'ko-KR' });   // README GIF는 한국어 화면
     await ctx.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: CONFIG_JS }));
     await ctx.addInitScript(([seed, key]) => {
       window.__TREE_DEBUG__ = true;

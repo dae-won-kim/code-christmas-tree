@@ -3,6 +3,7 @@
  *  - 열기: 카드를 "캔버스 속 사진 자리"로 되돌린 transform에서 시작 → transform 없음(중앙)으로 전환
  *  - 닫기: 반대로
  */
+import { t } from '../i18n.js';
 export function createViewer({ viewer, card, cardImg, cardCap }, view) {
   let viewing = null, animating = false;
   const timers = new Set();
@@ -30,7 +31,7 @@ export function createViewer({ viewer, card, cardImg, cardCap }, view) {
     animating = true; viewing = s;
     s.paused = true; s.pauseStart = performance.now() / 1000;
     cardImg.src = s.item.img.src; cardCap.textContent = s.item.caption;
-    cardImg.alt = s.item.caption || '트리 사진';
+    cardImg.alt = s.item.caption || t('photo.alt');
     sizeCard(s.item);
     viewer.classList.add('open');
     card.style.transition = 'none'; card.style.transform = 'none';

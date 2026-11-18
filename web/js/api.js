@@ -4,18 +4,20 @@
  *  - 모든 DB 접근은 Supabase RPC(public 스키마 함수)로만 한다. 테이블 직접 조회(.from())는 쓰지 않는다.
  *    (테이블은 RLS + 권한 회수로 막혀 있어서 어차피 실패함)
  *  - 로그인 후 받은 세션 토큰을 localStorage에 보관하고 모든 RPC에 p_token으로 넘긴다.
- *  - DB가 던지는 짧은 오류 코드('invalid_name' 등)를 TreeError로 감싸고, 한국어 메시지를 붙인다.
+ *  - DB가 던지는 짧은 오류 코드('invalid_name' 등)를 TreeError로 감싸고, 지금 화면 언어(i18n.js)의 메시지를 붙인다.
  *
  * 의존: index.html에서 supabase-js UMD(window.supabase)를 먼저 로드해야 한다.
  * 함수 명세: docs/DATABASE.md
  */
 import { shrinkImage } from './image.js';
+import { getLang } from './i18n.js';
 
 export const BUCKET = 'tree-photos';
+
 const TOKEN_KEY = 'code-christmas-tree.token';
 
 export const ERROR_MESSAGES = {
-  invalid_name:      '이름은 한글 2~10자로 입력해 주세요. (공백·영문·숫자 불가)',
+  invalid_name:      '이름은 한글·영문 2~20자로 입력해 주세요. (숫자·기호 불가, 단어 사이 공백은 한 칸)',
   invalid_email:     '이메일 주소를 확인해 주세요. (예: name@example.com)',
   invalid_pin:       'PIN은 숫자 4~10자리로 입력해 주세요.',
   not_found:         '이 이름과 이메일로 된 트리가 없어요.',
@@ -50,9 +52,48 @@ export const ERROR_MESSAGES = {
   unknown:           '알 수 없는 오류가 발생했어요.'
 };
 
+/** 영어 화면용 오류 문구 — 새 오류 코드는 ERROR_MESSAGES와 여기에 함께 추가 */
+export const ERROR_MESSAGES_EN = {
+  invalid_name:      'Names must be 2–20 Korean or English letters (no numbers or symbols, one space between words).',
+  invalid_email:     'Please check the email address (e.g. name@example.com).',
+  invalid_pin:       'PINs must be 4–10 digits.',
+  not_found:         'There is no tree for this name and email.',
+  wrong_pin:         'Wrong PIN.',
+  rate_limited:      'Too many attempts. Try again later, or recover your PIN by email if you forgot it.',
+  email_unverified:  'The email verification expired. Please get a new recovery PIN.',
+  otp_invalid:       'The recovery PIN is wrong or expired. Check the number in the email, or get a new one.',
+  otp_rate_limited:  'You can send another email in a moment (once a minute, a few per hour).',
+  otp_send_failed:   'Couldn’t send the recovery email. Please try again later.',
+  unauthorized:      'Your login expired. Please log in again.',
+  invalid_title:     'Titles must be 1–30 characters.',
+  invalid_pattern:   'Unknown tree pattern.',
+  invalid_settings:  'Invalid settings.',
+  invalid_message:   'Messages must be 1–100 characters.',
+  limit_reached:     'You can’t add more (up to 50 messages and 30 photos).',
+  invalid_ticket:    'The photo upload expired. Please try again.',
+  file_missing:      'The photo file wasn’t uploaded. Please try again.',
+  file_still_exists: 'Couldn’t delete the photo file. Please try again.',
+  tree_limit:        'You can have up to 3 trees.',
+  last_tree:         'You can’t delete your last tree.',
+  tree_has_photos:   'Trees with photos can’t be deleted. Delete the photos first in Decorate → Photos.',
+  invalid_order:     'Invalid tree order. Please refresh and try again.',
+  own_tree:          'You can’t save your own tree to the list.',
+  save_limit:        'You can save up to 100 trees. Remove ones you no longer view.',
+  invalid_items:     'Invalid history format.',
+  invalid_decorations: 'Invalid ornament data (up to 60 per tree).',
+  invalid_caption:   'Captions can be up to 30 characters.',
+  image_decode_failed: 'Couldn’t read the photo. Please try another one.',
+  image_too_large:   'The photo is too large.',
+  network:           'Please check your network connection.',
+  not_configured:    'The server settings (config.js) are empty.',
+  unknown:           'An unknown error occurred.'
+};
+const messagesFor = () => (getLang() === 'en' ? ERROR_MESSAGES_EN : ERROR_MESSAGES);
+
 export class TreeError extends Error {
   constructor(code, detail) {
-    super(ERROR_MESSAGES[code] || ERROR_MESSAGES.unknown);
+    const m = messagesFor();
+    super(m[code] || ERROR_MESSAGES[code] || m.unknown);
     this.code = ERROR_MESSAGES[code] ? code : 'unknown';
     this.detail = detail;
   }
@@ -68,9 +109,13 @@ function toTreeError(err) {
   return new TreeError('unknown', msg);
 }
 
-/** 이름 정규화 (DB의 private.normalize_name과 동일 규칙) */
-export const normalizeName = name => String(name || '').trim().normalize('NFC');
-export const isValidName = name => /^[가-힣]{2,10}$/.test(normalizeName(name));
+/** 이름 정규화 (DB의 private.normalize_name과 동일 규칙): NFC + 공백 여러 칸은 한 칸 + 앞뒤 공백 제거 */
+export const normalizeName = name => String(name || '').normalize('NFC').replace(/\s+/g, ' ').trim();
+/** 이름 형식 (DB의 private.valid_name): 한글·영문 단어를 공백 한 칸으로 이은 2~20자. 대소문자는 구분하지 않음(DB가 처리) */
+export const isValidName = name => {
+  const v = normalizeName(name);
+  return v.length >= 2 && v.length <= 20 && /^[가-힣A-Za-z]+( [가-힣A-Za-z]+)*$/.test(v);
+};
 /** 이메일 정규화·검증 (DB의 private.normalize_email / valid_email과 같은 규칙) */
 export const normalizeEmail = email => String(email ?? '').trim().toLowerCase();
 export const isValidEmail = email => {

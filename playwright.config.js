@@ -15,7 +15,8 @@ export default defineConfig({
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
     trace: 'retain-on-failure',
-    browserName: 'chromium'
+    browserName: 'chromium',
+    locale: 'ko-KR'   // 화면 언어는 브라우저 언어로 정해짐 → 기본 테스트는 한국어 (영어는 i18n.spec.js에서 따로)
   },
   webServer: {
     command: `${python} scripts/serve.py ${PORT}`,
