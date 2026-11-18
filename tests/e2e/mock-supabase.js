@@ -31,7 +31,10 @@
   const hex = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
   const shareId = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(9)))).replace(/\+/g, '-').replace(/\//g, '_');
   const now = () => Date.now();
-  const norm = s => String(s ?? '').trim().normalize('NFC');
+  // 이름: SQL private.normalize_name / valid_name과 같은 규칙 (한글·영문, 공백 한 칸, 2~20자, 대소문자 무시)
+  const norm = s => String(s ?? '').normalize('NFC').replace(/\s+/g, ' ').trim();
+  const validName = n => n.length >= 2 && n.length <= 20 && /^[가-힣A-Za-z]+( [가-힣A-Za-z]+)*$/.test(n);
+  const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
   const len = s => [...s].length;
 
   class Raise extends Error {}
@@ -101,13 +104,13 @@
     /* ── 로그인 · 계정 ── */
     enter_tree(db, { p_name, p_email, p_pin, p_create = false }) {
       const name = norm(p_name), email = normEmail(p_email);
-      if (!/^[가-힣]{2,10}$/.test(name)) raise('invalid_name');
+      if (!validName(name)) raise('invalid_name');
       if (!validEmail(email)) raise('invalid_email');
       if (!validPin(p_pin)) raise('invalid_pin');
-      const key = `${name}:${email}`;
+      const key = `${name.toLowerCase()}:${email}`;
       assertRate(db, key);
       db.attempts.push({ key, at: now() });
-      let u = db.users.find(x => x.name === name && x.email === email);
+      let u = db.users.find(x => sameName(x.name, name) && x.email === email);
       let created = false;
       if (!u) {
         if (!p_create) return { ok: false, error: 'not_found' };
@@ -119,12 +122,12 @@
         return { ok: false, error: 'wrong_pin' };
       }
       clearAttempts(db, key);
-      return { ok: true, token: newSession(db, u.id), name, share_id: myTrees(db, u.id)[0].share_id, created };
+      return { ok: true, token: newSession(db, u.id), name: u.name, share_id: myTrees(db, u.id)[0].share_id, created };
     },
     change_pin(db, { p_token, p_old_pin, p_new_pin }) {
       const v = requireUser(db, p_token);
       if (!validPin(p_new_pin)) raise('invalid_pin');
-      const u = db.users.find(x => x.id === v), key = `${u.name}:${u.email}`;
+      const u = db.users.find(x => x.id === v), key = `${u.name.toLowerCase()}:${u.email}`;
       assertRate(db, key);
       db.attempts.push({ key, at: now() });
       if (u.pin !== p_old_pin) return { ok: false, error: 'wrong_pin' };
@@ -135,16 +138,16 @@
     // 실제로는 JWT(email, amr=otp 15분 이내)를 확인한다 → mock은 verifyOtp가 만든 auth 상태(ctx.auth)를 본다
     reset_pin(db, { p_name, p_new_pin }, ctx) {
       const name = norm(p_name);
-      if (!/^[가-힣]{2,10}$/.test(name)) raise('invalid_name');
+      if (!validName(name)) raise('invalid_name');
       if (!validPin(p_new_pin)) raise('invalid_pin');
       const a = ctx.auth;
       if (!a || a.at < now() - 15 * 60e3) raise('email_unverified');
-      const u = db.users.find(x => x.name === name && x.email === a.email);
+      const u = db.users.find(x => sameName(x.name, name) && x.email === a.email);
       if (!u) raise('not_found');
       u.pin = p_new_pin;
       for (const [t, s] of Object.entries(db.sessions)) if (s.user === u.id) delete db.sessions[t];
-      clearAttempts(db, `${name}:${a.email}`);
-      return { ok: true, token: newSession(db, u.id), name, share_id: myTrees(db, u.id)[0].share_id, created: false };
+      clearAttempts(db, `${name.toLowerCase()}:${a.email}`);
+      return { ok: true, token: newSession(db, u.id), name: u.name, share_id: myTrees(db, u.id)[0].share_id, created: false };
     },
     logout(db, { p_token }) {
       const had = p_token in db.sessions;

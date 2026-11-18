@@ -34,7 +34,7 @@ async function jpeg(page, color) {
 
 (async () => {
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: 'ko-KR' });   // 점검 문구는 한국어 화면 기준
   await ctx.addInitScript(() => { window.__TREE_DEBUG__ = true; });
   const page = await ctx.newPage();
   const errors = [];
@@ -140,7 +140,7 @@ async function jpeg(page, color) {
 
     // 공유 보기 (다른 브라우저 = 로그인 없음): 장식·사진 캡션이 보이는지
     const shareUrl = await page.locator('#shareUrl').inputValue();
-    const guest = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+    const guest = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, locale: 'ko-KR' });
     await guest.addInitScript(() => { window.__TREE_DEBUG__ = true; });
     const gp = await guest.newPage();
     const gErrors = [];

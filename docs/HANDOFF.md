@@ -11,8 +11,9 @@
   복구 메일 SMTP는 Gmail → **Resend**(`smtp.resend.com:465`, user `resend`, 발신 `noreply@make-xmas-tree.com` / `Make Xmas Tree`). API Key는 Supabase 대시보드에만.
   **Resend로 실제 복구 메일 → PIN 재설정 확인**(2026-11-18, 운영자 계정 · 코드는 **8자리** = Email OTP Length). 메일 제목은 `[Code Christmas Tree] 복구 PIN …` 그대로 유지(운영자 결정). 주소가 바뀌어 기존 사용자의 localStorage(로그인 토큰 · 로그인 전 본 기록)는 새 주소로 안 넘어감
 - 마지막 기능 배포: Phase 8(장식 · 선물 상자 · 밤하늘 · 사진 캡션 고치기 · 사진 여러 장 삭제) + 사슴 명칭 변경 + 문서 재구성
-- 운영 DB: 마이그레이션 4개 모두 적용됨(`init` → `accounts_v2` → `tree_views` → `decorations`), PostgreSQL **17.12**
-- 테스트: DB 193개(CI, PostgreSQL 17.12) · E2E 29개 시나리오 × 3개 화면 = 83개 통과 · **실제 사이트 점검 18개 통과**
+- 운영 DB: 마이그레이션 4개 적용됨(`init` → `accounts_v2` → `tree_views` → `decorations`), PostgreSQL **17.12**.
+  5번째 `20261118120000_names_en.sql`(영문 이름)은 **`feat/i18n-names`에만 있고 아직 운영 미적용**
+- 테스트(`feat/i18n-names` 기준): DB 217개(CI, PostgreSQL 17.12) · E2E 33개 시나리오 × 3개 화면 = 95개 통과 + 4개 skip · **실제 사이트 점검 18개 통과**(Phase 8 기준)
 - 운영자 설정 완료: Supabase Auth Custom SMTP(처음 Gmail → 2026-11-18 Resend) + 메일 템플릿 `{{ .Token }}`, 실제 메일로 PIN 복구 확인(Gmail 기준), GitHub **Private vulnerability reporting 켬**
 - Supabase **Security Advisor 검토 완료**(2026-11-18, Errors 0 · Warnings 48 · Info 5 = 정상 기준, DEPLOY.md 6번)
 - **브랜치 구성(2026-11-18):** 작업은 **`dev`**, 운영은 **`main`**. 이 문서와 `KICKOFF_PROMPT.md`는 `dev`에만 있음(CLAUDE.md "브랜치").
@@ -47,7 +48,24 @@
 | 운영자 결정 | 점검 계정 유지 · Storage v1 사진 유지 · 합쳐진 원격 브랜치(`feat/decor`, `chore/pg17-license`, `docs/readme-gif`) 삭제 |
 | 브랜치 분리 | 운영자 요청: "main에는 인수인계 내용 제외, 작업은 새 브랜치" → `dev` + `release-main.sh` + `main guard`. 브랜치를 남이 **못 보게** 하는 건 공개 저장소에선 불가 → 운영자가 "공개 저장소 + 쓰기 보호" 선택 |
 
+### 2-2. 2026-11-18 도메인 · 메일 · 다국어 세션
+
+| 작업 | 결과 |
+|---|---|
+| 자체 도메인 · Resend 문서화 | README · DEPLOY(2-1 Resend, 5-1 도메인) · ROADMAP · NOTICES, `check:live` 기본 주소 → `make-xmas-tree.com`. curl로 github.io → 301(쿼리 유지) 확인 |
+| 복구 PIN 8자리 | 운영 Email OTP Length가 8 → 화면 "6자리" 문구 제거, mock도 8자리. Resend 복구 · 다시 보내기 · 임시 사용자 정리 운영자 확인 → `main` 배포 완료 |
+| Phase 9 (`feat/i18n-names`) | 영문 이름(`names_en` 마이그레이션), 한국어/영어 화면(`i18n.js`), 사이드 목록 로그아웃. **아직 `main`에 안 합침** |
+
 ## 3. 결정 사항과 이유 (되돌리기 전에 읽을 것)
+
+- **이름 = 한글·영문 2~20자, 단어 사이 공백 한 칸, 대소문자 무시**(운영자 결정 2026-11-18, "한글·영문 자유롭게 섞기").
+  기본키 `(name, email_hash)`는 그대로 두고 `(lower(name), email_hash)` 유일 인덱스 + 찾기 · 시도 제한 키 `lower(name)`. 저장 · 표시는 처음 만든 그대로.
+  A-Z 밖의 라틴 문자(é 등)는 받지 않음(필요하면 새 마이그레이션으로 정규식만 넓히면 됨).
+- **화면 언어 = 브라우저 첫 번째 언어가 ko면 한국어, 아니면 영어 + 오른쪽 위 전환 버튼**(localStorage `code-christmas-tree.lang`). 공유 링크에는 언어를 넣지 않음(받는 사람 언어로 보임).
+  언어를 바꾸면 새로고침하지 않고 `route()`로 지금 화면을 다시 그림(편집 중이면 `flush()` 먼저). 데모 모드만 새로고침.
+  문구는 전부 `i18n.js`에(ko · en 같은 키 — 2026-11-18 기준 각 265개, 키가 빠지면 en 화면에 한국어가 나옴), 오류는 `ERROR_MESSAGES` · `ERROR_MESSAGES_EN`.
+- **복구 메일은 한 통에 한국어 + 영어**(템플릿이 하나라 사람마다 나누지 않음). 문구는 DEPLOY.md 2-1 ③, 2026-11-18 운영 대시보드에 반영(운영자).
+- **로그아웃 = 사이드 목록 "OOO님으로 로그인됨 · [로그아웃]"**(꾸미기 → 공유·계정의 버튼도 유지). 이름은 저장하지 않으므로 공유 보기에서 새로고침하면 "로그인됨"만 보임.
 
 - **장식 저장 = `trees.decorations` jsonb 한 칸.** 트리와 함께 읽고 통째로 저장하므로 별도 테이블을 두지 않음.
   `null` = 아직 손대지 않은 트리(화면이 기본 장식 30개를 보여 줌), `[]` = 모두 뗀 트리. 둘을 구분해야 함.
@@ -86,6 +104,8 @@
 - [x] 복구 후 Auth 임시 사용자 정리 — 2026-11-18 Resend 전환 후에도 남은 사용자 없음(운영자 확인)
 - [x] [메일 다시 보내기] 두 번째 메일 수신 — 2026-11-18 운영자 확인
 - [ ] 자체 도메인에서 `check:live` (기본 주소를 `make-xmas-tree.com`으로 바꿈, 점검 계정 PIN 필요)
+- [ ] Phase 9(`feat/i18n-names`): `dev`에 합치고 CI 통과 → 운영자가 말하면 `main` 배포(운영 DB에 `names_en` 적용) → 실사이트 확인
+- [x] 운영자: 복구 메일 템플릿을 한국어 + 영어로 (DEPLOY.md 2-1 ③) — 2026-11-18 완료(운영자 보고). 새 템플릿 메일 수신은 아직 미확인
 - [x] 메일 제목 `[Code Christmas Tree]` · 발신자 이름 `Make Xmas Tree` — **지금 모습 그대로 유지**(운영자, 2026-11-18)
 - [x] 운영자 대시보드 정리(Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
 - 백로그: 트리(계정) 삭제(사진 파일까지), 이메일 변경, 담은 트리 변경 알림, 방명록, OG 미리보기 이미지 (ROADMAP 참고)

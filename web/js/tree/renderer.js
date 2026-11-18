@@ -10,7 +10,7 @@
  * DOM 요소(제목·무늬 이름·글귀·확대 보기)는 options.elements로 바꿀 수 있고,
  * 기본값은 index.html의 id(#top, #title, #patternName, #message, #viewer, #card, #cardImg, #cardCap)이다.
  */
-import { PATTERNS, buildTargets, TAU, TOP, TH, C, rnd, clamp01, easeInOut } from './patterns.js';
+import { PATTERNS, patternName, buildTargets, TAU, TOP, TH, C, rnd, clamp01, easeInOut } from './patterns.js';
 import { createPhotoStage } from './photos.js';
 import { createViewer } from './viewer.js';
 import { createTyper } from './messages.js';
@@ -96,7 +96,7 @@ export function createTree(canvas, options = {}) {
     }
     bgFrom = currentBg.slice(); bgTo = PATTERNS[current].bg;
     morphStart = now; morphing = true; lastSwitch = now;
-    showPatternName(PATTERNS[current].name);
+    showPatternName(patternName(current));
     opt.onPatternChange?.(current);
   }
 
@@ -353,7 +353,7 @@ export function createTree(canvas, options = {}) {
 
   /* ---------- 공개 API ---------- */
   return {
-    patterns: PATTERNS.map(p => p.name),
+    get patterns() { return PATTERNS.map((_, i) => patternName(i)); },
     get pattern() { return current < 0 ? startPattern : current; },
     get viewing() { return !!viewer.viewing; },
     get photoCount() { return photos.lib.length; },

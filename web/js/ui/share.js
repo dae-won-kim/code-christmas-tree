@@ -7,6 +7,7 @@
  */
 import { $, toast } from './dom.js';
 import { localHistory, pendingSave } from './library.js';
+import { t } from '../i18n.js';
 
 /** 공유 링크에서 ?t=를 뺀 주소 (나도 만들기 → 로그인 화면) */
 export function homeUrl() {
@@ -24,17 +25,17 @@ export function mountShare({ api, tree, data, shareId, library, onHome, onOpenMi
   const owner = $('owner'), make = $('btnMake'), save = $('btnSave');
   let saved = false, own = false, busy = false, destroyed = false;
 
-  owner.textContent = `${data.name}님의 트리`;
+  owner.textContent = t('tree.of', { name: data.name });
   owner.hidden = false;
-  document.title = `${data.name}님의 트리 · Code Christmas Tree`;
+  document.title = t('tree.ofTitle', { name: data.name });
   make.href = homeUrl();
 
   function paint() {
-    make.textContent = own ? '✎ 이 트리 꾸미기' : api.loggedIn ? '🎄 내 트리로 가기' : '✨ 나도 트리 만들기';
+    make.textContent = own ? t('tb.editThis') : api.loggedIn ? t('tb.goMine') : t('tb.make');
     save.hidden = own;
-    save.textContent = saved ? '★ 담김' : '☆ 담기';
+    save.textContent = saved ? t('tb.saved') : t('tb.save');
     save.setAttribute('aria-pressed', String(saved));
-    save.setAttribute('aria-label', saved ? `${data.name}님의 트리 담기 취소` : `${data.name}님의 트리를 내 목록에 담기`);
+    save.setAttribute('aria-label', t(saved ? 'share.unsaveAria' : 'share.saveAria', { name: data.name }));
   }
 
   // 본 기록 남기기
@@ -60,7 +61,7 @@ export function mountShare({ api, tree, data, shareId, library, onHome, onOpenMi
     busy = true; save.disabled = true;
     try {
       saved = await api.setSaved(shareId, !saved);
-      toast(saved ? `${data.name}님의 트리를 담았어요. 왼쪽 위 ☰ 목록에서 다시 볼 수 있어요.` : '담기를 취소했어요.');
+      toast(saved ? t('share.saved', { name: data.name }) : t('share.unsaved'));
       library.refresh();
     } catch (e) {
       toast(e.message, { error: true });

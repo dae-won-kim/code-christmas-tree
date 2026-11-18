@@ -9,6 +9,7 @@
 import { TreeError, isValidPin } from '../api.js';
 import { $, h, toast, busy, trackComposition, isImeEnter, confirmButton } from './dom.js';
 import { ORNAMENTS, DECOR_COLORS, MAX_DECOR } from '../tree/decor.js';
+import { t } from '../i18n.js';
 
 const SAVE_DELAY = 800;
 const MAX_MESSAGES = 50, MAX_PHOTOS = 30;
@@ -115,7 +116,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
 
   function queueSave(patch) {
     Object.assign(pendingSave, patch);
-    setSaveState('저장 대기…');
+    setSaveState(t('save.pending'));
     clearTimeout(saveTimer);
     saveTimer = setTimeout(flushSave, SAVE_DELAY);
   }
@@ -125,10 +126,10 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     clearTimeout(saveTimer); saveTimer = null;
     const patch = pendingSave; pendingSave = {};
     if (!Object.keys(patch).length) return Promise.all([saving, decorDone]);
-    setSaveState('저장 중…');
+    setSaveState(t('save.saving'));
     saving = saving.then(() => call(() => api.updateTree(patch, treeId)))
       .then(() => {
-        if (!Object.keys(pendingSave).length) setSaveState('저장됨');
+        if (!Object.keys(pendingSave).length) setSaveState(t('save.saved'));
         // 사이드 목록(내 트리)의 이름·무늬 표시를 맞춤
         document.dispatchEvent(new CustomEvent('tree:updated', { detail: { id: treeId, ...patch } }));
       })
@@ -147,7 +148,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     const v = edTitle.value.trim();
     tree.setTitle(v || ' ');
     if (titleIme.composing) return;   // 조합 중에는 검증·저장 보류
-    if (!v) { titleMsg.textContent = '제목을 비워 둘 수 없어요.'; titleMsg.className = 'msg bad'; edTitle.setAttribute('aria-invalid', 'true'); return; }
+    if (!v) { titleMsg.textContent = t('ed.titleEmpty'); titleMsg.className = 'msg bad'; edTitle.setAttribute('aria-invalid', 'true'); return; }
     titleMsg.textContent = ''; edTitle.setAttribute('aria-invalid', 'false');
     if (v !== state.title) { state.title = v; queueSave({ title: v }); }
   }
@@ -202,7 +203,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   let decorPending, decorTimer = null, decorSaving = Promise.resolve();   // decorPending: undefined = 저장할 것 없음
 
   const kindButtons = ORNAMENTS.map(o => h('button', {
-    type: 'button', 'aria-pressed': String(o.k === brush.kind), 'aria-label': `${o.name} 달기`, dataset: { k: o.k },
+    type: 'button', 'aria-pressed': String(o.k === brush.kind), 'aria-label': t('decor.addKind', { name: o.name }), dataset: { k: o.k },
     onclick: () => {
       brush.kind = o.k; markBrush();
       if (!decorMode) return;
@@ -211,9 +212,10 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     }
   }, h('span', { className: 'ico', 'aria-hidden': 'true', text: o.icon }), h('span', { text: o.name })));
   $('decorKinds').replaceChildren(...kindButtons);
-  const colorButtons = DECOR_COLORS.map(([name, hex], i) => {
+  const colorButtons = DECOR_COLORS.map(([key, hex], i) => {
+    const name = t('decor.colorAria', { name: t(`color.${key}`) });
     const b = h('button', {
-      type: 'button', 'aria-pressed': String(i === brush.color), 'aria-label': name.endsWith('색') ? name : `${name}색`, title: name,
+      type: 'button', 'aria-pressed': String(i === brush.color), 'aria-label': name, title: name,
       onclick: () => {
         brush.color = i; markBrush();
         if (decorMode) { tree.setDecorEditing({ color: i }); tree.recolorSelectedDecor(i); }
@@ -230,7 +232,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
 
   function renderDecorCount() {
     const n = tree.decorations.length;
-    decorTotal.textContent = `${n}/${MAX_DECOR}` + (tree.decorationsAreDefault ? ' · 기본 장식' : '');
+    decorTotal.textContent = `${n}/${MAX_DECOR}` + (tree.decorationsAreDefault ? t('decor.default') : '');
     btnDecorAdd.disabled = n >= MAX_DECOR;
   }
   function queueDecorSave(list) {
@@ -238,7 +240,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     decorPending = list;
     decorState.textContent = ''; decorState.className = 'msg';
     renderDecorCount();
-    setSaveState('저장 대기…');
+    setSaveState(t('save.pending'));
     clearTimeout(decorTimer);
     decorTimer = setTimeout(flushDecor, SAVE_DELAY);
   }
@@ -246,13 +248,13 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     clearTimeout(decorTimer); decorTimer = null;
     if (decorPending === undefined) return decorSaving;
     const items = decorPending; decorPending = undefined;
-    setSaveState('저장 중…');
+    setSaveState(t('save.saving'));
     decorSaving = decorSaving.then(() => call(() => api.setDecorations(items, treeId)))
-      .then(() => { if (decorPending === undefined && !Object.keys(pendingSave).length) setSaveState('저장됨'); })
+      .then(() => { if (decorPending === undefined && !Object.keys(pendingSave).length) setSaveState(t('save.saved')); })
       .catch(e => {
         if (e.handled) return;
         setSaveState(errMsg(e), true);
-        decorState.textContent = `장식을 저장하지 못했어요. ${errMsg(e)}`; decorState.className = 'msg error';
+        decorState.textContent = t('decor.saveFail', { msg: errMsg(e) }); decorState.className = 'msg error';
       });
     return decorSaving;
   }
@@ -264,7 +266,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
       const o = tree.selectedDecor;
       if (o) { brush.color = o.c; markBrush(); tree.setDecorEditing({ color: o.c }); }
     },
-    onLimit: () => { decorState.textContent = `장식은 ${MAX_DECOR}개까지 달 수 있어요.`; decorState.className = 'msg bad'; }
+    onLimit: () => { decorState.textContent = t('decor.limit', { n: MAX_DECOR }); decorState.className = 'msg bad'; }
   };
 
   /* 장식 탭이 열려 있을 때만 편집 모드: 자동 회전 멈춤, 패널은 트리를 덜 가리는 자리로 */
@@ -294,15 +296,15 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     if (!tree.addDecorAnywhere(brush.kind, brush.color)) decorHandlers.onLimit();
   });
   on(btnDecorRemove, 'click', () => { tree.removeSelectedDecor(); btnDecorAdd.focus(); });
-  confirmButton($('btnDecorClear'), '정말 모두 뗄까요?', () => {
+  confirmButton($('btnDecorClear'), t('decor.clearConfirm'), () => {
     tree.setDecorations([]); btnDecorRemove.disabled = true;
     queueDecorSave([]);
-    decorState.textContent = '장식을 모두 뗐어요.'; decorState.className = 'msg good';
+    decorState.textContent = t('decor.cleared'); decorState.className = 'msg good';
   });
   on($('btnDecorReset'), 'click', () => {
     tree.setDecorations(null); btnDecorRemove.disabled = true;
     queueDecorSave(null);
-    decorState.textContent = '기본 장식으로 바꿨어요.'; decorState.className = 'msg good';
+    decorState.textContent = t('decor.resetDone'); decorState.className = 'msg good';
   });
 
   /* =========================================================
@@ -314,7 +316,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
 
   function renderMessages() {
     msgList.replaceChildren(...state.messages.map(m => {
-      const del = h('button', { type: 'button', className: 'danger', text: '삭제', 'aria-label': `글귀 삭제: ${m.body}` });
+      const del = h('button', { type: 'button', className: 'danger', text: t('common.delete'), 'aria-label': t('msg.deleteAria', { body: m.body }) });
       on(del, 'click', () => removeMessage(m, del));
       return h('li', {}, h('span', { className: 'text', text: m.body }), del);
     }));
@@ -328,10 +330,10 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   async function addMessage() {
     const body = edMsg.value.trim();
     msgError.textContent = '';
-    if (!body) { msgError.textContent = '글귀를 입력해 주세요.'; edMsg.focus(); return; }
-    if ([...body].length > 100) { msgError.textContent = '글귀는 100자까지예요.'; return; }
+    if (!body) { msgError.textContent = t('msg.required'); edMsg.focus(); return; }
+    if ([...body].length > 100) { msgError.textContent = t('msg.tooLong'); return; }
     try {
-      const m = await busy(btnAddMsg, '추가 중…', () => call(() => api.addMessage(body, treeId)));
+      const m = await busy(btnAddMsg, t('msg.adding'), () => call(() => api.addMessage(body, treeId)));
       state.messages.push(m);
       edMsg.value = ''; updateMsgCount();
       renderMessages();
@@ -341,7 +343,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   async function removeMessage(m, button) {
     msgError.textContent = '';
     try {
-      await busy(button, '삭제 중…', () => call(() => api.deleteMessage(m.id)));
+      await busy(button, t('common.deleting'), () => call(() => api.deleteMessage(m.id)));
       state.messages = state.messages.filter(x => x.id !== m.id);
       renderMessages();
       (msgList.querySelector('button') || edMsg).focus();
@@ -364,16 +366,16 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   const setUploadState = (text, cls = '') => { uploadState.textContent = text; uploadState.className = 'msg' + (cls ? ' ' + cls : ''); };
 
   function photoCard(p) {
-    const pick = h('input', { type: 'checkbox', className: 'pick', 'aria-label': `사진 선택${p.caption ? ': ' + p.caption : ''}` });
+    const pick = h('input', { type: 'checkbox', className: 'pick', 'aria-label': t('photo.pickAria') + (p.caption ? ': ' + p.caption : '') });
     const cap = h('input', { className: 'cap-input', maxlength: '30', autocomplete: 'off', enterkeyhint: 'done',
-                             placeholder: '캡션 적기', 'aria-label': '사진 캡션 (30자, 입력을 마치면 저장)' });
+                             placeholder: t('photo.capPh'), 'aria-label': t('photo.capAria') });
     cap.value = p.caption || '';
     const ime = trackComposition(cap);
-    const del = h('button', { type: 'button', text: '삭제', 'aria-label': `사진 삭제${p.caption ? ': ' + p.caption : ''}` });
-    confirmButton(del, '정말 삭제?', () => removePhoto(p, del));
+    const del = h('button', { type: 'button', text: t('common.delete'), 'aria-label': t('photo.deleteAria') + (p.caption ? ': ' + p.caption : '') });
+    confirmButton(del, t('photo.deleteConfirm'), () => removePhoto(p, del));
     const li = h('li', { dataset: { id: String(p.id) } },
       pick,
-      h('img', { src: api.photoUrl(p.path), alt: p.caption || '트리 사진', loading: 'lazy', decoding: 'async' }),
+      h('img', { src: api.photoUrl(p.path), alt: p.caption || t('photo.alt'), loading: 'lazy', decoding: 'async' }),
       cap, del);
 
     on(pick, 'change', () => {
@@ -399,7 +401,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   async function saveCaption(p, cap) {
     const v = cap.value.trim();
     if (v === (p.caption || '') || destroyed) return;
-    if ([...v].length > 30) { cap.classList.add('bad'); setUploadState('캡션은 30자까지 적을 수 있어요.', 'error'); return; }
+    if ([...v].length > 30) { cap.classList.add('bad'); setUploadState(t('photo.capTooLong'), 'error'); return; }
     try {
       const r = await call(() => api.updatePhotoCaption(p.id, v));
       p.caption = r.caption;
@@ -407,12 +409,12 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
       if (document.activeElement !== cap) cap.value = r.caption;
       cap.classList.add('saved');
       const li = cap.closest('li');
-      li?.querySelector('img')?.setAttribute('alt', r.caption || '트리 사진');
-      setUploadState(r.caption ? `캡션을 "${r.caption}"(으)로 저장했어요.` : '캡션을 지웠어요.', 'good');
+      li?.querySelector('img')?.setAttribute('alt', r.caption || t('photo.alt'));
+      setUploadState(r.caption ? t('photo.capSaved', { caption: r.caption }) : t('photo.capCleared'), 'good');
     } catch (e) {
       if (e.handled) return;
       cap.classList.add('bad');
-      setUploadState(`캡션을 저장하지 못했어요. ${errMsg(e)}`, 'error');
+      setUploadState(t('photo.capFail', { msg: errMsg(e) }), 'error');
     }
   }
 
@@ -431,7 +433,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   }
   function updatePhotoTools() {
     const n = selectedPhotos.size, total = state.photos.length;
-    photoTotal.textContent = `${total}/${MAX_PHOTOS}` + (n ? ` · ${n}장 선택` : '');
+    photoTotal.textContent = `${total}/${MAX_PHOTOS}` + (n ? t('photo.selected', { n }) : '');
     photoSelectAll.checked = total > 0 && n === total;
     photoSelectAll.indeterminate = n > 0 && n < total;
     btnPhotoDeleteSel.disabled = !n || deleting || uploading;
@@ -446,7 +448,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     updatePhotoTools();
   });
 
-  const STEP = { resize: '줄이는 중…', upload: '올리는 중…', save: '저장 중…' };
+  const STEP = { resize: 'photo.stepResize', upload: 'photo.stepUpload', save: 'photo.stepSave' };
   async function upload(files) {
     if (!files.length) return;
     uploading = true; btnUpload.disabled = true; updatePhotoTools();
@@ -456,7 +458,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
       const prefix = files.length > 1 ? `${i + 1}/${files.length} · ` : '';
       uploadState.className = 'msg';
       try {
-        const p = await call(() => api.uploadPhoto(files[i], caption, step => { uploadState.textContent = prefix + STEP[step]; }, treeId));
+        const p = await call(() => api.uploadPhoto(files[i], caption, step => { uploadState.textContent = prefix + t(STEP[step]); }, treeId));
         state.photos.push({ ...p }); ok++;
         renderPhotos();
         tree.addPhoto(api.photoUrl(p.path), p.caption, { id: p.id, show: 'sparkle' }).catch(() => {});
@@ -468,19 +470,19 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     }
     uploading = false;
     renderPhotos();
-    if (failed) setUploadState(`${ok}장 올림, ${failed}장 실패 — ${lastError}`, 'error');
+    if (failed) setUploadState(t('photo.uploadPartial', { ok, failed, msg: lastError }), 'error');
     else {
-      setUploadState(`${ok}장을 올렸어요.` + (ok > 1 ? ' 아래 목록에서 사진마다 캡션을 고칠 수 있어요.' : ''), 'good');
+      setUploadState(t('photo.uploaded', { n: ok }) + (ok > 1 ? t('photo.uploadedMore') : ''), 'good');
       edCaption.value = '';
     }
   }
   async function removePhoto(p, button) {
     setUploadState('');
     try {
-      await busy(button, '삭제 중…', () => call(() => api.deletePhoto(p.id)));
+      await busy(button, t('common.deleting'), () => call(() => api.deletePhoto(p.id)));
       dropPhoto(p);
       renderPhotos();
-      setUploadState('사진을 삭제했어요.', 'good');
+      setUploadState(t('photo.deleted'), 'good');
       (photoGrid.querySelector('button') || btnUpload).focus();
     } catch (e) { if (!e.handled) setUploadState(errMsg(e), 'error'); }
   }
@@ -498,7 +500,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     deleting = true; btnUpload.disabled = true; updatePhotoTools();
     let ok = 0, failed = 0, lastError = '';
     for (let i = 0; i < targets.length && !destroyed; i++) {
-      setUploadState(`삭제 중… ${i + 1}/${targets.length}`);
+      setUploadState(t('photo.deletingN', { i: i + 1, n: targets.length }));
       try {
         await call(() => api.deletePhoto(targets[i].id));
         dropPhoto(targets[i]); ok++;
@@ -510,11 +512,11 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     }
     deleting = false;
     renderPhotos();
-    if (failed) setUploadState(`${ok}장 삭제, ${failed}장 실패 — ${lastError}`, 'error');
-    else setUploadState(`사진 ${ok}장을 삭제했어요.`, 'good');
+    if (failed) setUploadState(t('photo.deletePartial', { ok, failed, msg: lastError }), 'error');
+    else setUploadState(t('photo.deletedN', { n: ok }), 'good');
     (photoGrid.querySelector('input') || btnUpload).focus();
   }
-  confirmButton(btnPhotoDeleteSel, '정말 삭제할까요?', removeSelected);
+  confirmButton(btnPhotoDeleteSel, t('photo.deleteSelConfirm'), removeSelected);
   on(btnUpload, 'click', () => photoInput.click());
   on(photoInput, 'change', () => { const files = [...photoInput.files]; photoInput.value = ''; upload(files); });
 
@@ -525,16 +527,16 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   const shareInput = $('shareUrl'), copyState = $('copyState');
   shareInput.value = link;
   $('shareOpen').href = link;
-  $('whoami').textContent = `${data.name}님으로 로그인됨`;
+  $('whoami').textContent = t('acc.whoami', { name: data.name });
 
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(link);
-      copyState.textContent = '링크를 복사했어요.'; copyState.className = 'msg good';
+      copyState.textContent = t('acc.copied'); copyState.className = 'msg good';
       return true;
     } catch {
       // 클립보드 권한이 없거나 http 환경: 직접 선택해서 복사하도록
-      copyState.textContent = '자동 복사가 안 돼요. 위 링크를 길게 눌러(또는 Ctrl+C) 복사해 주세요.'; copyState.className = 'msg bad';
+      copyState.textContent = t('acc.copyFail'); copyState.className = 'msg bad';
       shareInput.focus(); shareInput.select();
       return false;
     }
@@ -542,7 +544,7 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
   on($('btnCopy'), 'click', copyLink);
   on(shareInput, 'focus', () => shareInput.select());
   on($('btnShare'), 'click', async () => {
-    if (await copyLink()) toast('공유 링크를 복사했어요. 받은 사람은 읽기만 할 수 있어요.');
+    if (await copyLink()) toast(t('acc.shareToast'));
     else { openPanel('tab-account'); shareInput.select(); }
   });
 
@@ -551,25 +553,25 @@ export function mountEditor({ api, tree, data, onLogout, onUnauthorized, refresh
     e.preventDefault();
     const oldPin = $('pinOld').value, newPin = $('pinNew').value, newPin2 = $('pinNew2').value;
     pinState.className = 'msg bad';
-    if (!oldPin) { pinState.textContent = '지금 PIN을 입력해 주세요.'; $('pinOld').focus(); return; }
-    if (!isValidPin(newPin)) { pinState.textContent = '새 PIN은 숫자 4~10자리로 입력해 주세요.'; $('pinNew').focus(); return; }
-    if (newPin !== newPin2) { pinState.textContent = '새 PIN 확인이 일치하지 않아요.'; $('pinNew2').focus(); return; }
-    if (newPin === oldPin) { pinState.textContent = '지금 PIN과 다른 숫자로 정해 주세요.'; $('pinNew').focus(); return; }
+    if (!oldPin) { pinState.textContent = t('acc.pinOldEmpty'); $('pinOld').focus(); return; }
+    if (!isValidPin(newPin)) { pinState.textContent = t('acc.pinNewInvalid'); $('pinNew').focus(); return; }
+    if (newPin !== newPin2) { pinState.textContent = t('pin.mismatch'); $('pinNew2').focus(); return; }
+    if (newPin === oldPin) { pinState.textContent = t('acc.pinSame'); $('pinNew').focus(); return; }
     try {
-      await busy($('btnPin'), '바꾸는 중…', () => call(() => api.changePin(oldPin, newPin)));
+      await busy($('btnPin'), t('acc.pinChanging'), () => call(() => api.changePin(oldPin, newPin)));
       pinForm.reset();
-      pinState.textContent = 'PIN을 바꿨어요. 다른 기기는 로그아웃됐어요.'; pinState.className = 'msg good';
+      pinState.textContent = t('acc.pinChanged'); pinState.className = 'msg good';
     } catch (e2) {
       if (e2.handled) return;
-      pinState.textContent = e2.code === 'wrong_pin' ? '지금 PIN이 맞지 않아요.' : errMsg(e2);
+      pinState.textContent = e2.code === 'wrong_pin' ? t('acc.pinWrong') : errMsg(e2);
       if (e2.code === 'wrong_pin') $('pinOld').select();
     }
   });
 
   on($('btnLogout'), 'click', async () => {
     await flushSave();
-    try { await busy($('btnLogout'), '로그아웃 중…', () => api.logout()); } catch { /* 토큰은 지워짐 */ }
-    toast('로그아웃했어요.');
+    try { await busy($('btnLogout'), t('acc.loggingOut'), () => api.logout()); } catch { /* 토큰은 지워짐 */ }
+    toast(t('acc.loggedOut'));
     onLogout();
   });
 

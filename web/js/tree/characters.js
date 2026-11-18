@@ -6,6 +6,7 @@
  *  - 사슴은 특정 캐릭터(상표)를 흉내 내지 않도록 이름·빨간 코 같은 고유한 특징을 쓰지 않는다
  */
 import { TAU, rnd, clamp01 } from './patterns.js';
+import { t } from '../i18n.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -184,16 +185,13 @@ export function createCharacters({ ctx, view, burst, isMobile }) {
     return null;
   }
 
-  const LINES = {
-    santa: ['호호호! 메리 크리스마스!', '착한 어린이에게 선물을! 🎁', '올해도 수고 많았어요!'],
-    deer: ['반짝! ✨', '방울 소리 딸랑~ 🔔', '사슴이 인사해요 🦌']
-  };
+  // 말풍선 문구는 i18n.js의 'lines.santa' · 'lines.deer' (누를 때마다 지금 언어로)
   /** 반응: 폴짝 + 말풍선 + 반짝이 */
   function react(c, now) {
     if (now - c.reactAt < .5) return;
     c.reactAt = now;
     c.jumpV = 320; c.jumpY = Math.max(c.jumpY, .1);
-    const lines = LINES[c.kind];
+    const lines = t(`lines.${c.kind}`);
     c.bubble = lines[(Math.random() * lines.length) | 0];
     c.bubbleUntil = now + 2.2;
     const [x, y] = center(c);

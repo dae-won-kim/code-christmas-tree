@@ -29,7 +29,7 @@ grant execute on all functions in schema t to anon;
 set role anon;
 
 -- ── T1~T2 입력 검증 ──────────────────────────────────────────────
-select t.expect_err($$select enter_tree('Kim','kim@example.com','1234',true)$$,    'invalid_name', 'T1 영문 이름 거부');
+select t.expect_err($$select enter_tree('Kim!','kim@example.com','1234',true)$$,   'invalid_name', 'T1 기호 섞인 이름 거부 (영문 이름은 60_names_test에서 허용 확인)');
 select t.expect_err($$select enter_tree('김','kim@example.com','1234',true)$$,     'invalid_name', 'T1 한 글자 이름 거부');
 select t.expect_err($$select enter_tree('ㄱㄴㄷ','kim@example.com','1234',true)$$,  'invalid_name', 'T1 자음만 있는 이름 거부');
 select t.expect_err($$select enter_tree('김민수1','kim@example.com','1234',true)$$, 'invalid_name', 'T1 숫자 섞인 이름 거부');

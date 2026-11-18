@@ -5,6 +5,7 @@
  *  - 히트 테스트: 클릭 좌표가 어느 사진 안에 있는지
  */
 import { TAU, R, rnd, clamp01, easeOutBack } from './patterns.js';
+import { t } from '../i18n.js';
 
 export function loadImage(src) {
   return new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
@@ -173,13 +174,13 @@ export function makeSample(emoji, c1, c2, label, w, h) {
   g.font = `${Math.min(w, h) * .42}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillText(emoji, w / 2, h * .46);
   g.fillStyle = 'rgba(255,255,255,.85)'; g.font = `${Math.min(w, h) * .06}px sans-serif`;
-  g.fillText('샘플 · 「사진 추가」로 내 사진을 넣어보세요', w / 2, h * .88, w * .92);
+  g.fillText(t('sample.note'), w / 2, h * .88, w * .92);
   return { src: cv.toDataURL('image/jpeg', .85), caption: label };
 }
 
 export const SAMPLE_PHOTOS = () => [
-  makeSample('⛄', '#1d3a6e', '#5a8fd6', '눈사람', 640, 480),
-  makeSample('🎁', '#6e1d2a', '#d65a6a', '선물', 480, 600),
-  makeSample('🦌', '#2a4a2a', '#6aa86a', '사슴', 640, 480),
-  makeSample('🕯️', '#3a2a12', '#c8963c', '촛불', 520, 520)
+  makeSample('⛄', '#1d3a6e', '#5a8fd6', t('sample.snowman'), 640, 480),
+  makeSample('🎁', '#6e1d2a', '#d65a6a', t('sample.gift'), 480, 600),
+  makeSample('🦌', '#2a4a2a', '#6aa86a', t('sample.deer'), 640, 480),
+  makeSample('🕯️', '#3a2a12', '#c8963c', t('sample.candle'), 520, 520)
 ];
