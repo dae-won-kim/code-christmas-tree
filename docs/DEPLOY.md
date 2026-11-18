@@ -189,7 +189,7 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 - [ ] 꾸미기 → 공유·계정 → PIN 바꾸기 → 다른 기기 로그아웃 확인 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
 - [x] [PIN을 잊었어요] → 복구 PIN 메일 수신 → 새 PIN으로 열림 → Authentication → Users에 임시 사용자가 남지 않음 (2-1) — 2026-11-17 실제 메일(**Gmail SMTP**, 이전 주소)로 확인
 - [x] 같은 확인을 **Resend SMTP**로 다시 — 메일 수신(보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 8자리 코드) → 새 PIN으로 열림 — 2026-11-18 운영자 계정으로 확인
-- [ ] Resend 전환 후 복구 → Authentication → Users에 임시 사용자가 남지 않는지 — ⬜ 미확인
+- [x] Resend 전환 후 복구 → Authentication → Users에 임시 사용자가 남지 않음 — 2026-11-18 운영자 확인
 - [x] 대시보드 정리(안 쓰는 Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
 - [ ] [메일 다시 보내기] — 60초 뒤 두 번째 메일 수신, 한도에 걸리면 "메일은 잠시 뒤에 다시 보낼 수 있어요" — ⬜ 미확인
 - [x] 자체 도메인 — DNS Check Successful · Enforce HTTPS 켬 · `https://www.make-xmas-tree.com` → 301 → `https://make-xmas-tree.com` → 200 (5-1) — 2026-11-18 운영자 보고

@@ -83,7 +83,8 @@
 - [x] 원격 브랜치 정리 — 2026-11-18 `feat/decor`, `chore/pg17-license` 삭제(둘 다 `main`에 없는 커밋 0개 확인 후), `docs/readme-gif`는 `main`에 합친 뒤 삭제
 - [ ] 실제 사이트에서 아직 확인 안 한 계정 기능 4개 — PIN 틀림 · 다른 이메일 · PIN 변경 · 트리 2·3번째 (DEPLOY.md 6번 ⬜ 표시, E2E로는 통과)
 - [x] Resend SMTP로 복구 메일 수신 → PIN 재설정 — 2026-11-18 운영자 계정으로 확인
-- [ ] [메일 다시 보내기] · 복구 후 Auth 임시 사용자 정리 재확인, 자체 도메인에서 `check:live` (기본 주소를 `make-xmas-tree.com`으로 바꿈)
+- [x] 복구 후 Auth 임시 사용자 정리 — 2026-11-18 Resend 전환 후에도 남은 사용자 없음(운영자 확인)
+- [ ] [메일 다시 보내기] 두 번째 메일, 자체 도메인에서 `check:live` (기본 주소를 `make-xmas-tree.com`으로 바꿈)
 - [x] 메일 제목 `[Code Christmas Tree]` · 발신자 이름 `Make Xmas Tree` — **지금 모습 그대로 유지**(운영자, 2026-11-18)
 - [x] 운영자 대시보드 정리(Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
 - 백로그: 트리(계정) 삭제(사진 파일까지), 이메일 변경, 담은 트리 변경 알림, 방명록, OG 미리보기 이미지 (ROADMAP 참고)
