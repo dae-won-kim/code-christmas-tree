@@ -1,0 +1,25 @@
+# main에 작업 브랜치 전용 문서(인수인계 · 세션 시작 프롬프트)가 들어오면 실패시킨다.
+# dev → main은 scripts/release-main.sh로 합치면 자동으로 빠진다.
+name: main guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dev-only-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 인수인계 문서가 main에 없어야 함
+        run: |
+          found=0
+          for f in docs/HANDOFF.md docs/KICKOFF_PROMPT.md; do
+            if [ -e "$f" ]; then echo "::error file=$f::작업 브랜치(dev) 전용 문서입니다. main에서는 빼 주세요 (scripts/release-main.sh)"; found=1; fi
+          done
+          exit $found

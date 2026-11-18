@@ -197,6 +197,14 @@ select count(*) from tree_users; select count(*) from photos;
 - **7일 동안 요청이 없으면 무료 프로젝트가 일시정지됩니다.** 대시보드에서 Restore하면 데이터는 그대로 돌아옵니다.
 - 사진 파일을 직접 지울 때는 SQL이 아니라 **Storage 화면이나 Storage API**를 쓰세요.
   SQL로 `storage.objects`를 지우면 실제 파일이 남을 수 있습니다.
+- DB의 사진 목록에 없는 파일(예: 계정 v2로 바꾸기 전 v1 사진) 찾기 — 읽기 전용이고, 나온 파일은 **Storage → tree-photos** 화면에서 지웁니다.
+  (2026-11-18 운영자 결정: v1 사진은 지우지 않고 남겨 둠)
+  ```sql
+  select o.name, o.created_at from storage.objects o
+   where o.bucket_id = 'tree-photos'
+     and not exists (select 1 from public.photos p where p.path = o.name)
+   order by o.created_at;
+  ```
 
 ## 8. 포크해서 자기 트리 서비스 운영하기 (오픈소스 사용자용)
 
