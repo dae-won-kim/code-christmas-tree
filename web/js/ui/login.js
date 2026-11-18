@@ -191,7 +191,7 @@ function mountRecovery({ api, on, onDone, onBack }) {
     step2.hidden = !sent;
     rcEmail.readOnly = !!sent;
     btnResend.hidden = !sent;
-    rcCode.disabled = false; rcCode.placeholder = '123456';
+    rcCode.disabled = false; rcCode.placeholder = '12345678';
     btnMain.textContent = sent ? 'PIN 바꾸고 트리 열기' : '복구 PIN 보내기';
   }
   function cooldown() {
@@ -239,7 +239,7 @@ function mountRecovery({ api, on, onDone, onBack }) {
   async function reset() {
     if (finalNameProblem()) return fail(finalNameProblem(), rcName);
     if (!api.recoveryVerified && !/^[0-9]{6,10}$/.test(rcCode.value.replace(/\s/g, ''))) {
-      return fail('메일로 받은 숫자 6자리를 입력해 주세요.', rcCode);
+      return fail('메일로 받은 숫자(6~10자리)를 입력해 주세요.', rcCode);
     }
     const p = pinProblem(rcPin.value, { final: true, label: '새 PIN' });
     if (p) return fail(p, rcPin);

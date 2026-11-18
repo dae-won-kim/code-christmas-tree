@@ -104,6 +104,8 @@ npm run test:e2e
 - **`main` = 운영.** push하면 사이트 배포(`web/` 변경 시)와 Supabase 마이그레이션 적용이 일어나므로 운영자가 말할 때만 합칩니다.
   합칠 때는 `./scripts/release-main.sh`(확인 후 `git push origin main`, 또는 `--push`)를 써서 인수인계 문서를 뺍니다.
   `main`에 그 문서가 들어오면 `main guard` 워크플로가 실패합니다.
+- 두 브랜치 모두 Rulesets(`main 보호` · `dev 보호`)로 **운영자(저장소 관리자)만 push**, 삭제 · 강제 push 금지입니다.
+  그래서 `main`을 자동으로 고쳐 push하는 봇 · 워크플로를 새로 만들면 막힙니다(필요하면 Rulesets의 bypass 목록에 추가).
 - **`main`을 `dev`에 merge하지 않습니다.** `main`의 "인수인계 문서 삭제"가 넘어와 `dev`의 문서가 지워집니다.
   `main`에서 직접 고친 것이 있으면 `dev`에 cherry-pick 합니다.
 

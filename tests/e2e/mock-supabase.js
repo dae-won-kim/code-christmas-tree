@@ -376,7 +376,7 @@
           if (f === 'rate' || (last && last.at > now() - 60e3))
             return { data: {}, error: { status: 429, code: 'over_email_send_rate_limit', message: 'For security purposes, you can only request this after 59 seconds.' } };
           if (options.shouldCreateUser === false) return { data: {}, error: { status: 422, code: 'otp_disabled', message: 'Signups not allowed for otp' } };
-          db.mail.push({ email: e, code: String(100000 + crypto.getRandomValues(new Uint32Array(1))[0] % 900000), at: now(), used: false });
+          db.mail.push({ email: e, code: String(10000000 + crypto.getRandomValues(new Uint32Array(1))[0] % 90000000), at: now(), used: false });
           db.log.push('auth.signInWithOtp');
           save(db);
           return { data: { user: null, session: null }, error: null };

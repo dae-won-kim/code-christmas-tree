@@ -1,10 +1,14 @@
-# 배포 가이드 (전부 무료)
+# 배포 가이드
 
-| 구성 | 서비스 | 비용 |
+| 구성 | 서비스 (이 서비스의 운영 구성) | 비용 |
 |---|---|---|
-| DB·사진 저장 | Supabase Free | 0원 (결제수단 등록 불필요) |
-| PIN 복구 메일 | Supabase Auth 이메일 OTP + 내 메일 계정의 SMTP(예: Gmail) | 0원 |
-| 웹 호스팅 | GitHub Pages (GitHub Actions 배포) | 0원 (Public 저장소) |
+| DB·사진 저장 | Supabase Free | 무료 플랜 조건 · 한도 안에서 이용 (결제수단 등록 불필요) |
+| PIN 복구 메일 | Supabase Auth 이메일 OTP + Custom SMTP(**Resend**) | 무료 플랜 조건 · 한도 안에서 이용 |
+| 웹 호스팅 | GitHub Pages (GitHub Actions 배포) | 무료 (Public 저장소) |
+| 도메인 · DNS (선택) | Cloudflare Registrar / DNS — `make-xmas-tree.com` | **연간 등록 · 갱신 비용 발생** |
+
+- 자체 도메인 없이도 운영할 수 있습니다(`<아이디>.github.io/<저장소>/` 주소 + 메일 계정의 SMTP). 그 경우 비용은 무료 플랜 범위뿐입니다.
+- 무료 플랜의 한도는 각 서비스 정책에 따라 바뀔 수 있으니 요금 안내를 확인하세요.
 
 > 대시보드 메뉴 이름은 Supabase·GitHub 개편에 따라 조금 다를 수 있습니다.
 
@@ -20,7 +24,7 @@
 
 ### 방법 A — SQL Editor (가장 간단)
 1. 왼쪽 메뉴 **SQL Editor** → New query
-2. `supabase/migrations/`의 파일을 **이름 순서대로** 하나씩 붙여 넣고 **Run** (init → accounts_v2 → tree_views)
+2. `supabase/migrations/`의 파일을 **이름 순서대로** 하나씩 붙여 넣고 **Run** (init → accounts_v2 → tree_views → decorations)
 3. 확인
    - Table Editor: `tree_users`, `trees`, `messages`, `photos`, `tree_views`
    - Storage: `tree-photos` 버킷
@@ -38,28 +42,52 @@ npx supabase db push                              # supabase/migrations/*.sql �
 
 ## 2-1. PIN 복구 메일 설정 (Supabase Auth)
 
-PIN을 잊은 사용자에게 **복구 PIN(숫자 6자리)** 을 메일로 보내는 데 Supabase Auth의 이메일 OTP를 씁니다.
+PIN을 잊은 사용자에게 **복구 PIN(숫자 — 운영 8자리)** 을 메일로 보내는 데 Supabase Auth의 이메일 OTP를 씁니다.
 앱 코드에는 메일 관련 비밀값이 전혀 없고, 아래 설정은 모두 **대시보드에서 운영자가 직접** 합니다.
 
 ### ① 이메일 로그인 켜기 (기본값 확인)
 - **Authentication → Sign In / Providers → Email**: Enable Email provider **켜짐**
 - **Allow new users to sign up**: **켜짐** (복구할 때 Auth에 임시 사용자가 생겼다가, 재설정이 끝나면 DB가 지웁니다)
 - Email OTP Expiration: `900`초(15분) 권장 — DB도 "15분 안에 확인한 메일"만 인정합니다
+- Email OTP Length: 운영은 **8자리**(2026-11-18 실제 메일로 확인). 앱은 6~10자리를 모두 받으므로 바꿔도 코드 수정은 필요 없습니다
 - Phone·Anonymous 로그인은 켜지 않아도 됩니다(켜져 있어도 DB가 거부함)
 
 ### ② 메일 서버(SMTP) 연결 (필수 — 먼저 해야 템플릿을 고칠 수 있음)
 Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내고 한도도 시간당 몇 통 수준이라 시험용입니다.
-**Authentication → Emails → SMTP Settings → Enable Custom SMTP**에 내 메일 계정을 연결합니다. 예: Gmail
+**Authentication → Emails → SMTP Settings → Enable Custom SMTP**에 메일 서버를 연결합니다.
+이 서비스는 처음에 Gmail SMTP를 썼고, 지금은 자체 도메인으로 보내기 위해 **Resend**를 씁니다.
+
+#### 방법 A — Resend (자체 도메인, 이 서비스의 운영 구성)
+1. Resend 가입 → **Domains → Add Domain** → `make-xmas-tree.com`(내 도메인)
+2. Resend가 보여 주는 인증용 DNS 레코드(DKIM · SPF 등 메일 관련 레코드)를 **DNS 관리 화면(이 서비스는 Cloudflare DNS)에 그대로 등록**
+   - 값은 Resend 화면에서 복사합니다. 저장소 · 문서에 적지 않습니다.
+   - Cloudflare에서는 메일 레코드도 Proxy 없이(`DNS only`) 둡니다(MX · TXT는 원래 프록시 대상이 아님).
+3. Resend에서 도메인 상태가 **Verified**가 될 때까지 기다림
+4. Resend → **API Keys**에서 키를 만들고, Supabase SMTP Settings에 입력
+
+| 항목 | 값 |
+|---|---|
+| Sender email / name | `noreply@make-xmas-tree.com` / `Make Xmas Tree` |
+| Host / Port | `smtp.resend.com` / `465` |
+| Username | `resend` |
+| Password | Resend **API Key** |
+
+- API Key는 발송 전용(Sending access) · 그 도메인으로만 권한을 좁혀 만드는 것을 권합니다.
+
+#### 방법 B — Gmail (자체 도메인이 없을 때)
 | 항목 | 값 |
 |---|---|
 | Host / Port | `smtp.gmail.com` / `465` |
 | Username | 보내는 Gmail 주소 |
 | Password | Google 계정 → 보안 → 2단계 인증 → **앱 비밀번호**(16자리) — Gmail 비밀번호 자체가 아님 |
-| Sender email / name | 같은 Gmail 주소 / `Code Christmas Tree` |
+| Sender email / name | 같은 Gmail 주소 / 서비스 이름 |
 
-- 이 비밀번호는 **대시보드에만** 넣습니다. 저장소·`config.js`·이슈에 절대 적지 마세요.
-- 연결 후 **Authentication → Rate Limits**에서 메일 발송 한도를 정합니다(Gmail 무료 계정은 하루 약 500통).
-- 자기 도메인이 있으면 Resend·Brevo 같은 메일 서비스의 SMTP를 써도 됩니다.
+- Gmail에서 Resend로 옮겼다면, 더 이상 쓰지 않는 **Gmail 앱 비밀번호는 Google 계정에서 삭제**합니다.
+
+#### 공통
+- SMTP 비밀번호(API Key · 앱 비밀번호)는 **대시보드에만** 넣습니다. 저장소·`config.js`·이슈에 절대 적지 마세요.
+- 연결 후 **Authentication → Rate Limits**에서 메일 발송 한도를 정합니다. 쓰는 메일 서비스 플랜의 발송 한도를 넘지 않게 맞추세요.
+- 앱 코드는 메일 서비스를 직접 부르지 않습니다(`signInWithOtp`만 호출). SMTP를 바꿔도 코드 · 배포는 바꿀 필요가 없습니다.
 
 ### ③ 메일 템플릿에 복구 PIN 넣기 (필수)
 기본 템플릿은 "링크"만 있고 숫자가 없습니다. **Authentication → Emails → Templates**에서 아래 두 개를 모두 바꿉니다.
@@ -75,6 +103,7 @@ Supabase 기본 메일 서버는 **프로젝트 팀원의 주소로만** 보내�
 <p>직접 요청하지 않았다면 이 메일은 무시해도 돼요. 트리와 PIN은 바뀌지 않아요.</p>
 ```
 - 템플릿에 `{{ .ConfirmationURL }}`(링크)은 넣지 마세요. 앱은 숫자 입력 방식만 처리합니다.
+- 운영에서 실제로 받는 메일(2026-11-18): 보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 제목 `[Code Christmas Tree] 복구 PIN <숫자 8자리>` — 제목의 프로젝트 이름은 그대로 둠(운영자 결정)
 
 ### ④ 확인
 배포된 사이트 → [PIN을 잊었어요] → 팀원(내) 주소로 복구 PIN 받기 → 새 PIN으로 트리가 열리면 정상입니다.
@@ -117,9 +146,37 @@ npm run test:e2e            # 화면 흐름 E2E (window.supabase mock)
    - `SUPABASE_PUBLISHABLE_KEY` = Publishable key
    - Secrets가 아니라 **Variables**에 넣습니다. 공개 키라 숨길 필요가 없습니다.
 3. **Settings → Pages → Build and deployment → Source: GitHub Actions**
-4. `main`에 push하면 `.github/workflows/pages.yml`이 실행됩니다.
+4. `main`에 push하면 `.github/workflows/pages.yml`이 실행됩니다. **단, `web/**` 또는 `pages.yml`이 바뀐 push일 때만**입니다(README · docs만 고친 push로는 다시 배포되지 않음).
    이 워크플로가 `web/config.js`를 생성한 뒤 `web/` 폴더를 배포합니다. 수동으로 돌리려면 Actions 탭 → Run workflow를 누르세요.
-5. 주소: `https://<GitHub아이디>.github.io/<저장소이름>/`
+5. 주소: `https://<GitHub아이디>.github.io/<저장소이름>/` (자체 도메인을 연결하면 그 주소, 아래 5-1)
+
+## 5-1. 자체 도메인 연결 (선택 — 이 서비스는 `make-xmas-tree.com`)
+
+1. **도메인 구매** — 이 서비스는 Cloudflare Registrar에서 구매 (DNS도 Cloudflare)
+2. **Cloudflare → DNS → Records** — 웹사이트용 레코드를 추가하고 Proxy status는 **`DNS only`**(회색 구름)
+
+   | Type | Name | Content |
+   |---|---|---|
+   | A | `@` | `185.199.108.153` |
+   | A | `@` | `185.199.109.153` |
+   | A | `@` | `185.199.110.153` |
+   | A | `@` | `185.199.111.153` |
+   | CNAME | `www` | `<GitHub아이디>.github.io` |
+
+3. **GitHub → Settings → Pages → Custom domain**에 `make-xmas-tree.com` 입력 → Save → **DNS Check Successful** 확인
+   - GitHub Actions 배포라서 `web/CNAME` 파일은 필요 없습니다(설정 화면의 값을 씀).
+4. 인증서가 발급되면 **Enforce HTTPS** 켜기 (발급 전에는 선택이 안 될 수 있음 — 잠시 뒤 다시 확인)
+5. 확인
+
+   ```bash
+   nslookup make-xmas-tree.com                    # A 레코드 4개가 GitHub Pages IP인지
+   curl.exe -IL https://www.make-xmas-tree.com    # 301 → https://make-xmas-tree.com → 200 OK
+   ```
+
+- 사이트 주소만 바뀌고 Supabase API 주소(`*.supabase.co`)는 그대로라 `web/index.html`의 CSP는 고칠 필요가 없습니다.
+- **주소가 바뀌면 브라우저 저장소(localStorage)는 이어지지 않습니다.** 이전 주소에서 로그인했던 사람은 새 주소에서 다시 로그인하고,
+  로그인 전 본 기록(브라우저에만 저장)은 새 주소에서 보이지 않습니다. DB에 저장된 트리 · 담은 트리는 그대로입니다.
+- Supabase → **Authentication → URL Configuration → Site URL**도 새 주소로 바꿔 둡니다(앱은 숫자 코드만 써서 링크를 쓰지 않지만, 기본값 정리).
 
 ## 6. 배포 후 확인 체크리스트
 
@@ -130,7 +187,16 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 - [ ] PIN을 틀리면 "PIN이 맞지 않아요" (새 트리를 만들자고 하지 않음) — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
 - [ ] 같은 이름·PIN, 다른 이메일 → "트리가 없어요" 안내 후 새 트리 생성 가능 (동명이인 구분) — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
 - [ ] 꾸미기 → 공유·계정 → PIN 바꾸기 → 다른 기기 로그아웃 확인 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
-- [x] [PIN을 잊었어요] → 복구 PIN 메일 수신 → 새 PIN으로 열림 → Authentication → Users에 임시 사용자가 남지 않음 (2-1) — 2026-11-17 실제 메일(Gmail SMTP)로 확인
+- [x] [PIN을 잊었어요] → 복구 PIN 메일 수신 → 새 PIN으로 열림 → Authentication → Users에 임시 사용자가 남지 않음 (2-1) — 2026-11-17 실제 메일(**Gmail SMTP**, 이전 주소)로 확인
+- [x] 같은 확인을 **Resend SMTP**로 다시 — 메일 수신(보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>`, 8자리 코드) → 새 PIN으로 열림 — 2026-11-18 운영자 계정으로 확인
+- [x] Resend 전환 후 복구 → Authentication → Users에 임시 사용자가 남지 않음 — 2026-11-18 운영자 확인
+- [x] 대시보드 정리(안 쓰는 Gmail 앱 비밀번호 · Resend API Key 권한 · Rate Limits · Site URL) — 2026-11-18 운영자 보고
+- [x] [메일 다시 보내기] — 60초 뒤 두 번째 메일 수신 — 2026-11-18 운영자 확인 (한도 초과 메시지는 E2E mock으로만 확인)
+- [x] 자체 도메인 — DNS Check Successful · Enforce HTTPS 켬 · `https://www.make-xmas-tree.com` → 301 → `https://make-xmas-tree.com` → 200 (5-1) — 2026-11-18 운영자 보고
+- [x] Resend 도메인 `make-xmas-tree.com` **Verified**, Supabase Custom SMTP를 Resend로 설정 (2-1 ②) — 2026-11-18 운영자 보고
+- [ ] 자체 도메인에서 `npm run check:live` (로그인 · 사진 · 공유 · CSP 0) — ⬜ 미확인
+- [x] 이전 주소 공유 링크가 새 주소로 넘어감 — 2026-11-18 `curl -IL`: `dae-won-kim.github.io/code-christmas-tree/?t=…` → 301 → `make-xmas-tree.com/?t=…`(쿼리 유지) → 200,
+      `http://make-xmas-tree.com` → 301 → `https://`, 배포된 `config.js`에 실제 Supabase 값(데모 모드 아님)
 - [ ] 사이드 목록에서 트리 2·3번째 만들기, 이름·순서 바꾸기, 빈 트리 지우기 — ⬜ 실제 사이트 미확인 (E2E mock으로만 확인)
 - [x] 사진 업로드 → 새로고침 후에도 보임 (Storage 업로드 정책이 실제로 동작하는지) — 2026-11-17 (Phase 4 점검, Phase 8 `check:live` 3장)
 - [x] 사진 삭제 → Storage 버킷에서도 파일이 사라짐 (select/delete 정책) — 2026-11-17 (골라 삭제 → 0장, 새로고침 후에도 0장)
@@ -165,6 +231,10 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
 | 복구: 메일은 오는데 숫자가 없음(링크만 있음) | Confirm signup · Magic Link 템플릿 둘 다에 `{{ .Token }}` (2-1 ③) |
 | 복구: "메일은 잠시 뒤에 다시 보낼 수 있어요" | 같은 주소는 60초에 한 번, Rate Limits의 시간당 한도 |
 | 복구: 코드를 넣어도 "메일 확인 시간이 지났어요" | Email OTP Expiration이 너무 길지 않은지, 기기 시계 |
+| 복구: SMTP를 Resend로 바꾼 뒤 메일이 안 옴 | Resend 도메인이 Verified인지, Sender email이 인증한 도메인 주소인지, Supabase SMTP 값(Host `smtp.resend.com` · Port 465 · Username `resend` · Password = API Key), Resend 대시보드의 발송 로그 |
+| GitHub Pages Custom domain에 `InvalidDNSError` | `nslookup`으로 A 레코드 4개 · `www` CNAME 확인 (5-1) |
+| Enforce HTTPS를 선택할 수 없음 | 인증서 발급 전 — DNS Check 성공 후 잠시 기다렸다 다시 확인 |
+| `ERR_TOO_MANY_REDIRECTS` / `www` ↔ 루트 301 반복 | Cloudflare 웹사이트 레코드가 Proxied(주황 구름)인지 → `DNS only`로. `curl.exe -IL`로 경로 추적, `curl.exe --resolve <도메인>:443:<GitHub IP>`로 Cloudflare를 거치지 않은 원본 응답 비교 |
 | 복구 후 Authentication → Users에 사용자가 남음 | SQL Editor에서 `select has_table_privilege('postgres', 'auth.users', 'DELETE');` 가 `true`인지 (남아도 기능엔 문제없음, 수동 삭제 가능) |
 
 ## 7. 운영

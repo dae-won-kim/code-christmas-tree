@@ -27,12 +27,12 @@ test('PIN 복구: 메일로 받은 복구 PIN → 새 PIN → 바로 내 트리'
   await expect(page.locator('#btnRecover')).toHaveText('PIN 바꾸고 트리 열기');
   await expect(page.locator('#rcCode')).toBeFocused();
   const code = await lastCode(page, 'younghee@example.com');
-  expect(code).toMatch(/^[0-9]{6}$/);
+  expect(code).toMatch(/^[0-9]{8}$/);   // 운영 Email OTP Length = 8
   await page.waitForTimeout(300);
   await shot(page, '15-recover-code');
 
   // 틀린 복구 PIN
-  await page.locator('#rcCode').fill('000000');
+  await page.locator('#rcCode').fill('00000000');
   await page.locator('#rcPin').fill('4321');
   await page.locator('#rcPin2').fill('4321');
   await page.locator('#btnRecover').click();

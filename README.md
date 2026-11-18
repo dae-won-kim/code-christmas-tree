@@ -2,7 +2,7 @@
 
 **이름 · 이메일 · PIN만으로 나만의 파티클 3D 크리스마스 트리를 만들고, 장식 · 글귀 · 사진을 걸어 링크 하나로 공유하는 웹앱**
 
-**👉 바로 써 보기: https://dae-won-kim.github.io/code-christmas-tree/** · 라이선스: [MIT](LICENSE) · 운영 비용: **0원**
+**👉 바로 써 보기: https://make-xmas-tree.com** · 라이선스: [MIT](LICENSE) · 운영 비용: 무료 플랜 + 도메인 연간 비용 ([자세히](#운영-비용))
 
 <p>
   <img src="docs/images/demo.gif" alt="데모: 글귀 타이핑과 사진 등장, 무늬 바꾸기, 장식 탭에서 별과 양말 달기, 선물 상자 열기 (데스크톱)" width="62%">
@@ -15,7 +15,7 @@
 |---|---|
 | **무엇** | 개인 트리(최대 3개)를 만들고 꾸며서 공유 링크로 보여 주는 웹앱. 받은 사람은 로그인 없이 읽기 전용으로 봄 |
 | **핵심 기능** | 파티클 3D 트리 · 무늬 8종 모핑 · **장식 8종을 눌러 달고 끌어 옮기기** · 선물 상자 · 글귀 타이핑 · 사진(캡션 · 여러 장 삭제) · 담기 · 본 기록 · 이메일 PIN 복구 |
-| **구조** | **서버 코드 없음** — 정적 호스팅(GitHub Pages) + Supabase(PostgreSQL). 로직과 보안 검사는 전부 **DB 함수(RPC 24개)** 안에 |
+| **구조** | **상시 구동 서버 없음** — 정적 호스팅(GitHub Pages, 자체 도메인 `make-xmas-tree.com` · Cloudflare DNS) + Supabase(PostgreSQL · Storage · Auth). 로직과 보안 검사는 전부 **DB 함수(RPC 24개)** 안에, 복구 메일은 Supabase Auth가 Resend SMTP로 발송 |
 | **보안** | 테이블 직접 접근 차단(RLS + 권한 회수) · 이메일 · PIN · 토큰은 해시로만 저장 · 속도 제한 · 티켓 방식 업로드 · CSP + SRI |
 | **품질** | DB 테스트 **193개**(PostgreSQL 17.12) · 화면 E2E **29개 시나리오 × 3개 화면**(Playwright) · 모두 CI 자동 실행 |
 
@@ -25,16 +25,21 @@
 |---|---|
 | 프론트엔드 | **Vanilla JavaScript (ES Modules)** · HTML · CSS — 빌드 도구 없음, 앱 npm 의존성 없음 |
 | 렌더링 | **Canvas 2D** + 직접 구현한 3D 원근 투영 · 가산 혼합 · 모핑 (그림 파일 없이 도형으로 그림) |
-| 백엔드 · DB | **Supabase** — PostgreSQL 17 · PostgREST RPC · Storage · Auth(이메일 OTP) · `pgcrypto` |
+| 백엔드 · DB | **Supabase** — PostgreSQL 17 · PostgREST RPC · Storage(사진) · `pgcrypto` |
+| 인증 · 복구 | **Supabase Auth 이메일 OTP** — PIN 복구 때 메일 주인 확인에만 사용 (로그인 세션은 앱 자체 토큰) |
+| 메일 발송 | **Resend** (Supabase Auth의 Custom SMTP, 발신 `noreply@make-xmas-tree.com`) — Auth가 만든 복구 메일을 실제로 전달 |
+| 도메인 · DNS | **Cloudflare Registrar / DNS** — `make-xmas-tree.com` 구매 · DNS 관리 (웹사이트 레코드는 `DNS only`) |
 | 클라이언트 SDK | `@supabase/supabase-js` 2.118.0 (CDN, 버전 고정 + SRI) |
-| 호스팅 · CI/CD | GitHub Pages · GitHub Actions(배포 · DB 테스트 · E2E) · Supabase GitHub 통합(마이그레이션 자동 적용) |
+| 호스팅 · CI/CD | GitHub Pages(Custom domain · Enforce HTTPS) · GitHub Actions(배포 · DB 테스트 · E2E) · Supabase GitHub 통합(마이그레이션 자동 적용) |
 | 테스트 | PostgreSQL 17.12 컨테이너 + SQL 테스트 · Playwright 1.64 (Chromium, `window.supabase` mock) |
 
 ## 🏗️ 구현 방법
 
 ```mermaid
 flowchart LR
-  subgraph WEB["🌐 GitHub Pages · 정적 파일"]
+  USER(["👤 브라우저"])
+  CF["Cloudflare DNS<br/>make-xmas-tree.com<br/>A @ ×4 · CNAME www<br/>(DNS only)"]
+  subgraph WEB["🌐 GitHub Pages (HTTPS)"]
     UI["화면 ui/"] --> TREE["캔버스 트리 tree/<br/>무늬 · 장식 · 선물 · 사진"]
     UI --> API["api.js TreeApi<br/>DB 접근의 유일한 통로"]
   end
@@ -43,14 +48,23 @@ flowchart LR
     ST[("Storage<br/>사진")]
     AU["Auth<br/>복구 메일 OTP"]
   end
+  RS["📧 Resend<br/>Custom SMTP<br/>자체 도메인 발신"]
+  USER -.->|"① 주소 조회"| CF
+  USER -->|"② 페이지 요청"| WEB
   API -->|"Publishable key"| RPC
   API -->|"티켓 있는 경로만"| ST
   API -->|"PIN 복구"| AU
+  AU -->|"SMTP 465"| RS
+  RS -.->|"복구 PIN 메일"| USER
 ```
+
+- **Cloudflare**는 도메인 등록과 DNS만 맡고, 웹사이트 트래픽을 중계하지 않습니다(`DNS only`). 브라우저는 GitHub Pages에 바로 접속하고, HTTPS 인증서도 GitHub Pages가 발급합니다.
+- **Supabase Auth**는 복구 코드를 만들고 확인하는 쪽, **Resend**는 그 메일을 `make-xmas-tree.com` 도메인으로 실제 발송하는 쪽입니다. 앱 코드는 Resend를 직접 부르지 않습니다.
+- 브라우저와 Supabase 사이의 API 주소는 그대로 `*.supabase.co`입니다(자체 도메인은 웹사이트에만 씀).
 
 1. **RPC만 쓰는 DB 접근** — 브라우저는 테이블에 직접 닿지 못하고(RLS ON + 정책 없음 + 권한 회수), `security definer` 함수만 호출합니다. 함수가 토큰으로 사용자를 찾고 `owned_tree`로 내 트리인지 매번 확인합니다.
 2. **(이름, 이메일) 복합 기본키 + PIN 해시** — 이메일과 PIN은 HMAC-SHA256(pepper)으로만 저장합니다. PIN은 키에 넣지 않아 틀려도 트리가 하나 더 생기지 않습니다.
-3. **서버 없는 PIN 복구** — Supabase Auth 이메일 OTP로 메일 주인을 확인하고, DB 함수가 JWT의 `email` · `amr` · 시각을 검사한 뒤 PIN을 바꿉니다.
+3. **서버 없는 PIN 복구** — Supabase Auth 이메일 OTP로 메일 주인을 확인하고(메일 발송은 Resend SMTP), DB 함수가 JWT의 `email` · `amr` · 시각을 검사한 뒤 PIN을 바꿉니다.
 4. **티켓 방식 사진 업로드** — RPC가 "이 경로에 10분간 올려도 됨" 티켓을 주고, Storage 정책은 티켓만 확인합니다. 확정 단계에서 파일이 실제로 있는지 DB가 다시 확인합니다.
 5. **원뿔 표면 좌표 장식** — 장식 위치를 (높이, 둘레 각도)로 저장해서 트리를 돌려도 장식이 함께 돕니다. 뒤쪽 장식은 입자 뒤에 흐리게 그려 깊이감을 냅니다.
 
@@ -72,6 +86,7 @@ npm ci && npx playwright install chromium && npm run test:e2e   # 화면 E2E
 ```
 
 내 Supabase로 운영하기: Fork → Supabase 프로젝트 → 마이그레이션 적용 → 복구 메일(SMTP · 템플릿) → GitHub Variables 2개 — [`docs/DEPLOY.md`](docs/DEPLOY.md)
+(자체 도메인은 선택 사항입니다. 이 서비스의 도메인 · 메일 구성은 아래 [도메인 · HTTPS 배포](#도메인--https-배포)와 [복구 메일 시스템](#복구-메일-시스템-resend)을 보세요.)
 
 ---
 
@@ -107,7 +122,8 @@ npm ci && npx playwright install chromium && npm run test:e2e   # 화면 E2E
 | 프론트엔드 | Vanilla JS (ES Modules), HTML, CSS | 빌드 단계가 없어 `web/` 폴더를 그대로 정적 호스팅. 의존성은 CDN의 supabase-js 하나 |
 | 데이터 | Supabase PostgreSQL, PostgREST RPC, `pgcrypto` | 서버 없이 DB 함수(`security definer`)가 권한 검사를 직접 수행 |
 | 파일 | Supabase Storage (public 버킷, 2MB, JPEG만) | 업로드 전 브라우저에서 리사이즈(긴 변 1280px), 티켓이 있는 경로만 업로드/삭제 허용 |
-| 메일 | Supabase Auth 이메일 OTP + Custom SMTP | 메일 API 키나 Edge Function 없이 복구 메일 발송 · 메일 주인 확인 |
+| 메일 | Supabase Auth 이메일 OTP + Custom SMTP(Resend) | 메일 API 키나 Edge Function 없이 복구 메일 발송 · 메일 주인 확인. SMTP 비밀번호(Resend API Key)는 Supabase 대시보드에만 |
+| 도메인 | Cloudflare Registrar / DNS | 도메인 구매와 DNS(웹사이트 · Resend 인증 레코드)를 한 곳에서 관리 |
 | 클라이언트 SDK | `@supabase/supabase-js` 2.118.0 (UMD, jsDelivr) | **버전 고정 + SRI(integrity)** 로 파일 내용까지 고정. 서버 모드에서만 로드 |
 | 호스팅 · CI/CD | GitHub Pages, GitHub Actions 3개 워크플로 | 배포(`pages.yml`), DB 테스트(`db-test.yml`), E2E(`e2e.yml`) |
 | 테스트 | PostgreSQL 17.12 (Docker) + SQL 테스트, Playwright 1.64 (Chromium) | DB는 운영과 같은 버전의 실제 Postgres로, 화면은 `window.supabase` mock으로 검증 |
@@ -202,20 +218,90 @@ sequenceDiagram
   actor U as 사용자
   participant B as 브라우저
   participant A as Supabase Auth
+  participant R as Resend SMTP
   participant D as DB reset_pin
-  U->>B: 이름 · 이메일
-  B->>A: signInWithOtp
-  A-->>U: 📧 복구 PIN 6자리
-  U->>B: 복구 PIN + 새 PIN
-  B->>A: verifyOtp
+  U->>B: [PIN을 잊었어요] → 이름 · 이메일
+  B->>A: signInWithOtp(email)
+  A->>R: 복구 메일 (SMTP)
+  R-->>U: 📧 복구 PIN (숫자 8자리)
+  Note over B: [메일 다시 보내기] 60초 잠금
+  U->>B: 복구 PIN + 새 PIN (2번 입력)
+  B->>A: verifyOtp(email, token, type: email)
   A-->>B: JWT (메모리에만)
   B->>D: reset_pin(이름, 새 PIN) + JWT
   D->>D: JWT 검사 → (이름, HMAC(email)) 찾기
   D->>D: 새 PIN · 모든 기기 로그아웃 · 임시 사용자 삭제
   D-->>B: 새 세션 → 바로 내 트리
+  B->>A: signOut (Auth 세션 버림)
 ```
 
+1. 로그인 화면의 **[PIN을 잊었어요]** → 복구 카드에 이름 · 이메일(로그인 칸에 적은 값을 그대로 가져옴)
+2. **[복구 PIN 보내기]** → `api.sendRecovery()`가 `signInWithOtp({ email, options: { shouldCreateUser: true } })` 호출. 보낸 뒤에는 이메일 칸이 잠깁니다(다른 주소는 [← 로그인으로] 후 다시)
+3. Supabase Auth가 복구 메일을 만들고 Custom SMTP(Resend)로 발송 — 숫자 길이는 Supabase **Email OTP Length** 설정(운영 8자리), 앱은 6~10자리를 모두 받음
+4. 메일의 숫자와 **새 PIN · 새 PIN 확인**을 입력 → **[PIN 바꾸고 트리 열기]**
+5. `api.resetPin()`이 `verifyOtp({ email, token, type: 'email' })`로 코드를 확인 → Auth 세션(JWT)은 메모리에만(`persistSession: false`)
+6. 그 JWT로 RPC `reset_pin(p_name, p_new_pin)` 호출 → DB의 `private.verified_email()`이 JWT를 검사하고 PIN을 바꿈
+7. 새 세션 토큰으로 바로 내 트리가 열리고 "새 PIN으로 바꿨어요. 다른 기기는 로그아웃됐어요." 안내, Auth 세션은 `signOut({ scope: 'local' })`
+
 메일을 보낼 때는 계정이 있는지 알려 주지 않습니다. 이름을 잘못 적었다면 메일 확인 상태는 유지한 채 이름만 고쳐 다시 시도할 수 있습니다.
+
+### 메일 다시 보내기 (앱 기능)
+
+**"Resend"(메일 발송 서비스)와 [메일 다시 보내기](복구 PIN을 한 번 더 받는 앱 버튼)는 서로 다른 것입니다.**
+
+| 항목 | 실제 동작 (`web/js/ui/login.js`) |
+|---|---|
+| 버튼 표시 | 첫 메일을 보낸 뒤에만 [메일 다시 보내기]가 나타남 |
+| 대기 시간 | `RESEND_SECONDS = 60` — 보낸 직후 60초 동안 버튼이 잠기고 "다시 보내기 (N초)"로 남은 시간 표시 |
+| 다시 보낼 때 | 같은 `send()` → `signInWithOtp`를 다시 호출하고 60초 대기를 새로 시작 |
+| 중복 클릭 | 처리 중에는 버튼이 "보내는 중…"으로 바뀌고 다른 요청을 받지 않음 |
+
+60초 잠금은 **화면에서만** 막는 장치입니다. 실제 발송 간격 · 시간당 한도는 Supabase Auth의 Rate Limits 설정이 정하고, 한도에 걸리면 앱이 아래 메시지를 보여 줍니다.
+
+### 오류 처리
+
+| 상황 | 코드 | 화면 메시지 |
+|---|---|---|
+| 발송 한도 초과 (HTTP 429 등) | `otp_rate_limited` | 메일은 잠시 뒤에 다시 보낼 수 있어요. (1분에 한 번, 시간당 몇 통까지) |
+| 발송 실패 (SMTP 설정 문제 등) | `otp_send_failed` | 복구 메일을 보내지 못했어요. 잠시 뒤에 다시 시도해 주세요. |
+| 코드 칸이 숫자 6~10자리가 아님 (화면 검사) | — | 메일로 받은 숫자(6~10자리)를 입력해 주세요. |
+| 코드가 틀리거나 만료 | `otp_invalid` | 복구 PIN이 맞지 않거나 만료됐어요. … (코드 칸을 다시 선택) |
+| 메일 확인 후 15분이 지남 (DB 검사) | `email_unverified` | 메일 확인 시간이 지났어요. 복구 PIN을 다시 받아 주세요. (1단계로 돌아감) |
+| 그 이메일로 그 이름의 트리가 없음 | `not_found` | 이 이메일로 그 이름의 트리가 없어요. 트리를 만들 때 쓴 이름으로 고쳐서 다시 눌러 주세요. (코드 칸은 "메일 확인 완료"로 잠김) |
+| 네트워크 오류 | `network` | 네트워크 연결을 확인해 주세요. |
+
+- DB는 JWT의 `amr`에 메일 인증(`otp` · `magiclink` · `email/signup` · `recovery`)이 있고 그 시각이 **900초(15분) 이내**일 때만 인정합니다.
+- 메일 코드 자체의 만료 시간은 Supabase Auth의 **Email OTP Expiration** 설정을 따릅니다(권장 900초, [`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1).
+
+## 복구 메일 시스템 (Resend)
+
+처음에는 Gmail SMTP로 복구 메일을 보냈고, 지금은 **자체 도메인(`make-xmas-tree.com`)으로 보내기 위해 Resend**를 씁니다.
+별도 백엔드 없이 **Supabase Auth → Custom SMTP(Resend) → 사용자 메일함** 구조입니다.
+
+1. **Resend에 도메인 등록** — `make-xmas-tree.com`
+2. **Cloudflare DNS에 인증 레코드 추가** — Resend가 알려 주는 DKIM · SPF 등 메일 관련 레코드를 그대로 등록 (값은 Resend 대시보드에서 확인, 저장소에 적지 않음)
+3. **Resend 도메인 상태 `Verified` 확인**
+4. **Supabase → Authentication → Emails → SMTP Settings**에 Custom SMTP 연결
+
+| 항목 | 값 |
+|---|---|
+| Sender email | `noreply@make-xmas-tree.com` |
+| Sender name | `Make Xmas Tree` |
+| SMTP Host / Port | `smtp.resend.com` / `465` |
+| SMTP Username | `resend` |
+| SMTP Password | Resend API Key — **Supabase 대시보드에만** 입력 (저장소 · 문서 · `config.js`에 넣지 않음) |
+
+- 메일 템플릿(Confirm signup · Magic Link)에 `{{ .Token }}`을 넣어 숫자 코드를 보내는 설정은 SMTP와 별개이며 [`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1에 있습니다.
+
+**실제로 받는 메일 (2026-11-18 운영 사이트에서 확인)**
+
+| 항목 | 내용 |
+|---|---|
+| 보낸사람 | `Make Xmas Tree <noreply@make-xmas-tree.com>` (Supabase SMTP의 Sender name / email) |
+| 제목 | `[Code Christmas Tree] 복구 PIN <숫자 8자리>` (Supabase 메일 템플릿의 Subject — 프로젝트 이름 그대로 유지) |
+| 본문 | 복구 PIN 숫자 + "15분 안에, 한 번만" 안내 ([`docs/DEPLOY.md`](docs/DEPLOY.md) 2-1 ③) |
+
+- ✅ 운영 사이트에서 Resend로 복구 메일을 받아 **새 PIN으로 바꾸고 트리를 여는 것까지 확인**했습니다(2026-11-18, 운영자 계정). 처음 Gmail SMTP로는 2026-11-17에 확인했습니다.
 
 ## 보안
 
@@ -265,22 +351,74 @@ web/js/
 | 업그레이드 | 별도 DB | 배포된 첫 버전 DB(데이터 있음) → 이후 마이그레이션 적용 → 다시 적용 시나리오 |
 | 화면 E2E | Playwright + `window.supabase` mock(RPC + Auth OTP) | **29개 시나리오 × 데스크톱 · 모바일 · 가로** — 전체 흐름, PIN 복구, 내 트리 3개, **장식 달기 · 끌어 옮기기 · 끌어내 떼기 · 저장 · 공유 보기**, 선물 상자, 캡션 고치기 · 여러 장 삭제, 산타 · 사슴, 무늬 8종, 사이드 목록, XSS, 세션 만료, 네트워크 오류, IME, 키보드. 모든 테스트에서 **Console 오류 · CSP 위반 0**을 자동 확인 |
 | 리팩터링 회귀 | 픽셀 비교 | 단일 파일 프로토타입을 모듈로 나누기 전후를 시드 고정 + 가짜 시계로 같은 시점에 찍어 **12장 모두 픽셀 차이 0%** 확인 |
-| 실제 환경 | Playwright → 배포 사이트 + 실제 Supabase | 배포 체크리스트(업로드 · 삭제 정책 실동작, 직접 조회 차단, 공유 읽기 전용, 실제 메일로 PIN 복구) 통과 |
+| 실제 환경 | Playwright → 배포 사이트 + 실제 Supabase | 배포 체크리스트(업로드 · 삭제 정책 실동작, 직접 조회 차단, 공유 읽기 전용, 실제 메일로 PIN 복구) 통과 — 2026-11-17, 이전 주소(`github.io`)와 Gmail SMTP 기준. 2026-11-18 자체 도메인 · Resend로 PIN 복구 재확인, 나머지는 [배포 검증](#배포-검증) 참고 |
 
 ## 배포 파이프라인
 
 ```mermaid
 flowchart LR
-  PUSH(["git push main"]) --> PG["pages.yml<br/>Variables로 config.js 생성<br/>→ web/ 배포"]
-  PUSH --> DBT["db-test.yml<br/>PostgreSQL 17.12<br/>193개 + 업그레이드 시나리오"]
-  PUSH --> E2E["e2e.yml<br/>Playwright E2E"]
-  PUSH --> SUP["Supabase GitHub 통합<br/>새 마이그레이션을 운영 DB에 적용"]
-  PG --> SITE[("🌐 GitHub Pages")]
+  PUSH(["git push"]) -->|"main + web/** 또는 pages.yml 변경<br/>(또는 수동 실행)"| PG["pages.yml<br/>Variables로 config.js 생성<br/>→ web/ 배포"]
+  PUSH -->|"supabase/** 등 변경 (모든 브랜치)"| DBT["db-test.yml<br/>PostgreSQL 17.12<br/>193개 + 업그레이드 시나리오"]
+  PUSH -->|"web/** · tests/e2e/** 등 변경 (모든 브랜치)"| E2E["e2e.yml<br/>Playwright E2E"]
+  PUSH -->|"main"| SUP["Supabase GitHub 통합<br/>새 마이그레이션을 운영 DB에 적용"]
+  PG --> SITE[("🌐 GitHub Pages<br/>make-xmas-tree.com")]
   SUP --> PROD[("☁️ Supabase")]
 ```
 
-- 브라우저에 들어가는 값은 **Project URL과 Publishable key뿐**이고, 저장소 **Variables**로 관리합니다(`config.js`는 커밋하지 않음).
-- 메일 서버(SMTP) 비밀번호는 Supabase 대시보드에만 있습니다. 저장소에는 메일 관련 비밀값이 없습니다.
+- **`pages.yml`은 `main`에 push했다고 항상 돌지 않습니다.** `web/**` 또는 `.github/workflows/pages.yml`이 바뀐 push(또는 Actions 탭의 수동 실행 `workflow_dispatch`)일 때만 배포합니다. **README · docs만 고친 push로는 사이트가 다시 배포되지 않습니다.**
+- 배포 단계: checkout → 저장소 **Variables** `SUPABASE_URL` · `SUPABASE_PUBLISHABLE_KEY`로 `web/config.js` 생성(값이 없으면 경고 후 데모 모드, `sb_secret_` 키면 실패) → `web/` 폴더를 Pages 아티팩트로 올려 배포.
+- 브라우저에 들어가는 값은 **Project URL과 Publishable key뿐**이고, `config.js`는 커밋하지 않습니다.
+- 메일 서버(SMTP) 비밀번호(Resend API Key)는 Supabase 대시보드에만 있습니다. 저장소에는 메일 관련 비밀값이 없습니다.
+- 작업은 `dev` 브랜치에서 하고, 운영자가 정할 때 `main`에 합쳐 배포합니다(`scripts/release-main.sh`).
+
+## 도메인 · HTTPS 배포
+
+`make-xmas-tree.com`을 **Cloudflare에서 구매**하고, **Cloudflare DNS + GitHub Pages Custom domain**으로 연결했습니다.
+파일 배포 방식(GitHub Actions)은 그대로이고, 도메인 설정만 더했습니다.
+
+| 서비스 | 맡은 일 |
+|---|---|
+| Cloudflare Registrar | 도메인 등록 · 갱신 |
+| Cloudflare DNS | 도메인 → GitHub Pages 주소 연결, Resend 메일 인증 레코드 |
+| GitHub Pages | 정적 파일 제공, TLS 인증서 발급, HTTPS 강제, `www` → 루트 리디렉션 |
+
+**Cloudflare DNS (웹사이트용)**
+
+| Type | Name | Content | Proxy status |
+|---|---|---|---|
+| A | `@` | `185.199.108.153` | DNS only |
+| A | `@` | `185.199.109.153` | DNS only |
+| A | `@` | `185.199.110.153` | DNS only |
+| A | `@` | `185.199.111.153` | DNS only |
+| CNAME | `www` | `dae-won-kim.github.io` | DNS only |
+
+**GitHub Pages (Settings → Pages)**
+
+- Source: GitHub Actions (기존 `pages.yml` 유지)
+- Custom domain: `make-xmas-tree.com` → DNS Check **Successful**
+- **Enforce HTTPS**: 켬
+
+**확인한 응답**
+
+```text
+https://www.make-xmas-tree.com  →  301 Moved Permanently  →  https://make-xmas-tree.com  →  200 OK
+```
+
+- 대표 주소는 `https://make-xmas-tree.com`입니다. 이전 주소 `https://dae-won-kim.github.io/code-christmas-tree/`는 `301`로 새 주소로 넘어가고, 공유 링크의 `?t=…`도 그대로 유지됩니다(2026-11-18 확인).
+- 주소(origin)가 바뀌어 **브라우저 저장소는 이어지지 않습니다.** 이전 주소에서 로그인했던 사람은 한 번 다시 로그인해야 하고, 로그인 전 본 기록(브라우저에만 저장)은 새 주소에서 보이지 않습니다. DB에 저장된 트리 · 담은 트리는 그대로입니다.
+- 처음부터 따라 하는 배포 절차(Supabase · Variables · Pages · 자체 도메인)는 [`docs/DEPLOY.md`](docs/DEPLOY.md) 5번에 있습니다.
+
+## 운영 비용
+
+| 항목 | 서비스 | 비용 |
+|---|---|---|
+| 웹 호스팅 | GitHub Pages (Public 저장소) | 무료 플랜 조건 · 한도 안에서 이용 |
+| DB · 사진 · 인증 | Supabase Free | 무료 플랜 조건 · 한도 안에서 이용 (7일 동안 요청이 없으면 일시정지) |
+| 메일 발송 | Resend | 무료 플랜 조건 · 한도 안에서 이용 |
+| 도메인 | Cloudflare Registrar `make-xmas-tree.com` | **유료 — 연간 등록 · 갱신 비용 발생** |
+
+- 서버 비용은 없지만 "0원"은 아닙니다. 사용량이 각 무료 플랜 한도를 넘으면 기능이 제한되거나 유료 전환이 필요할 수 있습니다.
+- 각 플랜의 한도는 서비스 정책에 따라 바뀔 수 있으니 각 서비스의 요금 안내를 확인하세요.
 
 ## 문제 해결 사례
 
@@ -298,6 +436,17 @@ flowchart LR
 | Windows에서 고친 셸 스크립트가 CI에서 실패 | 줄바꿈이 CRLF로 저장 → bash가 `set -o pipefail\r`을 못 읽음 | `.gitattributes`로 저장소 줄바꿈을 LF로 고정 |
 | 실제 배포에서만 [꾸미기] 버튼이 가끔 반응 없음 | 로딩 중에도 버튼이 보였지만 편집 화면은 데이터를 받은 뒤에 연결됨 | 데이터를 받은 뒤 도구 막대를 표시, mock에 응답 지연 옵션을 넣어 회귀 테스트 추가 |
 
+### 자체 도메인 · HTTPS 연결
+
+| 증상 | 확인 방법 | 해결 · 결과 |
+|---|---|---|
+| GitHub Pages Custom domain에 `InvalidDNSError` | `nslookup make-xmas-tree.com`으로 A 레코드가 GitHub Pages IP 4개(`185.199.108~111.153`)로 나오는지, `www`가 `dae-won-kim.github.io`를 가리키는지 확인 | DNS 레코드를 위 표대로 맞춘 뒤 DNS Check **Successful** |
+| DNS 인증 · TLS 인증서 활성화가 바로 되지 않음, **Enforce HTTPS** 선택 불가 | GitHub Pages 설정 화면의 인증서 상태, `curl.exe -I https://make-xmas-tree.com` | DNS 확인 후 인증서가 발급되기까지 시간이 걸렸고, 발급 뒤 Enforce HTTPS를 켬 |
+| 브라우저에 `ERR_TOO_MANY_REDIRECTS`, `www` ↔ 루트 간 301 반복 | `curl.exe -IL`로 리디렉션 경로 전체 추적, `curl.exe --resolve`(예: `make-xmas-tree.com:443:185.199.108.153`)로 Cloudflare를 거치지 않고 GitHub Pages 원본 응답 확인 | Cloudflare 프록시(주황 구름)를 거칠 때 반복이 생겨서, 웹사이트용 레코드를 **`DNS only`** 로 바꾸고 GitHub Pages의 HTTPS 강제는 유지 |
+| 최종 확인 | `curl.exe -IL https://www.make-xmas-tree.com` | `301 Moved Permanently` → `https://make-xmas-tree.com` → `200 OK` |
+
+- 위 표는 확인한 증상과 조치만 적었습니다. 인증서 지연이나 리디렉션 반복의 정확한 내부 원인(캐시 등)은 따로 확정하지 않았습니다.
+
 ## 개발 환경
 
 | 항목 | 내용 |
@@ -307,6 +456,25 @@ flowchart LR
 | DB 테스트 | Docker의 `postgres:17.12` 컨테이너 — 운영 DB와 같은 버전 (Supabase의 `storage` · `auth` 스키마는 mock으로 흉내) |
 | 협업 도구 | Claude Code(AI 코딩 에이전트)와 함께 개발 — 작업 규칙은 [`CLAUDE.md`](CLAUDE.md), 단계별 계획은 [`docs/ROADMAP.md`](docs/ROADMAP.md) |
 | CI | GitHub Actions (`ubuntu-latest`) — PostgreSQL 17.12 서비스 컨테이너, Playwright Chromium |
+
+## 배포 검증
+
+체크 = 운영 환경에서 실제로 확인함 · 빈칸 = 아직 확인 전
+
+- [x] Cloudflare DNS 레코드(A 4개 · CNAME `www`) 등록, 웹사이트 레코드 `DNS only`
+- [x] GitHub Pages Custom domain `make-xmas-tree.com` — DNS Check Successful
+- [x] GitHub Pages **Enforce HTTPS** 켬, `https://make-xmas-tree.com` → `200 OK`
+- [x] `https://www.make-xmas-tree.com` → `301` → `https://make-xmas-tree.com` 리디렉션
+- [x] Resend 도메인 `make-xmas-tree.com` 인증 — `Verified`
+- [x] Supabase Auth Custom SMTP를 Resend(`smtp.resend.com:465`, 발신 `noreply@make-xmas-tree.com`)로 설정
+- [x] 운영 사이트에서 Resend로 **복구 PIN 메일 수신** — 보낸사람 `Make Xmas Tree <noreply@make-xmas-tree.com>` (2026-11-18)
+- [x] 받은 코드(8자리)로 **PIN 재설정 → 새 PIN으로 트리 열기** (2026-11-18, 운영자 계정)
+- [x] 대시보드 정리 — 운영자 보고 (2026-11-18)
+- [x] 복구 후 Authentication → Users에 임시 사용자가 남지 않음 (2026-11-18, Resend 전환 후 운영자 확인)
+- [x] [메일 다시 보내기]로 두 번째 메일 수신 (2026-11-18, 운영자 확인)
+- [ ] 발송 한도에 걸렸을 때의 메시지 (운영에서는 미확인, E2E mock으로 확인)
+- [x] 이전 주소 `dae-won-kim.github.io/code-christmas-tree/?t=…` → `301` → `https://make-xmas-tree.com/?t=…` (공유 링크 쿼리 유지), `http://` → `https://`
+- [ ] 자체 도메인에서 로그인 · 사진 업로드 · 공유 보기 · Console의 CSP 위반 0 재확인
 
 ## 다음 단계
 
@@ -320,7 +488,7 @@ flowchart LR
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 구성도, 로그인 · 복구 · 업로드 · 장식 흐름 그림, 위협 모델 |
 | [`docs/DATABASE.md`](docs/DATABASE.md) | 테이블 관계도(ER) · 접근 구조, RPC 명세, 오류 코드, 새 RPC 체크리스트 |
-| [`docs/DEPLOY.md`](docs/DEPLOY.md) | 배포 절차, 복구 메일 설정, 배포 후 체크리스트, 문제 해결 |
+| [`docs/DEPLOY.md`](docs/DEPLOY.md) | 배포 절차, 복구 메일(Resend SMTP) 설정, 자체 도메인 연결, 배포 후 체크리스트, 문제 해결 |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | 단계별 진행 상황 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`SECURITY.md`](SECURITY.md) | 기여 규칙 · 개발 환경 / 보안 취약점 비공개 신고 |
 | [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | 외부 라이브러리 · 글꼴 · 서비스의 저작권자와 라이선스 |

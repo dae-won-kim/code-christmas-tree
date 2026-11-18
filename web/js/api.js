@@ -149,7 +149,7 @@ export class TreeApi {
   }
 
   /* ── PIN 복구 (이메일) ───────────────────────────────
-   *  ① sendRecovery(email): Supabase Auth가 그 주소로 복구 PIN(6자리 코드)을 보낸다
+   *  ① sendRecovery(email): Supabase Auth가 그 주소로 복구 PIN(숫자 코드, 길이는 Email OTP Length 설정 6~10 — 운영 8자리)을 보낸다
    *  ② resetPin(...): 코드 확인(verifyOtp) → 그 로그인 상태로 reset_pin RPC → 새 PIN + 바로 내 트리
    *  계정이 있는지는 ①에서 알려 주지 않는다(메일 주인만 ②에서 알 수 있음)
    */
