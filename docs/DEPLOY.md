@@ -138,7 +138,16 @@ mock 환경에서는 검증할 수 없었던 부분이라, 실제 Supabase에서
       `supabase.createClient(URL, KEY).from('tree_users').select()` → 권한 오류여야 정상
 - [ ] Supabase **Advisors → Security Advisor** 경고 확인
       `security definer` 함수가 public에 있다는 경고는 의도한 설계입니다(함수가 직접 권한 검사).
-      그 밖의 경고는 원인을 확인하세요.
+      그 밖의 경고는 원인을 확인하세요. **정상 기준 (2026-11-18, RPC 24개):**
+
+      | 탭 | 개수 | 이슈 타입 | 이유 |
+      |---|---|---|---|
+      | Errors | 0 | — | |
+      | Warnings | 48 = 24 × 2 | **Public Can Execute SECURITY DEFINER Function** (`anon`) 24개 | 브라우저 사용자는 모두 `anon`. 권한은 함수 안에서 토큰·공유 ID·티켓으로 검사 |
+      | | | **Signed-In Users Can Execute SECURITY DEFINER Function** (`authenticated`) 24개 | PIN 복구 중 메일 OTP로 로그인한 상태에서도 RPC를 부르므로 |
+      | Info | 5 | (RLS는 켰지만 정책 없음) `public` 테이블 5개 | 테이블 직접 접근을 막는 의도한 설정 — 정책을 추가하지 않음 |
+
+      RPC를 추가하면 Warnings가 2개씩 늘어납니다. 개수가 이와 다르거나, Entity가 `public.`이 아니거나, 다른 이슈 타입이 보이면 원인을 확인하세요.
 - [ ] Project Settings → Data API의 **Exposed schemas**에 `private`이 없어야 함 (기본값은 public, graphql_public)
 - [ ] 개발자도구 **Console에 CSP 위반(`Refused to ...`) 오류가 없는지**
       Supabase를 커스텀 도메인으로 연결했다면 `web/index.html`의 CSP `connect-src`·`img-src`에 그 도메인을 추가해야 합니다.

@@ -64,7 +64,7 @@
 ## 5. 남은 일
 
 - [x] README GIF (화면 녹화) — 2026-11-18 `docs/images/demo.gif`, `npm run record:gif` (아래 2-1)
-- [ ] Supabase **Security Advisor** 경고 확인 (대시보드에서만 가능, `security definer` 경고는 의도된 설계)
+- [x] Supabase **Security Advisor** 경고 확인 — 2026-11-18 확인: Errors 0 · Warnings 48 · Info 5, 모두 의도한 설계 (기준은 DEPLOY.md 6번)
 - [ ] Storage에 v1 사진 파일이 남아 있는지 확인 후 정리 (운영자 확인 필요 — 앞선 대화에서 "정보 없음"이라고 했지만 Auth 사용자 확인과 섞여 있었음)
       확인(읽기 전용, SQL Editor): DB의 사진 목록에 없는 파일
       `select o.name, o.created_at from storage.objects o where o.bucket_id = 'tree-photos' and not exists (select 1 from public.photos p where p.path = o.name) order by o.created_at;`

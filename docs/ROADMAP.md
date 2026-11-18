@@ -8,7 +8,7 @@
 - ✅ **Phase 2** 프론트엔드 모듈 분리 완료 — 분리 전후 스크린샷 픽셀 비교 일치, Console 오류 0
 - ✅ **Phase 3** 사용자 화면 완료 — 로그인 / 내 트리(편집) / 공유 보기, E2E 테스트(Playwright + mock) 통과
 - ✅ **Phase 4** 실제 배포 — https://dae-won-kim.github.io/code-christmas-tree/ (Supabase GitHub 통합으로 마이그레이션 자동 적용)
-  - 남은 확인: Supabase **Security Advisor** 경고 검토 (대시보드에서만 가능)
+  - ✅ Supabase **Security Advisor** 검토 (2026-11-18 확인: Errors 0 · Warnings 48 · Info 5, 모두 의도한 설계)
 - ✅ **Phase 6** 트리 목록(담기 · 최근 본 트리, 사이드 서랍)
 - ✅ **Phase 7** 계정 v2((이름, 이메일) + PIN, 이메일로 PIN 복구) · 내 트리 3개 · 무늬 8종 · 산타·사슴 · 눈 증가 — DB 테스트 162개, E2E 25개 시나리오
   - ✅ push 완료, 운영 DB v2 적용 확인 (2026-11-17, publishable key로 `change_pin`→`unauthorized`, `enter_tree(p_email…)`→`invalid_name`)
@@ -105,7 +105,8 @@ config가 비어 있으면 **데모 모드**(현재 프로토타입 동작)로 �
   - `from('tree_users').select()` → 42501 권한 오류, `private` 스키마는 API에 노출 안 됨 (PGRST106)
   - CSP 위반 없음
   - 점검 중 발견: 로딩 중 도구 막대 버튼이 반응하지 않던 문제 → 수정 + E2E 추가
-- [ ] Supabase **Advisors → Security Advisor** 경고 확인 (`security definer` 함수 경고는 의도된 설계)
+- [x] Supabase **Advisors → Security Advisor** 경고 확인 — 2026-11-18 확인: Errors 0 · Warnings 48 · Info 5, 모두 의도한 설계
+      (공개 RPC 24개 × `anon`·`authenticated` 두 역할 = 경고 48개, Info는 정책 없는 RLS 테이블 5개. 기준은 DEPLOY.md 6번)
 - [x] 배포 후에는 `20261117000000_init.sql`을 수정하지 않고, 변경 사항은 새 마이그레이션 파일로 추가 (accounts_v2·tree_views 모두 새 파일로 추가)
 
 ## Phase 5 — 오픈소스 마무리 ✅
